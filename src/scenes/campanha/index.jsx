@@ -1,4 +1,4 @@
-import { Box, Typography , useTheme} from "@mui/material";
+import { Box, Typography , useTheme, Button} from "@mui/material";
 import { DataGrid} from "@mui/x-data-grid";
 import { tokens } from "../../theme";
 import { mockDataTeam } from "../../data/mockData";
@@ -6,6 +6,9 @@ import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettin
 import LockOpenOutlinedIcon from "@mui/icons-material/LockOpenOutlined";
 import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
 import Header from "../../components/Header";
+import { Link } from "react-router-dom";
+
+
 
 const Campanha = () => {
     const theme = useTheme();
@@ -53,7 +56,7 @@ const Campanha = () => {
                     display="flex"
                     justifyContent="center"
                     backgroundColor={
-                        access == "Admin"
+                        access === "Admin"
                         ? colors.greenAccent[600]
                         : colors.greenAccent[700]
                     }
@@ -77,6 +80,35 @@ const Campanha = () => {
     return(
         <Box ml="25px">
             <Header title="Campanha" subtitle="Gerencie e cadastre suas campanhas" />
+           
+                   <Button 
+                variant="contained" 
+                color="primary" 
+                component={Link} 
+                to="/campanha/cadastrar" 
+                sx={{
+                    mt: 2, 
+                    borderRadius:"30px",
+                     transition: "all 0.2s ease-in-out",
+                    background: "#FFFFFF",
+                    boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)",
+                    color: "#BF28B0",
+                    fontWeight: "800",
+                    fontSize: "20px",
+
+
+                    "&:hover" : {
+                        borderRadius:"10px",
+                        background: "#ffffff46",
+                        color:"white",
+                        boxShadow: "none",
+                    }
+                }}
+            >
+                Cadastrar Campanha
+            </Button>
+
+            
             <Box
             m="40px 0 0 0"
             height="75vh"
@@ -101,6 +133,9 @@ const Campanha = () => {
                     borderTop: "none", 
                     backgroundColor: colors.blueAccent[700],
                 },
+                "& .MuiDataGrid-toolbarContainer .MuiButton-text": {
+                    color: "${colors.grey[100]} !important",
+                }
             }}
             
             

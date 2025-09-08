@@ -28,10 +28,15 @@ const Topbar = () =>{
    margin= "0 auto" 
         >
 
-            <InputBase sx={{ml: 2, mr:30, flex:1, "& input::placeholder": {
+            <InputBase sx={{ml: 2, mr:30, flex:1, color:"black", "& input::placeholder": {
                 color:"black",
                 opacity:1,
-            } }} placeholder="Pesquisar" />
+            }, "& InputBase:hover":{
+                backgroundColor: "#E1E0E7",
+            }
+            
+            
+            }} placeholder="Pesquisar" />
             <IconButton type ="button" sx={{p:1}}>
                 <SearchIcon sx={{color:"#2B0031"}}/>
             </IconButton>
@@ -40,15 +45,7 @@ const Topbar = () =>{
         {/*Icones*/}
 
         <Box display ="flex">
-            <IconButton onClick={colorMode.toggleColorMode}>
-                {theme.palette.mode === 'dark' ? (
-                    <DarkModeOutlinedIcon></DarkModeOutlinedIcon>
-                ): (
-                    <LightModeOutlinedIcon/>
-                )}
-               
-            </IconButton>
-
+         
             <IconButton>
                 <NotificationsOutlinedIcon/>
             </IconButton>

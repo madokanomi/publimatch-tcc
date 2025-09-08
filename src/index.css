@@ -1,13 +1,55 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap');
+
+
+html,
+body,
+#root,
+.app,
+.content{
+    height: 100%;
+    width: 100%;
+    font-family: "Source Sans 3", sans-serif;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+overflow: hidden;
+  /* Fundo */
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+
+  /* Scroll */
+
+
+  /* Ajustes */
+  width: 100%;   /* ocupa todo o espaço disponível */
+  height: auto;  /* deixa a altura se adaptar ao conteúdo */
+  margin: 20px;
+
+  background: linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.2),
+      rgba(0, 0, 0, 0.15)
+    ),
+    url('assets/backgroundnosfx.png');
+  box-shadow: 0px 0px 25.8px 4px rgba(0, 0, 0, 0.25);
+  border-radius: 20px;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.app{
+    display:flex;
+    position: relative;
+    background-image: url('assets/background.png');
+    background-size:cover;
+    background-repeat:no-repeat;
+
+}
+
+.MuiDataGrid-root > div:nth-child(2) {
+  overflow: hidden !important;
 }

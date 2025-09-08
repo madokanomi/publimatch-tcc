@@ -56,6 +56,8 @@ const Sidebar = () =>{
  sx={{
     "& .pro-sidebar-inner": {
       background: "linear-gradient(150deg, rgba(15, 28, 149, 0.5), rgba(233, 24, 118, 0.6)), url('../../assets/background.png')",
+      backgroundSize:"cover",
+      backgroundRepeat:"no-repeat",
     },
 
     "& .pro-icon-wrapper": {
@@ -69,19 +71,19 @@ const Sidebar = () =>{
     },
 
     "& .pro-inner-item": {
-      padding: "12px 25px !important",
+      padding: "12px 22px !important",
       margin: "10px 18px",
       borderRadius: "40px",
       display: "flex",
       alignItems: "center",
       justifyContent: "flex-start",
-      fontSize: "1.25rem",
+      fontSize: "1.2rem",
       fontWeight: "600",
       transition: "all 0.3s ease",
     },
 
     "& .pro-inner-item .MuiTypography-root": {
-      fontSize: "1.25rem !important",
+      fontSize: "90% !important",
       fontWeight: "bold !important",
     },
 
@@ -118,7 +120,7 @@ const Sidebar = () =>{
       padding: "5px 22px !important",
       margin: "10px 18px",
       borderRadius: "40px",
-      fontSize: "1.25rem",
+      fontSize: "1.15rem",
       fontWeight: "600",
     },
 
@@ -170,13 +172,77 @@ const Sidebar = () =>{
     display: "none !important", /* esconde o texto */
     },
 
+ "& .pro-sidebar": {
+      transition: "all 0.3s ease-in-out",
+      "&::-webkit-scrollbar": {
+        width: "10px",
+      },
+      "&::-webkit-scrollbar-track": {
+        background: "rgba(255, 255, 255, 0.1)",
+        borderRadius: "10px",
+      },
+      "&::-webkit-scrollbar-thumb": {
+        background: "rgba(255, 255, 255, 0.3)",
+        borderRadius: "10px",
+      },
+      "&::-webkit-scrollbar-thumb:hover": {
+        background: "rgba(255, 255, 255, 0.6)",
+      },
+    },
 
+     "& .custom-prosidebar": {
+      "&::-webkit-scrollbar": {
+        width: "10px !important",
+      },
+      "&::-webkit-scrollbar-track": {
+        background: "rgba(255, 255, 255, 0.1) !important",
+        borderRadius: "10px !important",
+      },
+      "&::-webkit-scrollbar-thumb": {
+        background: "rgba(255, 255, 255, 0.3) !important",
+        borderRadius: "10px !important",
+      },
+      "&::-webkit-scrollbar-thumb:hover": {
+        background: "rgba(255, 255, 255, 0.6) !important",
+      },
+    },
+
+    /* ✅ Para o container interno do ProSidebar */
+    "& .custom-prosidebar .pro-sidebar-inner": {
+      "&::-webkit-scrollbar": {
+        width: "10px !important",
+      },
+      "&::-webkit-scrollbar-track": {
+        background: "rgba(255, 255, 255, 0.1) !important",
+        borderRadius: "10px !important",
+      },
+      "&::-webkit-scrollbar-thumb": {
+        background: "rgba(255, 255, 255, 0.3) !important", 
+        borderRadius: "10px !important",
+      },
+      "&::-webkit-scrollbar-thumb:hover": {
+        background: "rgba(255, 255, 255, 0.6) !important",
+      },
+    },
+
+    /* ✅ SCROLLBAR PERSONALIZADA - IGUAL AO DASHBOARD */
+
+
+    /* ✅ Para o conteúdo interno do menu */
+   
+    /* ✅ Para Firefox */
+    "& .pro-sidebar, & .pro-sidebar-inner": {
+      scrollbarWidth: "thin",
+      scrollbarColor: "rgba(255,255,255,0.3) transparent",
+    },
+
+    
       }}> 
 
       <ProSidebar collapsed={isCollapsed}   style={{
     transition: "all 0.3s ease-in-out",
     width: isCollapsed ? "80px" : "300px",
-    height: "1200px",
+    height: "calc(100vh - 40px)",
     borderRadius: "20px",        // arredondado
     margin: "20px 8px 0px 20px",              // afastar do canto
     overflow: "hidden",          // evitar que itens "furem" a borda
@@ -184,7 +250,7 @@ const Sidebar = () =>{
     /* Rounded rectangle */
 background: "linear-gradient(0deg, rgba(34, 22, 164, 0.15), rgba(34, 22, 164, 0.15)), url(image.png)",
 boxShadow: "0px 0px 25.8px 4px rgba(0, 0, 0, 0.25)",
-
+   overflow: "auto",    
 
   }}
 >
@@ -275,7 +341,7 @@ boxShadow: "0px 0px 25.8px 4px rgba(0, 0, 0, 0.25)",
         onClick={() => setSelected("Pesquisa")}
         icon={<SearchIcon/>}
     >
-        <Link to="/influenciadores/pesquisa" />
+        <Link to="/influenciador/pesquisa" />
         
         <Typography>Pesquisa </Typography>
     </MenuItem>
@@ -287,11 +353,28 @@ boxShadow: "0px 0px 25.8px 4px rgba(0, 0, 0, 0.25)",
         <Link to="/influenciadores/ranking" />
   <Typography>Ranking </Typography>
     </MenuItem>
+        <MenuItem
+        active={selected === "Ranking"}
+        onClick={() => setSelected("Ranking")}
+        icon={<HotelClassIcon/>}
+    >
+        <Link to="/influenciadores/ranking" />
+  <Typography>Lista </Typography>
+    </MenuItem>
 </SubMenu>
 
 
+
                <Item 
-              title ="Campanha"
+              title ="Campanhas"
+              to="/campanha"
+              icon={<CampaignIcon />}
+              selected={selected}
+              setSelected={setSelected}
+              />
+              
+               <Item 
+              title ="Pesquisa Campanhas"
               to="/campanha"
               icon={<CampaignIcon />}
               selected={selected}
