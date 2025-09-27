@@ -44,7 +44,7 @@ app.use(express.json());   // Permite que o servidor entenda o formato JSON
 // server.js
 
 app.use('/api/users', userRoutes);
-// --- DEFINIÇÃO DAS ROTAS DA API ---
+// --- DEFINIÇÃO DAS ROTAS DA API ---z
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/applications', applicationRoutes);

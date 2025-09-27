@@ -248,6 +248,7 @@ const Dashboard = () => {
                 <DataGrid
                     rows={campaigns}
                     columns={columns}
+                       getRowId={(row) => row._id} 
                     disableRowSelectionOnClick
                     hideFooter={true}
                     autoHeight={false}
