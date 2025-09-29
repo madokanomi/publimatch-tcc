@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -13,6 +13,7 @@ import {
   TextField,
   DialogActions,
   DialogContentText,
+  CircularProgress
 } from "@mui/material";
 import {
   Favorite as FavoriteIcon,
@@ -28,15 +29,57 @@ import { influencers } from "../../../data/mockInfluencer";
 import { useNavigate, Link } from "react-router-dom";
 // 1. IMPORTAR O MOTION PARA ANIMAÇÃO
 import { motion } from "framer-motion";
+import axios from "axios";
 
 const Influenciadores = () => {
   const navigate = useNavigate();
-  const [listaInfluenciadores, setListaInfluenciadores] = useState(influencers);
+ const [listaInfluenciadores, setListaInfluenciadores] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogStep, setDialogStep] = useState(1);
   const [selectedInfluencer, setSelectedInfluencer] = useState(null);
   const [userPassword, setUserPassword] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+   useEffect(() => {
+    const fetchInfluencers = async () => {
+      try {
+        const userInfo = JSON.parse(localStorage.getItem('user'));
+        const token = userInfo?.token;
+        if (!token) throw new Error('Utilizador não autenticado.');
+        
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        const { data } = await axios.get('http://localhost:5001/api/influencers', config);
+        setListaInfluenciadores(data);
+      } catch (err) {
+        setError(err.response?.data?.message || 'Erro ao carregar influenciadores.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchInfluencers();
+  }, []);
+
+  // Lógica para apagar o influenciador
+  const confirmDelete = async () => {
+    if (!selectedInfluencer) return;
+    try {
+      const userInfo = JSON.parse(localStorage.getItem('user'));
+      const token = userInfo?.token;
+      if (!token) throw new Error('Utilizador não autenticado.');
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      await axios.delete(`http://localhost:5001/api/influencers/${selectedInfluencer._id}`, config);
+      
+      setListaInfluenciadores(prev => prev.filter(inf => inf._id !== selectedInfluencer._id));
+      setDialogOpen(false);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Não foi possível apagar o influenciador.');
+      setDialogOpen(false);
+    }
+  };
+
 
   // 2. DEFINIR AS VARIANTES DA ANIMAÇÃO
   // Variante para o container da lista (pai)
@@ -127,6 +170,8 @@ const Influenciadores = () => {
   const handleEdit = (id) => {
     navigate(`/influenciador/editar/${id}`);
   };
+
+  
   
   // 3. TRANSFORMAR O COMPONENTE CARD DO MUI EM UM COMPONENTE ANIMÁVEL
   const MotionCard = motion(Card);
@@ -299,6 +344,14 @@ const Influenciadores = () => {
       </MotionCard>
     );
   };
+
+   if (isLoading) {
+    return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><CircularProgress /></Box>;
+  }
+
+  if (error) {
+    return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><Typography color="error">{error}</Typography></Box>;
+  }
 
   return (
     <Box ml="25px" mr="25px" pb={30}>

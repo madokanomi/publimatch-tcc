@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Box, Button, TextField, Typography, Avatar, Chip, Stack, IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
+import { Box, Button, TextField, Typography, CircularProgress, Avatar, Chip, Stack, IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import { Formik } from "formik";
 import * as yup from "yup";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -16,9 +16,10 @@ import EmailIcon from '@mui/icons-material/Email';
 import SecurityIcon from '@mui/icons-material/Security';
 import { useNavigate } from "react-router-dom";
 import MenuIcon from "@mui/icons-material/Menu";
+import ErrorIcon from '@mui/icons-material/Error';
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'; // Ícone para o sucesso
-
+import axios from 'axios';
 // importa os influencers existentes
 import { influencers } from "../../../data/mockInfluencer";
 
@@ -112,34 +113,48 @@ const CadastroInflu = () => {
   const [erroCategorias, setErroCategorias] = useState("");
   const [imagemFundo, setImagemFundo] = useState(null);
   const [imagemPerfil, setImagemPerfil] = useState(null);
+   const [wantsAccount, setWantsAccount] = useState(null);
   const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
   const [dialogStep, setDialogStep] = useState(1);
   const [influencerEmail, setInfluencerEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [formValues, setFormValues] = useState(null);
-  
+    const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
   // ✅ NOVO ESTADO para controlar o diálogo de sucesso
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
-  const handleCloseDialog = () => {
-    setOpenConfirmDialog(false);
-    setDialogStep(1);
-    setInfluencerEmail("");
-    setVerificationCode("");
-  };
-  
-  // ✅ NOVA FUNÇÃO para fechar o diálogo de sucesso e navegar
-  const handleCloseSuccessDialog = () => {
-    setShowSuccessDialog(false);
-    navigate(-1); // Volta para a página anterior (a lista)
-  };
+     const handleCloseDialog = () => {
+        setOpenConfirmDialog(false);
+        setTimeout(() => { // Delay para a animação de fechar
+            setDialogStep(1);
+            setWantsAccount(null);
+        }, 300);
+    };
+
+    const handleCloseSuccessDialog = () => {
+        setShowSuccessDialog(false);
+        navigate(-1);
+    };
+
+    const handleCloseErrorDialog = () => {
+        setShowErrorDialog(false);
+        setErrorMessage("");
+    };
 
   const handleNextStep = () => setDialogStep((prev) => prev + 1);
 
-  const handleFormikSubmit = (values) => {
-    setFormValues(values);
-    setOpenConfirmDialog(true);
-  };
+   const handleFormikSubmit = (values) => {
+        if (tagsSelecionadas.length === 0) {
+            setErroCategorias("Selecione ao menos uma categoria.");
+            return;
+        }
+        setErroCategorias("");
+        setFormValues(values); // Salva os dados do formulário
+        setOpenConfirmDialog(true); // Abre o primeiro passo do diálogo
+    };
 
   const handleAddCategoria = () => {
     if (novaTag.trim() && !todasCategorias.includes(novaTag)) {
@@ -156,30 +171,46 @@ const CadastroInflu = () => {
   
   // ✅ FUNÇÃO DE SUBMISSÃO ATUALIZADA
   // Agora, em vez de navegar, ela apenas mostra o diálogo de sucesso.
-  const handleFormSubmit = (values) => {
-    const novoInflu = {
-      id: influencers.length + 1,
-      nome: values.exibitionName,
-      nomeReal: values.realName,
-      seguidores: "0",
-      views: "0",
-      inscritos: "0",
-      engajamento: "0",
-      redes: Object.keys(values.social).filter((r) => values.social[r]),
-      categorias: tagsSelecionadas,
-      avaliacao: 0,
-      descricao: values.description,
-      tags: [],
-      imagem: imagemPerfil,
-      imagemFundo: imagemFundo,
-    };
+ const handleFinalSubmit = async () => {
+        if (!formValues) return;
+        setIsLoading(true);
 
-    influencers.push(novoInflu);
-    console.log("Novo influenciador cadastrado:", novoInflu);
-    
-    // Mostra o diálogo de sucesso
-    setShowSuccessDialog(true);
+        const influencerData = {
+            exibitionName: formValues.exibitionName,
+            realName: formValues.realName,
+            age: formValues.age,
+            description: formValues.description,
+            aboutMe: formValues.aboutMe,
+            categories: tagsSelecionadas,
+            social: formValues.social,
+            wantsAccount: wantsAccount,
+            email: wantsAccount ? influencerEmail : "", // Só envia email se wantsAccount for true
+        };
+
+    // NOTA SOBRE IMAGENS: O upload de arquivos é um processo diferente (multipart/form-data).
+    // Por simplicidade, esta solução NÃO envia as imagens. Você precisaria de uma
+    // lógica separada para fazer upload das imagens para um serviço (como Cloudinary)
+    // e então enviar apenas as URLs das imagens aqui.
+    try {
+            const userInfo = JSON.parse(localStorage.getItem('user'));
+            const token = userInfo ? userInfo.token : null;
+            if (!token) throw new Error('Usuário não autenticado. Faça login novamente.');
+
+            const config = { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } };
+            await axios.post('http://localhost:5001/api/influencers', influencerData, config);
+            
+            handleCloseDialog();
+            setShowSuccessDialog(true);
+        } catch (error) {
+            const message = error.response?.data?.message || "Ocorreu um erro inesperado. Tente novamente.";
+            setErrorMessage(message);
+            handleCloseDialog();
+            setShowErrorDialog(true);
+        } finally {
+            setIsLoading(false);
+        }
   };
+
   return (
     <Box
       height="calc(100vh - 120px)"
@@ -490,7 +521,8 @@ const CadastroInflu = () => {
 
               <Box display="flex" justifyContent="center" mt="20px">
                 <Button
-                  type="submit"
+                 type="submit"
+            disabled={isLoading}
                   sx={{
                     mt: 2,
                     borderRadius: "30px",
@@ -504,148 +536,116 @@ const CadastroInflu = () => {
                     textTransform: "none",
                     "&:hover": { borderRadius: "10px", background: "#ffffff46", color: "white", boxShadow: "none" },
                   }}
+                  
                 >
-                  Cadastrar Influenciador
+                  {isLoading ? <CircularProgress size={24} sx={{ color: "#BF28B0" }} /> : "Cadastrar Influenciador"}
                 </Button>
               </Box>
             </form>
           )}
         </Formik>
-        <Dialog
-          open={openConfirmDialog}
-          onClose={handleCloseDialog}
-          aria-labelledby="confirm-dialog-title"
-          sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(255, 255, 255, 0.81)", color: "#610069ff", backdropFilter: "blur(30px)", borderRadius: '20px', position: 'relative' } }}
-        >
-          <IconButton onClick={handleCloseDialog} sx={{ position: "absolute", top: 8, right: 8 }}>
-            <CloseIcon />
-          </IconButton>
+        <Dialog open={openConfirmDialog} onClose={handleCloseDialog} PaperProps={{ sx: { backgroundColor: "rgba(255, 255, 255, 0.9)", color: "#610069ff", backdropFilter: "blur(10px)", borderRadius: '20px', position: 'relative' } }}>
+                    <IconButton onClick={handleCloseDialog} sx={{ position: "absolute", top: 8, right: 8 }}><CloseIcon /></IconButton>
+                    
+                    {dialogStep === 1 && (
+                        <>
+                            <DialogTitle>Acesso à Plataforma</DialogTitle>
+                            <DialogContent><DialogContentText sx={{ color: "#2a2a2aff" }}>O influenciador deverá ter uma conta para acessar a plataforma?</DialogContentText></DialogContent>
+                            <DialogActions>
+                                <Button onClick={() => { setWantsAccount(false); setDialogStep(3); }}>Não, apenas cadastrar</Button>
+                                <Button onClick={() => { setWantsAccount(true); setDialogStep(2); }} color="primary" autoFocus>Sim, criar conta</Button>
+                            </DialogActions>
+                        </>
+                    )}
 
-          {dialogStep === 1 && (
-            <>
-              <DialogTitle id="confirm-dialog-title">{"Pergunta"}</DialogTitle>
-              <DialogContent>
-                <DialogContentText sx={{ color: "#2a2a2aff" }}>O influenciador deseja utilizar a plataforma?</DialogContentText>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={() => setDialogStep(4)} sx={{ color: "#540069ff" }}>Não</Button>
-                <Button onClick={handleNextStep} sx={{ fontWeight: 'bold' }} color="primary" autoFocus>Sim</Button>
-              </DialogActions>
-            </>
-          )}
+                    {dialogStep === 2 && ( // Passo para inserir o e-mail
+                        <>
+  <DialogTitle>Email do Influenciador</DialogTitle>
+  <DialogContent>
+    <DialogContentText sx={{ mb: 2, color: "#2a2a2aff" }}>
+      Um link para criação de senha será enviado para este endereço.
+    </DialogContentText>
+    <TextField
+      autoFocus
+      fullWidth
+      label="Email do influenciador"
+      value={influencerEmail}
+      onChange={(e) => setInfluencerEmail(e.target.value)}
+      variant="outlined"
+      InputProps={{
+        startAdornment: <EmailIcon sx={{ mr: 1, color: "#000" }} />,
+      }}
+      // --- ADICIONE ESTA PROPRIEDADE SX ---
+      sx={{
+        // Altera a cor do texto que o utilizador digita
+        '& .MuiInputBase-input': {
+          color: 'black',
+        },
+        // Garante que o rótulo (label) também seja preto
+        '& .MuiInputLabel-root': {
+          color: 'rgba(0, 0, 0, 0.6)',
+        },
+        '& .MuiInputLabel-root.Mui-focused': {
+            color: 'black', // Cor do label quando focado
+        },
+        // Garante que a borda do campo seja preta
+        '& .MuiOutlinedInput-root': {
+          '& fieldset': {
+            borderColor: 'rgba(0, 0, 0, 0.4)',
+          },
+          '&:hover fieldset': {
+            borderColor: 'black',
+          },
+          '&.Mui-focused fieldset': {
+            borderColor: 'black',
+          },
+        },
+      }}
+    />
+  </DialogContent>
+  <DialogActions>
+    <Button onClick={handleCloseDialog}>Cancelar</Button>
+    <Button
+      onClick={handleFinalSubmit}
+      disabled={!influencerEmail.includes('@') || isLoading}
+      color="primary"
+    >
+      {isLoading ? (
+        <CircularProgress size={22} color="inherit" />
+      ) : (
+        "Confirmar e Enviar Convite"
+      )}
+    </Button>
+  </DialogActions>
+</>
+                    )}
 
-          {dialogStep === 2 && (
-            <>
-              <DialogTitle id="confirm-dialog-title">{"Email do influenciador"}</DialogTitle>
-              <DialogContent>
-                <TextField
-                  fullWidth
-                  label="Digite o email do influenciador"
-                  value={influencerEmail}
-                  onChange={(e) => setInfluencerEmail(e.target.value)}
-                  variant="outlined"
-                  InputProps={{ startAdornment: <EmailIcon sx={{ mr: 1, color: "#000" }} /> }}
-                  sx={{ mt: 1, "& .MuiOutlinedInput-root": { color: "#000000", fontSize: "1rem", "& fieldset": { borderColor: "#000000" }, "&:hover fieldset": { borderColor: "#000000" }, "&.Mui-focused fieldset": { borderColor: "#000000" } }, "& .MuiInputLabel-root": { color: "#000000" } }}
-                />
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-                <Button onClick={handleNextStep} disabled={!influencerEmail} sx={{ fontWeight: 'bold' }} color="primary">Enviar código</Button>
-              </DialogActions>
-            </>
-          )}
+                    {dialogStep === 3 && ( // Passo de confirmação para quem NÃO quer conta
+                         <>
+                            <DialogTitle>Confirmar Cadastro</DialogTitle>
+                            <DialogContent><DialogContentText sx={{ color: "#2a2a2aff" }}>Deseja cadastrar este influenciador sem criar uma conta de acesso?</DialogContentText></DialogContent>
+                            <DialogActions>
+                                <Button onClick={handleCloseDialog}>Cancelar</Button>
+                                <Button onClick={handleFinalSubmit} color="primary" autoFocus disabled={isLoading}>
+                                     {isLoading ? <CircularProgress size={22} color="inherit"/> : "Confirmar"}
+                                </Button>
+                            </DialogActions>
+                        </>
+                    )}
+                </Dialog>
 
-          {dialogStep === 3 && (
-            <>
-              <DialogTitle id="confirm-dialog-title">{"Código de verificação"}</DialogTitle>
-              <DialogContent>
-                <TextField
-                  fullWidth
-                  label="Digite o código recebido no email"
-                  value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value)}
-                  variant="outlined"
-                  InputProps={{ startAdornment: <SecurityIcon sx={{ mr: 1, color: "#000" }} /> }}
-                  sx={{ mt: 1, "& .MuiOutlinedInput-root": { color: "#000000", fontSize: "1.2rem", "& fieldset": { borderColor: "#000000" }, "&:hover fieldset": { borderColor: "#000000" }, "&.Mui-focused fieldset": { borderColor: "#000000" } }, "& .MuiInputLabel-root": { color: "#000000" } }}
-                />
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-                <Button 
-                  onClick={() => { 
-                    if (formValues) handleFormSubmit(formValues); 
-                    handleCloseDialog(); 
-                  }} 
-                  sx={{ fontWeight: 'bold' }} 
-                  color="primary" 
-                  autoFocus
-                >
-                  Confirmar
-                </Button>
-              </DialogActions>
-            </>
-          )}
+                {/* --- DIÁLOGOS DE SUCESSO E ERRO --- */}
+                <Dialog open={showSuccessDialog} onClose={handleCloseSuccessDialog} PaperProps={{ sx: { borderRadius: '20px', padding: '10px' } }}>
+                    <DialogTitle sx={{ textAlign: 'center' }}><CheckCircleIcon color="success" sx={{ fontSize: 40 }} /><br/>Sucesso!</DialogTitle>
+                    <DialogContent><DialogContentText>O influenciador foi cadastrado com sucesso.</DialogContentText></DialogContent>
+                    <DialogActions sx={{ justifyContent: 'center' }}><Button onClick={handleCloseSuccessDialog} variant="contained" color="success">Ok</Button></DialogActions>
+                </Dialog>
 
-          {dialogStep === 4 && (
-             <>
-              <DialogTitle id="confirm-dialog-title">{"Confirmar Cadastro"}</DialogTitle>
-              <DialogContent>
-                <DialogContentText sx={{ color: "#2a2a2aff" }}>
-                  Tem certeza que deseja cadastrar este influenciador?
-                </DialogContentText>
-              </DialogContent>
-              <DialogActions>
-                <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-                <Button
-                  onClick={() => {
-                    if (formValues) handleFormSubmit(formValues);
-                    handleCloseDialog();
-                  }}
-                  sx={{ fontWeight: 'bold' }}
-                  color="primary"
-                  autoFocus
-                >
-                  Confirmar
-                </Button>
-              </DialogActions>
-            </>
-          )}
-        </Dialog>
-
-        {/* ✅ NOVO DIÁLOGO DE SUCESSO */}
-        <Dialog
-          open={showSuccessDialog}
-          onClose={handleCloseSuccessDialog}
-          aria-labelledby="success-dialog-title"
-          sx={{ "& .MuiPaper-root": { backgroundColor: "#fff", color: "#2e7d32", borderRadius: '20px', position: 'relative', p: 2 } }}
-        >
-          <IconButton
-            onClick={handleCloseSuccessDialog}
-            sx={{ position: "absolute", top: 8, right: 8, color: "rgba(0,0,0,0.7)" }}
-          >
-            <CloseIcon />
-          </IconButton>
-          <DialogTitle id="success-dialog-title" sx={{ textAlign: 'center', fontWeight: 'bold' }}>
-            <CheckCircleIcon sx={{ fontSize: 40, mb: 1, color: '#2e7d32' }} />
-            <br/>
-            Sucesso!
-          </DialogTitle>
-          <DialogContent>
-            <DialogContentText sx={{ color: "rgba(0,0,0,0.8)" }}>
-              O influenciador foi cadastrado com sucesso.
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions sx={{ justifyContent: 'center' }}>
-            <Button 
-              onClick={handleCloseSuccessDialog} 
-              sx={{ color: "#fff", backgroundColor: '#2e7d32', '&:hover': { backgroundColor: '#1b5e20' }, borderRadius: '20px', px: 4 }}
-              autoFocus
-            >
-              Ok
-            </Button>
-          </DialogActions>
-        </Dialog>
-      
+                <Dialog open={showErrorDialog} onClose={handleCloseErrorDialog} PaperProps={{ sx: { borderRadius: '20px', padding: '10px' } }}>
+                    <DialogTitle sx={{ textAlign: 'center' }}><ErrorIcon color="error" sx={{ fontSize: 40 }} /><br/>Erro ao Cadastrar</DialogTitle>
+                    <DialogContent><DialogContentText sx={{ textAlign: 'center' }}>{errorMessage}</DialogContentText></DialogContent>
+                    <DialogActions sx={{ justifyContent: 'center' }}><Button onClick={handleCloseErrorDialog} variant="contained" color="error">Fechar</Button></DialogActions>
+                </Dialog>
       </Box>
     </Box>
   );

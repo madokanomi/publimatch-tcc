@@ -1,18 +1,41 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
 const influencerSchema = new mongoose.Schema({
+    // --- CAMPOS QUE JÁ ESTAVAM CORRETOS ---
     name: { type: String, required: true },
-    instagramHandle: { type: String, unique: true, sparse: true }, // sparse permite valores nulos, mas únicos se existirem
-    tiktokHandle: { type: String, unique: true, sparse: true },
+    niches: [{ type: String }],
+    userAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
+    agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+
+    // --- CAMPOS ADICIONADOS PARA COMPATIBILIDADE ---
+    realName: { type: String, required: true },
+    age: { type: Number },
+    description: { type: String },
+    aboutMe: { type: String },
+    
+    // --- ESTRUTURA SOCIAL CORRIGIDA PARA ACEITAR UM OBJETO ---
+    // Isto é mais escalável do que ter um campo para cada rede social.
+    social: {
+        tiktok: { type: String, default: '' },
+        instagram: { type: String, default: '' },
+        youtube: { type: String, default: '' },
+        twitch: { type: String, default: '' },
+    },
+
+    profileImageUrl: { type: String, default: '' },
+    backgroundImageUrl: { type: String, default: '' },
+    
+    agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    userAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
+    
+    // Campos que você pode usar no futuro
     followersCount: { type: Number, default: 0 },
     engagementRate: { type: Number, default: 0 },
-    niches: [{ type: String }],
     contactEmail: { type: String },
-    // Link para o usuário se o influenciador tiver um login
-    userAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
-    // Link para o agente do influenciador
-    agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+
+
 }, { timestamps: true });
 
 const Influencer = mongoose.model('Influencer', influencerSchema);
-module.exports = Influencer;
+
+export default Influencer;

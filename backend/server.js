@@ -9,7 +9,7 @@ import campaignRoutes from './routes/campaignRoutes.js';
 import applicationRoutes from './routes/applicationRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import solicitacaoRoutes from './routes/solicitacaoRoutes.js';
-
+import influencerRoutes from './routes/influencerRoutes.js';
 // Carregar variáveis de ambiente
 dotenv.config();
 
@@ -50,6 +50,7 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/solicitacoes', solicitacaoRoutes);
+app.use('/api/influencers', influencerRoutes); 
 
 const PORT = process.env.PORT || 5001;
 
