@@ -3,7 +3,7 @@
 import User from '../models/userModel.js';
 import crypto from 'crypto';
 import { sendWelcomeEmail } from '../config/email.js';
-
+import asyncHandler from 'express-async-handler';
 // @desc    Listar todos os usuários da empresa do admin logado
 // @route   GET /api/users/equipe
 // @access  Privado (Admin da Empresa)
@@ -20,6 +20,21 @@ export const getMembrosDaEquipe = async (req, res) => {
         res.status(500).json({ message: "Erro ao buscar membros da equipe." });
     }
 };
+
+export const verifyUserPassword = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+
+  // O middleware 'protect' já nos deu o 'req.user'
+  const user = await User.findById(req.user._id);
+
+  if (user && (await user.comparePassword(password))) {
+    res.status(200).json({ message: 'Senha verificada com sucesso.' });
+  } else {
+    res.status(401);
+    throw new Error('Senha incorreta.');
+  }
+});
+
 
 // @desc    Convidar um novo usuário para a empresa
 // @route   POST /api/users/convidar

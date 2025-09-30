@@ -72,8 +72,10 @@ export const registerInfluencer = asyncHandler(async (req, res) => {
         age,
         description,
         aboutMe,
-        niches: JSON.parse(categories), // Converte a string 'categories' de volta para um array
-        social: JSON.parse(social),     // Converte a string 'social' de volta para um objeto
+        niches: typeof categories === 'string' ? categories.split(',') : categories,
+      // O objeto social geralmente chega como uma string '[object Object]' ou uma string JSON.
+      // O ideal é que o frontend envie como string JSON.
+      social: typeof social === 'string' ? JSON.parse(social) : social, 
         agent: req.user._id,
         profileImageUrl,    // Guarda o URL da imagem de perfil
         backgroundImageUrl, // Guarda o URL da imagem de fundo
@@ -148,3 +150,38 @@ export const deleteInfluencer = asyncHandler(async (req, res) => {
     res.status(200).json({ message: 'Influenciador removido com sucesso.' });
 });
 
+export const getInfluencerById = asyncHandler(async (req, res) => {
+    console.log('--- BUSCANDO INFLUENCIADOR POR ID ---');
+    console.log('ID do Influenciador Buscado:', req.params.id);
+    
+    const influencer = await Influencer.findById(req.params.id);
+
+    if (!influencer) {
+        console.log('RESULTADO: Influenciador não encontrado no banco de dados.');
+        res.status(404);
+        throw new Error('Influenciador não encontrado');
+    }
+
+    // --- LÓGICA DE PERMISSÃO COM LOGS ---
+    console.log('--- Verificando Permissões ---');
+    console.log('ID do Agente Dono (do DB):', influencer.agent.toString());
+    console.log('ID do Usuário Logado (Agente):', req.user._id.toString());
+    console.log('Role do Usuário Logado:', req.user.role);
+
+    const isAdmin = req.user.role === 'ADMIN';
+    const isOwnerAgent = influencer.agent.toString() === req.user._id.toString();
+    const isTheInfluencer = influencer.userAccount ? influencer.userAccount.toString() === req.user._id.toString() : false;
+
+    console.log('O usuário é Admin?', isAdmin);
+    console.log('O Agente é o dono?', isOwnerAgent);
+    console.log('O usuário é o Influenciador?', isTheInfluencer);
+    
+    if (isAdmin || isOwnerAgent || isTheInfluencer) {
+        console.log('RESULTADO: Permissão concedida!');
+        res.json(influencer);
+    } else {
+        console.log('RESULTADO: Permissão NEGADA!');
+        res.status(403);
+        throw new Error('Você não tem permissão para acessar este perfil.');
+    }
+});

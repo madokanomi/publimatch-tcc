@@ -17,6 +17,8 @@ import SecurityIcon from '@mui/icons-material/Security';
 import { useNavigate, useParams } from 'react-router-dom';
 import MenuIcon from "@mui/icons-material/Menu";
 import ArrowBack from "@mui/icons-material/ArrowBack";
+import axios from 'axios';
+
 
 // importa os influencers existentes
 import { influencers } from "../../../data/mockInfluencer";
@@ -92,60 +94,116 @@ const userSchema = yup.object().shape({
 });
 
 const EditarInfluenciador = () => {
+   const { id } = useParams(); // Pega o ID da URL
   const navigate = useNavigate();
-  const { id } = useParams();
-  const influencerId = Number(id);
-
   const IsNonMobile = useMediaQuery("(min-width:600px)");
 
-  // gera lista única de categorias a partir do mock
-  const todasCategorias = useMemo(() => {
-    const set = new Set();
-    influencers.forEach((inf) =>
-      (inf.categorias || inf.tags || []).forEach((cat) => set.add(cat))
-    );
-    return Array.from(set).sort();
-  }, []);
+  // Estado para os dados do formulário, inicializado com valores vazios
+  const [formData, setFormData] = useState(initialValues);
 
+  // Estados para controle da UI
   const [tagsSelecionadas, setTagsSelecionadas] = useState([]);
   const [searchTag, setSearchTag] = useState("");
   const [showAllTags, setShowAllTags] = useState(false);
   const [novaTag, setNovaTag] = useState("");
   const [erroCategorias, setErroCategorias] = useState("");
-  const [imagemFundo, setImagemFundo] = useState(null);
-  const [imagemPerfil, setImagemPerfil] = useState(null);
-  const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
-  const [dialogStep, setDialogStep] = useState(1);
-  const [influencerEmail, setInfluencerEmail] = useState("");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [formValues, setFormValues] = useState(null);
 
+  // Estados para as imagens
+  const [imagemFundo, setImagemFundo] = useState(null); // Preview URL
+  const [imagemPerfil, setImagemPerfil] = useState(null); // Preview URL
+  const [arquivoImagemFundo, setArquivoImagemFundo] = useState(null); // Arquivo para upload
+  const [arquivoImagemPerfil, setArquivoImagemPerfil] = useState(null); // Arquivo para upload
+
+  // Estados de controle de loading e diálogos
+  const [isLoading, setIsLoading] = useState(true); // Começa true para carregar os dados
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+
+  // Busca e combina todas as categorias disponíveis
+  const todasCategorias = useMemo(() => {
+    const set = new Set();
+    influencers.forEach((inf) =>
+      inf.categorias.forEach((cat) => set.add(cat))
+    );
+    return Array.from(set).sort();
+  }, []);
   // procura o influenciador pelo id no mock
-  const influencer = useMemo(() => {
-    return influencers.find((inf) => Number(inf.id) === influencerId);
-  }, [influencerId]);
 
-  // quando encontrar, pré-preenche estados (imagens e categorias)
+
   useEffect(() => {
-    if (influencer) {
-      setTagsSelecionadas(influencer.categorias || influencer.tags || []);
-      setImagemPerfil(influencer.imagem || influencer.avatar || null);
-      setImagemFundo(influencer.imagemFundo || null);
+    const fetchInfluencerData = async () => {
+      setIsLoading(true);
+      try {
+        const userInfo = JSON.parse(localStorage.getItem('user'));
+        const token = userInfo ? userInfo.token : null;
+        if (!token) throw new Error('Usuário não autenticado.');
+
+        const { data } = await axios.get(`http://localhost:5001/api/influencers/${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        setFormData({
+          exibitionName: data.name || "",
+          realName: data.realName || "",
+          age: data.age || "",
+          description: data.description || "",
+          aboutMe: data.aboutMe || "",
+          social: data.social || initialValues.social,
+          categories: data.categories || [],
+        });
+    setTagsSelecionadas(data.categories || []);
+        setImagemPerfil(data.profileImageUrl || null);
+        setImagemFundo(data.backgroundImageUrl || null);
+      } catch (error) {
+        setErrorMessage("Falha ao carregar dados do influenciador. Tente novamente.");
+        setShowErrorDialog(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchInfluencerData();
+  }, [id]);
+
+
+const handleFormSubmit = async (values) => {
+    if (tagsSelecionadas.length === 0) {
+      setErroCategorias("Selecione ao menos uma categoria.");
+      return;
     }
-  }, [influencer]);
+    setErroCategorias("");
+    setIsSubmitting(true);
 
-  const handleCloseDialog = () => {
-    setOpenConfirmDialog(false);
-    setDialogStep(1);
-    setInfluencerEmail("");
-    setVerificationCode("");
-  };
+    const dataToSubmit = new FormData();
+    dataToSubmit.append('exibitionName', values.exibitionName);
+    dataToSubmit.append('realName', values.realName);
+    dataToSubmit.append('age', values.age);
+    dataToSubmit.append('description', values.description);
+    dataToSubmit.append('aboutMe', values.aboutMe);
+    dataToSubmit.append('categories', tagsSelecionadas.join(','));
+    dataToSubmit.append('social', JSON.stringify(values.social));
 
-  const handleNextStep = () => setDialogStep((prev) => prev + 1);
+    if (arquivoImagemPerfil) dataToSubmit.append('profileImage', arquivoImagemPerfil);
+    if (arquivoImagemFundo) dataToSubmit.append('backgroundImage', arquivoImagemFundo);
 
-  const handleFormikSubmit = (values) => {
-    setFormValues(values); // guarda os valores
-    setOpenConfirmDialog(true); // abre o diálogo
+    try {
+      const userInfo = JSON.parse(localStorage.getItem('user'));
+      const token = userInfo ? userInfo.token : null;
+      if (!token) throw new Error('Autenticação expirada.');
+      
+      await axios.put(`http://localhost:5001/api/influencers/${id}`, dataToSubmit, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setShowSuccessDialog(true);
+    } catch (error) {
+      const message = error.response?.data?.message || "Ocorreu um erro inesperado.";
+      setErrorMessage(message);
+      setShowErrorDialog(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAddCategoria = () => {
@@ -161,60 +219,28 @@ const EditarInfluenciador = () => {
     }
   };
 
-  // Atualiza o influenciador no mock (simulação)
-  const handleUpdateInfluencer = (values) => {
-    const idx = influencers.findIndex((inf) => Number(inf.id) === influencerId);
-    if (idx > -1) {
-      influencers[idx] = {
-        ...influencers[idx],
-        nome: values.exibitionName,
-        nomeReal: values.realName,
-        descricao: values.description,
-        sobre: values.aboutMe,
-        categorias: tagsSelecionadas,
-        social: { ...(values.social || {}) },
-        imagem: imagemPerfil || influencers[idx].imagem,
-        imagemFundo: imagemFundo || influencers[idx].imagemFundo,
-      };
-      console.log("Influenciador atualizado:", influencers[idx]);
-    } else {
-      console.warn("Influenciador não encontrado para atualizar.");
-    }
-  };
-
-  // monta valores iniciais para o form a partir do influenciador (ou usa fallback)
-  const initialFormValues = useMemo(() => {
-    if (!influencer) return initialValues;
-    return {
-      exibitionName: influencer.nome || influencer.exibitionName || "",
-      realName: influencer.nomeReal || influencer.realName || "",
-      age: influencer.idade || influencer.age || "",
-      description: influencer.descricao || influencer.description || "",
-      aboutMe: influencer.sobre || influencer.aboutMe || influencer.bio || "",
-      categories: influencer.categorias || influencer.tags || [],
-      social: {
-        tiktok: influencer.social?.tiktok || influencer.tiktok || "",
-        instagram: influencer.social?.instagram || influencer.instagram || "",
-        youtube: influencer.social?.youtube || influencer.youtube || "",
-        twitch: influencer.social?.twitch || influencer.twitch || "",
-      },
-    };
-  }, [influencer]);
-
-  if (!influencer) {
     // se não encontrou, mostra mensagem simples (mantendo a aparência)
-    return (
-      <Box m="20px">
-        <Header title="Editar Influenciador" subtitle="Influenciador não encontrado" />
-        <Box mt={4} display="flex" flexDirection="column" alignItems="center" gap={2}>
-          <Typography color="white">Nenhum influenciador encontrado com o ID informado.</Typography>
-          <Button variant="contained" onClick={() => navigate(-1)} sx={{ textTransform: "none" }}>
-            Voltar
-          </Button>
-        </Box>
+if (isLoading) {
+  return (
+    <Box m="20px">
+      <Typography color="white">Carregando...</Typography>
+    </Box>
+  );
+}
+
+if (showErrorDialog) {
+  return (
+    <Box m="20px">
+      <Header title="Editar Influenciador" subtitle="Influenciador não encontrado" />
+      <Box mt={4} display="flex" flexDirection="column" alignItems="center" gap={2}>
+        <Typography color="white">{errorMessage}</Typography>
+        <Button variant="contained" onClick={() => navigate(-1)} sx={{ textTransform: "none" }}>
+          Voltar
+        </Button>
       </Box>
-    );
-  }
+    </Box>
+  );
+}
 
   return (
      <Box 
@@ -274,14 +300,14 @@ const EditarInfluenciador = () => {
       </Button>
       <Header
         title="Editar Influenciador"
-        subtitle={`Editando: ${influencer.nome || influencer.exibitionName || "--"}`}
+        subtitle={`Editando: ${formData.nome || formData.exibitionName || "--"}`}
       />
 
       <Formik
-        onSubmit={handleFormikSubmit}
-        initialValues={initialFormValues}
-        validationSchema={userSchema}
-        enableReinitialize
+     onSubmit={handleFormSubmit}
+  initialValues={formData}
+  validationSchema={userSchema}
+  enableReinitialize
       >
         {({ values, errors, touched, handleBlur, handleChange, handleSubmit }) => (
           <form onSubmit={handleSubmit}>
@@ -347,7 +373,7 @@ const EditarInfluenciador = () => {
                   width: "100%",
                   height: 200,
                   backgroundColor: "#ffffff34",
-                  backgroundImage: imagemFundo ? `url(${imagemFundo})` : influencer.imagemFundo ? `url(${influencer.imagemFundo})` : "none",
+                  backgroundImage: imagemFundo ? `url(${imagemFundo})` : formData.imagemFundo ? `url(${formData.imagemFundo})` : "none",
                   backgroundSize: "cover",
                   backgroundPosition: "center",
                   display: "flex",
@@ -356,7 +382,7 @@ const EditarInfluenciador = () => {
                   position: "relative",
                 }}
               >
-                {!imagemFundo && !influencer.imagemFundo && (
+                {!imagemFundo && !formData.imagemFundo && (
                   <Box textAlign="center">
                     <IconButton component="label">
                       <AddPhotoAlternateIcon fontSize="large" sx={{ width: 70, height: 70 }} />
@@ -374,13 +400,13 @@ const EditarInfluenciador = () => {
                   </Box>
                 )}
 
-                {(imagemFundo || influencer.imagemFundo) && (
+                {(imagemFundo || formData.imagemFundo) && (
                   <>
                     <IconButton
                       onClick={() => {
                         setImagemFundo(null);
                         // se existir imagem no mock, mantemos a original até alterar
-                        if (influencer.imagemFundo) setImagemFundo(null);
+                        if (formData.imagemFundo) setImagemFundo(null);
                       }}
                       sx={{
                         position: "absolute",
@@ -432,7 +458,7 @@ const EditarInfluenciador = () => {
               >
                 <IconButton component="label" sx={{ p: 0 }}>
                   <Avatar
-                    src={imagemPerfil || influencer.imagem || influencer.avatar || ""}
+                    src={imagemPerfil || formData.imagem || formData.avatar || ""}
                     sx={{
                       width: 120,
                       height: 120,
@@ -452,11 +478,11 @@ const EditarInfluenciador = () => {
                   />
                 </IconButton>
 
-                {!imagemPerfil && !influencer.imagem && (
+                {!imagemPerfil && !formData.imagem && (
                   <Typography variant="body2" mt={1}>Clique no avatar para adicionar a foto</Typography>
                 )}
 
-                { (imagemPerfil || influencer.imagem) && (
+                { (imagemPerfil || formData.imagem) && (
                   <IconButton
                     onClick={() => setImagemPerfil(null)}
                     sx={{
@@ -471,7 +497,7 @@ const EditarInfluenciador = () => {
                   </IconButton>
                 )}
 
-                { (imagemPerfil || influencer.imagem) && (
+                { (imagemPerfil || formData.imagem) && (
                   <IconButton
                     component="label"
                     sx={{
@@ -705,134 +731,7 @@ const EditarInfluenciador = () => {
       </Formik>
 
       {/* Dialogo de confirmação - reaproveitado do cadastro */}
-      <Dialog
-        open={openConfirmDialog}
-        onClose={handleCloseDialog}
-        aria-labelledby="confirm-dialog-title"
-        sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(255, 255, 255, 0.81)", color: "#610069ff", backdropFilter:"blur(30px)", borderRadius:'20px', position: 'relative' } }}
-      >
-        <IconButton onClick={handleCloseDialog} sx={{ position: "absolute", top: 8, right: 8 }}>
-          <CloseIcon />
-        </IconButton>
-
-        {dialogStep === 1 && (
-          <>
-            <DialogTitle id="confirm-dialog-title">{"Pergunta"}</DialogTitle>
-            <DialogContent>
-              <DialogContentText sx={{color:"#2a2a2aff"}}>
-                O influenciador deseja utilizar a plataforma?
-              </DialogContentText>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setDialogStep(4)} sx={{color:"#540069ff"}}>Não</Button>
-              <Button onClick={handleNextStep} sx={{fontWeight:'bold'}} color="primary" autoFocus>
-                Sim
-              </Button>
-            </DialogActions>
-          </>
-        )}
-
-        {dialogStep === 2 && (
-          <>
-            <DialogTitle id="confirm-dialog-title">{"Email do influenciador"}</DialogTitle>
-            <DialogContent>
-              <TextField
-                fullWidth
-                label="Digite o email do influenciador"
-                value={influencerEmail}
-                onChange={(e) => setInfluencerEmail(e.target.value)}
-                variant="outlined"
-                InputProps={{ startAdornment: <EmailIcon sx={{ mr: 1, color: "#000" }} /> }}
-                sx={{
-                  mt: 1,
-                  "& .MuiOutlinedInput-root": {
-                    color: "#000000",
-                    fontSize: "1rem",
-                    "& fieldset": { borderColor: "#000000" },
-                    "&:hover fieldset": { borderColor: "#000000" },
-                    "&.Mui-focused fieldset": { borderColor: "#000000" },
-                  },
-                  "& .MuiInputLabel-root": { color: "#000000" },
-                }}
-              />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-              <Button onClick={handleNextStep} disabled={!influencerEmail} sx={{ fontWeight: 'bold' }} color="primary">
-                Enviar código
-              </Button>
-            </DialogActions>
-          </>
-        )}
-
-        {dialogStep === 3 && (
-          <>
-            <DialogTitle id="confirm-dialog-title">{"Código de verificação"}</DialogTitle>
-            <DialogContent>
-              <TextField
-                fullWidth
-                label="Digite o código recebido no email"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                variant="outlined"
-                InputProps={{ startAdornment: <SecurityIcon sx={{ mr: 1, color: "#000" }} /> }}
-                sx={{
-                  mt: 1,
-                  "& .MuiOutlinedInput-root": {
-                    color: "#000000",
-                    fontSize: "1.2rem",
-                    "& fieldset": { borderColor: "#000000" },
-                    "&:hover fieldset": { borderColor: "#000000" },
-                    "&.Mui-focused fieldset": { borderColor: "#000000" },
-                  },
-                  "& .MuiInputLabel-root": { color: "#000000" },
-                }}
-              />
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-              <Button
-                onClick={() => {
-                  if (formValues) handleUpdateInfluencer(formValues);
-                  handleCloseDialog();
-                  navigate(-1); // volta para a lista depois de salvar
-                }}
-                sx={{ fontWeight: 'bold' }}
-                color="primary"
-                autoFocus
-              >
-                Confirmar
-              </Button>
-            </DialogActions>
-          </>
-        )}
-
-        {dialogStep === 4 && (
-          <>
-            <DialogTitle id="confirm-dialog-title">{"Confirmar Alterações"}</DialogTitle>
-            <DialogContent>
-              <DialogContentText sx={{ color: "#2a2a2aff" }}>
-                Tem certeza que deseja salvar as alterações deste influenciador?
-              </DialogContentText>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-              <Button
-                onClick={() => {
-                  if (formValues) handleUpdateInfluencer(formValues);
-                  handleCloseDialog();
-                  navigate(-1);
-                }}
-                sx={{ fontWeight: 'bold' }}
-                color="primary"
-                autoFocus
-              >
-                Confirmar
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+     
     </Box>
     </Box>
   );

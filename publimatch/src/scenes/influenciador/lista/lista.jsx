@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -31,6 +31,170 @@ import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
 
+const MotionCard = motion(Card);
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08 },
+  },
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { type: "spring", stiffness: 100 },
+  },
+};
+
+// ✅ MELHORIA: Centralizar função utilitária para não repetir
+const fmt = (v) => {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "number") {
+    if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+    if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+    return `${v}`;
+  }
+  return String(v);
+};
+
+const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate }) => {
+  
+    const avatarImg = inf.imagem || inf.avatar || "";
+    const curtidas = inf.curtidas ?? inf.likes ?? inf.inscritos ?? inf.followers ?? inf.followersCount ?? 0;
+    const views = inf.views ?? inf.visualizacoes ?? inf.viewsCount ?? 0;
+    const seguidores = inf.seguidores ?? inf.followers ?? inf.followersCount ?? 0;
+    const mediaConversao = inf.mediaConversao ?? inf.conversao ?? inf.conversionRate ?? inf.conversaoPercent ?? 0;
+    const campanhasNum = inf.campanhasCount ?? inf.campanhas ?? inf.campaigns ?? 0;
+    const contratosNum = inf.contratos ?? 0;
+    const desempenhoVal = Number(inf.desempenhoPercent ?? inf.desempenho ?? inf.performance ?? inf.conversaoPercent ?? 0);
+    const avaliacao = Number(inf.avaliacao ?? inf.rating ?? 0);
+    const categorias = inf.categorias ?? inf.tags ?? [];
+    const desempenhoColor =
+      desempenhoVal >= 90 ? "#4caf50" :
+      desempenhoVal >= 70 ? "#ff9800" :
+      desempenhoVal >= 50 ? "#2196f3" :
+      desempenhoVal >= 25 ? "#ff9800" :
+      "#ff3b3b";
+
+    return (
+      // 4. USAR O MotionCard EM VEZ DO Card E PASSAR AS VARIANTES DO ITEM
+  <motion.div
+      variants={itemVariants}
+      layout
+      onClick={() => navigate(`/influenciadores/perfil/${inf._id}`)}
+      style={{
+        borderRadius: "8px",
+        marginBottom: "8px",
+        cursor: "pointer",
+      }}
+    >
+
+      <Card
+        key={inf._id}
+        variants={itemVariants}  // <-- Variante para o item
+        layout // Adiciona uma animação suave se a lista for reordenada
+        onClick={() => navigate(`/influenciadores/perfil/${inf._id}`)}
+        sx={{
+          backgroundImage: inf.backgroundImageUrl
+            ? `linear-gradient(90deg, rgba(22, 7, 83, 0.8), rgba(81, 4, 61, 0.6)), url(${inf.backgroundImageUrl})`
+            : "linear-gradient(90deg, rgba(30, 58, 138, 0.8), rgba(59, 130, 246, 0.6))",
+          backdropFilter: "blur(8px)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          borderRadius: "8px",
+          mb: 1,
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          "&:hover": {
+            transform: "translateY(-1px)",
+            boxShadow: "0 4px 15px rgba(251, 219, 255, 0.24)",
+          },
+        }}
+      >
+        <Box
+          sx={{
+            display: { xs: "flex", md: "grid" },
+            flexDirection: { xs: "column", md: "row" },
+            gridTemplateColumns: {
+              md: "2fr 1fr 1fr 1fr 1fr 1fr 1fr 0.5fr",
+              lg: "2.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.7fr",
+            },
+            gap: 2,
+            alignItems: "center",
+            p: 2,
+            minHeight: "80px",
+          }}
+        >
+          {/* Nome e Avatar */}
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Avatar src={inf.profileImageUrl} alt={inf.name} sx={{ width: 50, height: 50, border: "2px solid rgba(255,255,255,0.2)" }} />
+            <Box>
+              <Typography variant="subtitle1" color="white" sx={{ fontSize: "20px" }} fontWeight={700} noWrap>
+                {inf.name}
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: "13px" }} color="rgba(255,255,255,0.6)" noWrap>
+                {inf.realName ?? ""}
+              </Typography>
+            </Box>
+          </Box>
+          {/* Avaliação */}
+          <Box display="flex" alignItems="center" gap={0.5}>
+            <Box display="flex" alignItems="center">
+              {[...Array(5)].map((_, i) => (
+                <StarIcon key={i} sx={{ color: i < Math.floor(avaliacao) ? "#FFD700" : "rgba(255,255,255,0.2)", fontSize: 16 }} />
+              ))}
+            </Box>
+            <Typography variant="caption" color="rgba(255,255,255,0.6)">
+              {avaliacao.toFixed(1)}({Math.floor(Math.random() * 9000) + 1000})
+            </Typography>
+          </Box>
+          {/* Categorias */}
+          <Box display="flex" flexWrap="wrap" gap={0.5}>
+             {inf.niches?.slice(0, 2).map((niche, i) => (
+              <Chip key={i} label={niche} size="small" sx={{ bgcolor: "rgba(255, 255, 255, 0.2)", color: "#ffffffff", fontSize: "0.7rem", height: 24, borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.3)" }} />
+            ))}
+          </Box>
+          {/* Engajamento */}
+          <Box>
+            <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
+              <GroupsIcon sx={{ fontSize: 30, color: "#9c27b0" }} />
+              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>{fmt(seguidores)}</Typography>
+              <VisibilityIcon sx={{ fontSize: 30, color: "#2196f3" }} />
+              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>{fmt(views)}</Typography>
+            </Box>
+            <Box display="flex" alignItems="center" gap={0.5}>
+              <FavoriteIcon sx={{ fontSize: 30, color: "#ff1493" }} />
+              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>{fmt(curtidas)}</Typography>
+              <TrendingUpIcon sx={{ fontSize: 30, color: "#4caf50" }} />
+              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>
+                {typeof mediaConversao === "number" ? `${Math.round(mediaConversao)}%` : fmt(mediaConversao)}
+              </Typography>
+            </Box>
+          </Box>
+          {/* Vinculado a campanhas */}
+          <Box textAlign="center"><Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{campanhasNum}</Typography></Box>
+          {/* Desempenho nas campanhas */}
+          <Box textAlign="center"><Typography variant="h6" color={desempenhoColor} fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{Number.isFinite(desempenhoVal) ? `${Math.round(desempenhoVal)}%` : "—"}</Typography></Box>
+          {/* Contratos para confirmação */}
+          <Box textAlign="center"><Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{contratosNum}</Typography></Box>
+          {/* Ações */}
+          <Box display="flex" gap={0.5} justifyContent="center">
+             <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(inf._id); }} sx={{ bgcolor: "rgba(255,255,255,0.1)", color: "white", "&:hover": { bgcolor: "rgba(255,255,255,0.2)" }, width: 32, height: 32 }}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDeleteClick(inf); }} sx={{ bgcolor: "rgba(255,0,0,0.1)", color: "#ff6b6b", "&:hover": { bgcolor: "rgba(255,0,0,0.2)" }, width: 32, height: 32 }}><DeleteIcon fontSize="small" /></IconButton>
+          </Box>
+        </Box>
+      </Card>
+      </motion.div>
+    );
+});
+
+
+
 const Influenciadores = () => {
   const navigate = useNavigate();
  const [listaInfluenciadores, setListaInfluenciadores] = useState([]);
@@ -40,7 +204,11 @@ const Influenciadores = () => {
   const [userPassword, setUserPassword] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [isLoading, setIsLoading] = useState(true);
+   const [isDeleting, setIsDeleting] = useState(false);
+   const [confirmationName, setConfirmationName] = useState("");
     const [error, setError] = useState(null);
+    const [dialogError, setDialogError] = useState('');
+    const [isVerifying, setIsVerifying] = useState(false); 
 
    useEffect(() => {
     const fetchInfluencers = async () => {
@@ -62,37 +230,28 @@ const Influenciadores = () => {
   }, []);
 
   // Lógica para apagar o influenciador
-  const confirmDelete = async () => {
+   const confirmDelete = useCallback(async () => {
     if (!selectedInfluencer) return;
+    setIsDeleting(true);
+    setDialogError(''); // Limpa erros anteriores
     try {
       const userInfo = JSON.parse(localStorage.getItem('user'));
       const token = userInfo?.token;
-      if (!token) throw new Error('Utilizador não autenticado.');
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      
       await axios.delete(`http://localhost:5001/api/influencers/${selectedInfluencer._id}`, config);
       
       setListaInfluenciadores(prev => prev.filter(inf => inf._id !== selectedInfluencer._id));
-      setDialogOpen(false);
+      handleCloseDialog(); // Fecha o dialog SÓ no sucesso
     } catch (err) {
-      alert(err.response?.data?.message || 'Não foi possível apagar o influenciador.');
-      setDialogOpen(false);
+      const message = err.response?.data?.message || 'Não foi possível apagar o influenciador.';
+      setDialogError(message); // Mostra o erro para o usuário
+    } finally {
+      setIsDeleting(false);
     }
-  };
-
+  }, [selectedInfluencer]);
 
   // 2. DEFINIR AS VARIANTES DA ANIMAÇÃO
   // Variante para o container da lista (pai)
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        // A mágica acontece aqui: aplica um delay em cada filho
-        staggerChildren: 0.08,
-      },
-    },
-  };
 
   // Variante para cada item da lista (filho)
   const itemVariants = {
@@ -129,32 +288,66 @@ const Influenciadores = () => {
     });
   };
 
-  const handleDeleteClick = (inf) => {
+  const handleDeleteClick = useCallback((inf) => {
     setSelectedInfluencer(inf);
     setDialogStep(1);
     setDialogOpen(true);
-  };
+}, []); // Sem dependências, pois só usa setters de estado
 
-  const handleCloseDialog = () => {
+
+const handleCloseDialog = () => {
     setDialogOpen(false);
-    setUserPassword("");
-    setSelectedInfluencer(null);
-  };
+    setTimeout(() => {
+        setDialogStep(1);
+        setUserPassword("");
+        setConfirmationName("");
+        setSelectedInfluencer(null);
+        // ✅ LIMPE O ERRO AO FECHAR
+        setDialogError('');
+    }, 300); 
+};
 
-  const handleNextStep = () => {
-    if (dialogStep === 1) {
-      if (!userPassword) {
-        alert("Digite sua senha para continuar!");
-        return;
-      }
-      setDialogStep(2);
-    } else if (dialogStep === 2) {
-      setListaInfluenciadores((prev) =>
-        prev.filter((inf) => inf.id !== selectedInfluencer.id)
-      );
-      handleCloseDialog();
+// ATUALIZE ESTA FUNÇÃO
+const handleNextStep = async () => {
+  setDialogError('');
+
+  // --- ETAPA 1 -> 2: Validar senha no BACKEND ---
+  if (dialogStep === 1) {
+    if (!userPassword) {
+      setDialogError("Digite sua senha para continuar!");
+      return;
     }
-  };
+
+    setIsVerifying(true); // Inicia o loading
+    try {
+      const userInfo = JSON.parse(localStorage.getItem('user'));
+      const token = userInfo?.token;
+      
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      // Chama a nova rota no backend
+      await axios.post('http://localhost:5001/api/users/verify-password', { password: userPassword }, config);
+
+      // Se a chamada for bem-sucedida (não der erro), avança
+      setDialogStep(2);
+
+    } catch (error) {
+      // Se der erro, o backend retornará 401, e capturamos a mensagem aqui
+      const message = error.response?.data?.message || "Erro ao verificar senha.";
+      setDialogError(message);
+    } finally {
+      setIsVerifying(false); // Finaliza o loading
+    }
+  }
+  // --- ETAPA 2 -> 3: Validar nome do influenciador (lógica local) ---
+  else if (dialogStep === 2) {
+    if (confirmationName.trim() !== selectedInfluencer?.name) {
+      setDialogError("O nome digitado não corresponde ao do influenciador!");
+      return;
+    }
+    setDialogStep(3);
+  }
+};
 
   const fmt = (v) => {
     if (v === null || v === undefined || v === "") return "—";
@@ -227,124 +420,6 @@ const Influenciadores = () => {
     );
   };
 
-  const InfluencerRow = (inf) => {
-    const avatarImg = inf.imagem || inf.avatar || "";
-    const curtidas = inf.curtidas ?? inf.likes ?? inf.inscritos ?? inf.followers ?? inf.followersCount ?? 0;
-    const views = inf.views ?? inf.visualizacoes ?? inf.viewsCount ?? 0;
-    const seguidores = inf.seguidores ?? inf.followers ?? inf.followersCount ?? 0;
-    const mediaConversao = inf.mediaConversao ?? inf.conversao ?? inf.conversionRate ?? inf.conversaoPercent ?? 0;
-    const campanhasNum = inf.campanhasCount ?? inf.campanhas ?? inf.campaigns ?? 0;
-    const contratosNum = inf.contratos ?? 0;
-    const desempenhoVal = Number(inf.desempenhoPercent ?? inf.desempenho ?? inf.performance ?? inf.conversaoPercent ?? 0);
-    const avaliacao = Number(inf.avaliacao ?? inf.rating ?? 0);
-    const categorias = inf.categorias ?? inf.tags ?? [];
-    const desempenhoColor =
-      desempenhoVal >= 90 ? "#4caf50" :
-      desempenhoVal >= 70 ? "#ff9800" :
-      desempenhoVal >= 50 ? "#2196f3" :
-      desempenhoVal >= 25 ? "#ff9800" :
-      "#ff3b3b";
-
-    return (
-      // 4. USAR O MotionCard EM VEZ DO Card E PASSAR AS VARIANTES DO ITEM
-      <MotionCard
-        key={inf.id}
-        variants={itemVariants} // <-- Variante para o item
-        layout // Adiciona uma animação suave se a lista for reordenada
-        onClick={() => navigate(`/influenciadores/perfil/${inf.id}`)}
-        sx={{
-          backgroundImage: inf.imagemFundo
-            ? `linear-gradient(90deg, rgba(22, 7, 83, 0.8), rgba(81, 4, 61, 0.6)), url(${inf.imagemFundo})`
-            : "linear-gradient(90deg, rgba(30, 58, 138, 0.8), rgba(59, 130, 246, 0.6))",
-          backdropFilter: "blur(8px)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          borderRadius: "8px",
-          mb: 1,
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          "&:hover": {
-            transform: "translateY(-1px)",
-            boxShadow: "0 4px 15px rgba(251, 219, 255, 0.24)",
-          },
-        }}
-      >
-        <Box
-          sx={{
-            display: { xs: "flex", md: "grid" },
-            flexDirection: { xs: "column", md: "row" },
-            gridTemplateColumns: {
-              md: "2fr 1fr 1fr 1fr 1fr 1fr 1fr 0.5fr",
-              lg: "2.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.7fr",
-            },
-            gap: 2,
-            alignItems: "center",
-            p: 2,
-            minHeight: "80px",
-          }}
-        >
-          {/* Nome e Avatar */}
-          <Box display="flex" alignItems="center" gap={1.5}>
-            <Avatar src={avatarImg} alt={inf.nome} sx={{ width: 50, height: 50, border: "2px solid rgba(255,255,255,0.2)" }} />
-            <Box>
-              <Typography variant="subtitle1" color="white" sx={{ fontSize: "20px" }} fontWeight={700} noWrap>
-                {inf.nome}
-              </Typography>
-              <Typography variant="caption" sx={{ fontSize: "13px" }} color="rgba(255,255,255,0.6)" noWrap>
-                {inf.nomeReal ?? ""}
-              </Typography>
-            </Box>
-          </Box>
-          {/* Avaliação */}
-          <Box display="flex" alignItems="center" gap={0.5}>
-            <Box display="flex" alignItems="center">
-              {[...Array(5)].map((_, i) => (
-                <StarIcon key={i} sx={{ color: i < Math.floor(avaliacao) ? "#FFD700" : "rgba(255,255,255,0.2)", fontSize: 16 }} />
-              ))}
-            </Box>
-            <Typography variant="caption" color="rgba(255,255,255,0.6)">
-              {avaliacao.toFixed(1)}({Math.floor(Math.random() * 9000) + 1000})
-            </Typography>
-          </Box>
-          {/* Categorias */}
-          <Box display="flex" flexWrap="wrap" gap={0.5}>
-            {categorias?.slice(0, 2).map((c, i) => (
-              <Chip key={i} label={c} size="small" sx={{ bgcolor: "rgba(255, 255, 255, 0.2)", color: "#ffffffff", fontSize: "0.7rem", height: 24, borderRadius: "6px", border: "1px solid rgba(255, 255, 255, 0.3)" }} />
-            ))}
-          </Box>
-          {/* Engajamento */}
-          <Box>
-            <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
-              <GroupsIcon sx={{ fontSize: 30, color: "#9c27b0" }} />
-              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>{fmt(seguidores)}</Typography>
-              <VisibilityIcon sx={{ fontSize: 30, color: "#2196f3" }} />
-              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>{fmt(views)}</Typography>
-            </Box>
-            <Box display="flex" alignItems="center" gap={0.5}>
-              <FavoriteIcon sx={{ fontSize: 30, color: "#ff1493" }} />
-              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>{fmt(curtidas)}</Typography>
-              <TrendingUpIcon sx={{ fontSize: 30, color: "#4caf50" }} />
-              <Typography variant="caption" fontSize='15px' color="white" fontWeight={600}>
-                {typeof mediaConversao === "number" ? `${Math.round(mediaConversao)}%` : fmt(mediaConversao)}
-              </Typography>
-            </Box>
-          </Box>
-          {/* Vinculado a campanhas */}
-          <Box textAlign="center"><Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{campanhasNum}</Typography></Box>
-          {/* Desempenho nas campanhas */}
-          <Box textAlign="center"><Typography variant="h6" color={desempenhoColor} fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{Number.isFinite(desempenhoVal) ? `${Math.round(desempenhoVal)}%` : "—"}</Typography></Box>
-          {/* Contratos para confirmação */}
-          <Box textAlign="center"><Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{contratosNum}</Typography></Box>
-          {/* Ações */}
-          <Box display="flex" gap={0.5} justifyContent="center">
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(inf.id); }} sx={{ bgcolor: "rgba(255,255,255,0.1)", color: "white", "&:hover": { bgcolor: "rgba(255,255,255,0.2)" }, width: 32, height: 32 }}><EditIcon fontSize="small" /></IconButton>
-            <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDeleteClick(inf); }} sx={{ bgcolor: "rgba(255,0,0,0.1)", color: "#ff6b6b", "&:hover": { bgcolor: "rgba(255,0,0,0.2)" }, width: 32, height: 32 }}><DeleteIcon fontSize="small" /></IconButton>
-          </Box>
-        </Box>
-      </MotionCard>
-    );
-  };
-
    if (isLoading) {
     return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><CircularProgress /></Box>;
   }
@@ -375,52 +450,149 @@ const Influenciadores = () => {
             animate="visible" // <-- Estado final
             px={1}
           >
-            {sortedInfluencers.length
-              ? sortedInfluencers.map((inf) => InfluencerRow(inf))
-              : (
-                <Typography variant="h5" color="white" textAlign="center" mt={4}>
-                  Nenhum influenciador encontrado
-                </Typography>
-              )}
+           {sortedInfluencers.length > 0 ? (
+          // ✅ A FORMA CORRETA de renderizar uma lista de componentes
+          sortedInfluencers.map(inf => (
+            <InfluencerRow 
+              key={inf._id} 
+              inf={inf} 
+              navigate={navigate} 
+              handleEdit={handleEdit} 
+              handleDeleteClick={handleDeleteClick} 
+            />
+          ))
+        ) : (
+          <Typography variant="h6" color="rgba(255,255,255,0.7)" textAlign="center" mt={5}>
+            Você ainda não cadastrou nenhum influenciador.
+          </Typography>
+        )}
           </Box>
         </Box>
       </Box>
 
-      {/* Dialog de exclusão */}
-      <Dialog
-        open={dialogOpen}
-        onClose={handleCloseDialog}
-        aria-labelledby="dialog-title"
-        aria-describedby="dialog-description"
-        sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(255, 255, 255, 0.64)", color: "#610069ff", backdropFilter: "blur(30px)", borderRadius: "20px" } }}
-      >
-        {dialogStep === 1 && (
-          <>
-            <DialogTitle id="dialog-title">Confirme sua senha</DialogTitle>
+<Dialog 
+    open={dialogOpen} 
+    onClose={handleCloseDialog} 
+    PaperProps={{ 
+        sx: { 
+            borderRadius: "15px", 
+            backgroundColor: '#ffffffbb', // Fundo branco
+            backdropFilter:"blur(10px)",
+            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
+            width: '100%',
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+            maxWidth: '500px'
+        } 
+    }}
+>
+    
+    {/* --- ETAPA 1: SENHA --- */}
+    {dialogStep === 1 && (
+        <>
+            <DialogTitle sx={{ color: '#1a1a1a', fontWeight: 'bold' }}>
+                Confirme sua Identidade
+            </DialogTitle>
             <DialogContent>
-              <TextField autoFocus margin="dense" label="Digite sua senha" type="password" fullWidth value={userPassword} onChange={(e) => setUserPassword(e.target.value)} sx={{ mt: 1, "& .MuiOutlinedInput-root": { color: "#000000", fontSize: "1rem", "& fieldset": { borderColor: "#000000" }, "&:hover fieldset": { borderColor: "#000000" }, "&.Mui-focused fieldset": { borderColor: "#000000" } }, "& .MuiInputLabel-root": { color: "#000000" } }} />
+                <DialogContentText sx={{ color: '#555555', mb: 2 }}>
+                    Para sua segurança, digite sua senha para continuar com a exclusão.
+                </DialogContentText>
+                <TextField 
+                    autoFocus 
+                    label="Sua Senha" 
+                    type="password" 
+                    fullWidth 
+                    value={userPassword} 
+                   onChange={(e) => { setUserPassword(e.target.value); setDialogError(''); }} 
+                    variant="outlined"
+                    // Mostra o erro no próprio campo
+                    error={!!dialogError}
+                    helperText={dialogError}
+                   
+                     sx={{
+                        '& .MuiOutlinedInput-input': { color: 'black' },
+                        '& .MuiInputLabel-root': { color: 'rgba(0, 0, 0, 0.6)' },
+                        '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0, 0, 0, 0.23)' },
+                        '&:hover .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': { borderColor: 'black' },
+                        '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+                        '& .MuiInputLabel-root.Mui-focused': { color: 'primary.main' }
+                    }}
+                />
             </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-              <Button onClick={handleNextStep} variant="contained" color="primary" sx={{ fontWeight: "bold" }}>Confirmar</Button>
+            <DialogActions sx={{ p: '16px 24px' }}>
+                <Button onClick={handleCloseDialog}>Cancelar</Button>
+                    <Button onClick={handleNextStep} variant="contained" color="primary" disabled={isVerifying}>
+        {isVerifying ? <CircularProgress size={24} color="inherit" /> : 'Próximo'}
+      </Button>
+
             </DialogActions>
-          </>
-        )}
-        {dialogStep === 2 && (
-          <>
-            <DialogTitle id="dialog-title">Confirmação</DialogTitle>
+        </>
+    )}
+
+    {/* --- ETAPA 2: NOME DO INFLUENCIADOR --- */}
+    {dialogStep === 2 && (
+        <>
+            <DialogTitle sx={{ color: '#1a1a1a', fontWeight: 'bold' }}>
+                Confirmação Adicional
+            </DialogTitle>
             <DialogContent>
-              <DialogContentText id="dialog-description" sx={{ color: "#4f4f4fff" }}>
-                Tem certeza que deseja apagar o influenciador <b>{selectedInfluencer?.nome}</b>?
-              </DialogContentText>
+                <DialogContentText sx={{ color: '#555555', mb: 2 }}>
+                    Para confirmar que você tem ciência da exclusão, por favor, digite o nome do influenciador: <br/>
+                    <Typography component="span" fontWeight="bold" color="primary.main">{selectedInfluencer?.name}</Typography>
+                </DialogContentText>
+                <TextField 
+                    autoFocus 
+                    label="Nome do Influenciador" 
+                    type="text" 
+                    fullWidth 
+                    value={confirmationName} 
+                    onChange={(e) => { setConfirmationName(e.target.value); setDialogError(''); }} 
+                    variant="outlined"
+                    // Mostra o erro no próprio campo
+                    error={!!dialogError}
+                    helperText={dialogError}
+                     sx={{
+                        '& .MuiOutlinedInput-input': { color: 'black' },
+                        '& .MuiInputLabel-root': { color: 'rgba(0, 0, 0, 0.6)' },
+                        '& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(0, 0, 0, 0.23)' },
+                        '&:hover .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline': { borderColor: 'black' },
+                        '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+                        '& .MuiInputLabel-root.Mui-focused': { color: 'primary.main' }
+                    }}
+                />
             </DialogContent>
-            <DialogActions>
-              <Button onClick={handleCloseDialog} sx={{ color: "#540069ff" }}>Cancelar</Button>
-              <Button onClick={handleNextStep} sx={{ fontWeight: "bold" }} color="error">Apagar</Button>
+            <DialogActions sx={{ p: '16px 24px' }}>
+                <Button onClick={handleCloseDialog}>Cancelar</Button>
+                <Button onClick={handleNextStep} variant="contained" color="error">Confirmar</Button>
             </DialogActions>
-          </>
-        )}
-      </Dialog>
+        </>
+    )}
+    
+    {/* --- ETAPA 3: CONFIRMAÇÃO FINAL --- */}
+    {dialogStep === 3 && (
+        <>
+            <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>
+                Atenção: Ação Irreversível
+            </DialogTitle>
+            <DialogContent>
+                <DialogContentText sx={{ color: '#555555' }}>
+                    Você confirma a exclusão permanente do perfil de <b>{selectedInfluencer?.name}</b>?
+                </DialogContentText>
+                 {dialogError && (
+                    <Typography color="error" sx={{ mt: 2, fontWeight: 'bold' }}>
+                        {dialogError}
+                    </Typography>
+                )}
+            </DialogContent>
+            <DialogActions sx={{ p: '16px 24px' }}>
+                <Button onClick={handleCloseDialog}>Cancelar</Button>
+                <Button onClick={confirmDelete} color="error" variant="contained" disabled={isDeleting}>
+                    {isDeleting ? <CircularProgress size={24} color="inherit" /> : "Sim, Excluir Permanentemente"}
+                </Button>
+            </DialogActions>
+        </>
+    )}
+
+</Dialog>
     </Box>
   );
 }

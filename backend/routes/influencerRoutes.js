@@ -5,7 +5,8 @@ import { protect, authorize } from '../middleware/authMiddleware.js';
 import { 
     registerInfluencer, 
     getMyInfluencers, 
-    deleteInfluencer 
+    deleteInfluencer,
+     getInfluencerById
 } from '../controllers/influencerController.js';
 
 const router = express.Router();
@@ -25,6 +26,8 @@ router.route('/')
 
 // Rota para apagar um influenciador específico por ID
 router.route('/:id')
+    // A rota GET permite que agentes, influenciadores e admins busquem um perfil
+    .get(protect, authorize('INFLUENCER_AGENT', 'INFLUENCER', 'ADMIN'), getInfluencerById)
     .delete(protect, authorize('INFLUENCER_AGENT'), deleteInfluencer);
 
 export default router;

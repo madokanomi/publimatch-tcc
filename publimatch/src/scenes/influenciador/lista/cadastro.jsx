@@ -122,7 +122,8 @@ const CadastroInflu = () => {
     const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
+ const [arquivoImagemFundo, setArquivoImagemFundo] = useState(null);
+  const [arquivoImagemPerfil, setArquivoImagemPerfil] = useState(null);
   // ✅ NOVO ESTADO para controlar o diálogo de sucesso
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
@@ -172,44 +173,66 @@ const CadastroInflu = () => {
   // ✅ FUNÇÃO DE SUBMISSÃO ATUALIZADA
   // Agora, em vez de navegar, ela apenas mostra o diálogo de sucesso.
  const handleFinalSubmit = async () => {
-        if (!formValues) return;
-        setIsLoading(true);
+  if (!formValues) return;
+  setIsLoading(true);
 
-        const influencerData = {
-            exibitionName: formValues.exibitionName,
-            realName: formValues.realName,
-            age: formValues.age,
-            description: formValues.description,
-            aboutMe: formValues.aboutMe,
-            categories: tagsSelecionadas,
-            social: formValues.social,
-            wantsAccount: wantsAccount,
-            email: wantsAccount ? influencerEmail : "", // Só envia email se wantsAccount for true
-        };
+  // 1. Criar o objeto FormData, que é essencial para enviar arquivos.
+  const formData = new FormData();
 
-    // NOTA SOBRE IMAGENS: O upload de arquivos é um processo diferente (multipart/form-data).
-    // Por simplicidade, esta solução NÃO envia as imagens. Você precisaria de uma
-    // lógica separada para fazer upload das imagens para um serviço (como Cloudinary)
-    // e então enviar apenas as URLs das imagens aqui.
-    try {
-            const userInfo = JSON.parse(localStorage.getItem('user'));
-            const token = userInfo ? userInfo.token : null;
-            if (!token) throw new Error('Usuário não autenticado. Faça login novamente.');
+  // 2. Adicionar todos os campos de texto ao FormData, um por um.
+  formData.append('exibitionName', formValues.exibitionName);
+  formData.append('realName', formValues.realName);
+  formData.append('age', formValues.age);
+  formData.append('description', formValues.description);
+  formData.append('aboutMe', formValues.aboutMe);
+  
+  // Arrays e objetos precisam ser formatados como string
+  formData.append('categories', tagsSelecionadas.join(',')); // Envia como "Comédia,Dança"
+  formData.append('social', JSON.stringify(formValues.social)); // Converte o objeto para string JSON
 
-            const config = { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } };
-            await axios.post('http://localhost:5001/api/influencers', influencerData, config);
-            
-            handleCloseDialog();
-            setShowSuccessDialog(true);
-        } catch (error) {
-            const message = error.response?.data?.message || "Ocorreu um erro inesperado. Tente novamente.";
-            setErrorMessage(message);
-            handleCloseDialog();
-            setShowErrorDialog(true);
-        } finally {
-            setIsLoading(false);
-        }
-  };
+  formData.append('wantsAccount', wantsAccount);
+  if (wantsAccount) {
+    formData.append('email', influencerEmail);
+  }
+
+  // 3. Adicionar os arquivos de imagem (se o usuário tiver selecionado algum).
+  // Os nomes 'profileImage' e 'backgroundImage' devem ser os mesmos que o backend espera.
+  if (arquivoImagemPerfil) {
+    formData.append('profileImage', arquivoImagemPerfil);
+  }
+  if (arquivoImagemFundo) {
+    formData.append('backgroundImage', arquivoImagemFundo);
+  }
+
+  try {
+    const userInfo = JSON.parse(localStorage.getItem('user'));
+    const token = userInfo ? userInfo.token : null;
+    if (!token) throw new Error('Usuário não autenticado. Faça login novamente.');
+
+    // 4. Ajustar a configuração do Axios.
+    // É MUITO IMPORTANTE remover o 'Content-Type'. O navegador o definirá
+    // automaticamente como 'multipart/form-data' com as fronteiras corretas.
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+
+    // 5. Enviar o objeto formData para o backend.
+    await axios.post('http://localhost:5001/api/influencers', formData, config);
+    
+    handleCloseDialog();
+    setShowSuccessDialog(true);
+
+  } catch (error) {
+    const message = error.response?.data?.message || "Ocorreu um erro inesperado. Tente novamente.";
+    setErrorMessage(message);
+    handleCloseDialog();
+    setShowErrorDialog(true);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <Box
@@ -332,9 +355,12 @@ const CadastroInflu = () => {
                           accept="image/*"
                           type="file"
                           onChange={(e) => {
-                            const file = e.target.files[0];
-                            if (file) setImagemFundo(URL.createObjectURL(file));
-                          }}
+    const file = e.target.files[0];
+    if (file) {
+      setImagemFundo(URL.createObjectURL(file)); // Para a pré-visualização
+      setArquivoImagemFundo(file); // ✅ Guarda o arquivo real
+    }
+  }}
                         />
                       </IconButton>
                       <Typography variant="body2">Insira a imagem de fundo</Typography>
@@ -352,10 +378,13 @@ const CadastroInflu = () => {
                           hidden
                           accept="image/*"
                           type="file"
-                          onChange={(e) => {
-                            const file = e.target.files[0];
-                            if (file) setImagemFundo(URL.createObjectURL(file));
-                          }}
+                                       onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImagemFundo(URL.createObjectURL(file)); // Para a pré-visualização
+      setArquivoImagemFundo(file); // ✅ Guarda o arquivo real
+    }
+  }}
                         />
                       </IconButton>
                     </>
@@ -380,10 +409,13 @@ const CadastroInflu = () => {
                       hidden
                       accept="image/*"
                       type="file"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) setImagemPerfil(URL.createObjectURL(file));
-                      }}
+                onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImagemPerfil(URL.createObjectURL(file)); // Para a pré-visualização
+      setArquivoImagemPerfil(file); // ✅ Guarda o arquivo real
+    }
+  }}
                     />
                   </IconButton>
                   {!imagemPerfil && <Typography variant="body2" mt={1}>Clique no avatar para adicionar a foto</Typography>}
@@ -399,10 +431,13 @@ const CadastroInflu = () => {
                         hidden
                         accept="image/*"
                         type="file"
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (file) setImagemPerfil(URL.createObjectURL(file));
-                        }}
+                   onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImagemPerfil(URL.createObjectURL(file)); // Para a pré-visualização
+      setArquivoImagemPerfil(file); // ✅ Guarda o arquivo real
+    }
+  }}
                       />
                     </IconButton>
                   )}
