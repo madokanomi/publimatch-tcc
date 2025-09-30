@@ -1,12 +1,12 @@
 import express from 'express';
 import upload from '../middleware/uploadMiddleware.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
-// Adicionadas as novas funções do controller
 import { 
     registerInfluencer, 
     getMyInfluencers, 
     deleteInfluencer,
-     getInfluencerById
+    getInfluencerById,
+    updateInfluencer // ✅ 1. IMPORTAR A NOVA FUNÇÃO DE UPDATE
 } from '../controllers/influencerController.js';
 
 const router = express.Router();
@@ -24,11 +24,19 @@ router.route('/')
     )
     .get(protect, authorize('INFLUENCER_AGENT'), getMyInfluencers);
 
-// Rota para apagar um influenciador específico por ID
+// Rota para buscar, apagar e ATUALIZAR um influenciador específico por ID
 router.route('/:id')
-    // A rota GET permite que agentes, influenciadores e admins busquem um perfil
     .get(protect, authorize('INFLUENCER_AGENT', 'INFLUENCER', 'ADMIN'), getInfluencerById)
-    .delete(protect, authorize('INFLUENCER_AGENT'), deleteInfluencer);
+    .delete(protect, authorize('INFLUENCER_AGENT'), deleteInfluencer)
+    // ✅ 2. ADICIONAR A ROTA PUT PARA ATUALIZAR O INFLUENCIADOR
+    .put(
+        protect,
+        authorize('INFLUENCER_AGENT'), // Apenas o agente pode editar
+        upload.fields([ // Precisa do multer para processar possíveis novas imagens
+            { name: 'profileImage', maxCount: 1 },
+            { name: 'backgroundImage', maxCount: 1 }
+        ]),
+        updateInfluencer
+    );
 
 export default router;
-

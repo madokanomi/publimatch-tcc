@@ -27,15 +27,15 @@ const allowedOrigins = [
 ];
 
 const corsOptions = {
-  origin: function (origin, callback) {
-    // A MÁGICA ESTÁ AQUI: A verificação `!origin` é o que permite
-    // que arquivos locais (cuja origem é 'null') façam requisições.
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true); // Permite a requisição
-    } else {
-      callback(new Error('Não permitido pela política de CORS')); // Bloqueia
-    }
-  }
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Não permitido pela política de CORS'));
+    }
+  },
+  // ✅ ADICIONE ESTA LINHA:
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 };
 
 // --- MIDDLEWARES ---

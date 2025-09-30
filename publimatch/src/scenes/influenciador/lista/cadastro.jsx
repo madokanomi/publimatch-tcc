@@ -20,6 +20,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'; // Ícone para o sucesso
 import axios from 'axios';
+import TiptapEditor from "../../../components/TipTapEditor";
 // importa os influencers existentes
 import { influencers } from "../../../data/mockInfluencer";
 
@@ -28,7 +29,7 @@ const initialValues = {
   realName: "",
   age: "",
   description: "",
-  aboutMe: "",
+  aboutMe: null,
   categories: [],
   social: {
     tiktok: "",
@@ -91,8 +92,16 @@ const userSchema = yup.object().shape({
   realName: yup.string().required("Campo Obrigatório"),
   age: yup.number().required("Campo Obrigatório").positive().integer(),
   description: yup.string().required("Campo Obrigatório"),
-  aboutMe: yup.string().required("Campo Obrigatório"),
+  aboutMe: yup.mixed()
+    .required("Campo Obrigatório")
+    .test(
+      "is-not-empty",
+      "O campo 'Sobre mim' é obrigatório.",
+      // Esta função verifica se o conteúdo do Tiptap não está vazio
+      (value) => value && value.content && !(value.content.length === 1 && !value.content[0].content)
+    ),
 });
+
 
 const CadastroInflu = () => {
   const navigate = useNavigate();
@@ -184,7 +193,7 @@ const CadastroInflu = () => {
   formData.append('realName', formValues.realName);
   formData.append('age', formValues.age);
   formData.append('description', formValues.description);
-  formData.append('aboutMe', formValues.aboutMe);
+  formData.append('aboutMe', JSON.stringify(formValues.aboutMe));
   
   // Arrays e objetos precisam ser formatados como string
   formData.append('categories', tagsSelecionadas.join(',')); // Envia como "Comédia,Dança"
@@ -239,14 +248,41 @@ const CadastroInflu = () => {
       height="calc(100vh - 120px)"
       overflow="auto"
       transition="all 0.3s ease-in-out"
-      sx={{
-        transition: "all 0.3s ease-in-out",
-        willChange: "width",
-        "&::-webkit-scrollbar": { width: "10px", marginRight: "10px" },
-        "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px" },
-        "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
-        "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)" },
-      }}
+        sx={{
+                transition: "all 0.3s ease-in-out",
+                willChange: "width",
+                "&::-webkit-scrollbar": { width: "10px", marginRight: "10px" },
+                "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px" },
+                "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
+                "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)" },
+                
+                // ✅ ESTILOS PARA UNIFICAR A APARÊNCIA DO TIPTAP
+                '.tiptap-wrapper .ProseMirror': {
+                    backgroundColor: "#0000003e",
+                    padding: "16.5px 14px",
+                    color: "white",
+                    minHeight: '120px',
+                    transition: "background-color 0.3s ease",
+                    '&:hover': {
+                        backgroundColor: "#0000007a",
+                    },
+                    '& p.is-editor-empty:first-child::before': {
+                        content: 'attr(data-placeholder)',
+                        float: 'left',
+                        color: '#d2d2d2ff',
+                        pointerEvents: 'none',
+                        height: 0,
+                    },
+                },
+                '.tiptap-wrapper.is-focused': {
+                    backgroundColor: "#0000007c",
+                    boxShadow: "0px 0px 1px 2px #ffeafbff",
+                },
+                 '.tiptap-wrapper .tiptap-toolbar': {
+                    backgroundColor: 'transparent',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                }
+            }}
     >
       <Box m="20px">
         <Button
@@ -275,7 +311,7 @@ const CadastroInflu = () => {
         <Header title="Cadastro de Influenciador" subtitle="Insira as informações do influenciador" />
 
         <Formik onSubmit={handleFormikSubmit} initialValues={initialValues} validationSchema={userSchema}>
-          {({ values, errors, touched, handleBlur, handleChange, handleSubmit }) => (
+           {({ values, errors, touched, handleBlur, handleChange, handleSubmit, setFieldValue }) => (
             <form onSubmit={handleSubmit}>
               <Box
                 display="grid"
@@ -539,20 +575,35 @@ const CadastroInflu = () => {
                 />
 
                 {/* Sobre mim */}
-                <Descricao
-                  fullWidth
-                  variant="filled"
-                  label="Sobre mim"
-                  multiline
-                  rows={4}
-                  name="aboutMe"
-                  value={values.aboutMe}
-                  onChange={handleChange}
-                  error={!!touched.aboutMe && !!errors.aboutMe}
-                  helperText={touched.aboutMe && errors.aboutMe}
-                  sx={{ gridColumn: "span 4" }}
-                />
-              </Box>
+            <Box gridColumn="span 4">
+                                    <Typography variant="body1" sx={{ color: '#d2d2d2ff', mb: 1, ml: 0.5 }}>
+                                        Sobre mim
+                                    </Typography>
+                                    <Box
+                                        className={`tiptap-wrapper ${values.aboutMe?.isFocused ? 'is-focused' : ''}`} // Adiciona classe de foco
+                                        sx={{
+                                            borderRadius: "15px",
+                                            overflow: 'hidden', // Garante que o raio da borda seja aplicado aos filhos
+                                            border: !!touched.aboutMe && !!errors.aboutMe ? '1px solid #ff0077ff' : 'none', // Borda de erro
+                                            boxShadow: !!touched.aboutMe && !!errors.aboutMe ? '0px 0px 1px 2px #ff0077ff' : 'none', // Sombra de erro
+                                            transition: 'all 0.3s ease',
+                                        }}
+                                    >
+                                        <TiptapEditor
+                                            onContentChange={(jsonContent) => {
+                                                setFieldValue('aboutMe', jsonContent);
+                                            }}
+                                            // Passar um placeholder para o editor usar
+                                            placeholder="Fale um pouco sobre você, sua carreira, seus interesses..."
+                                        />
+                                    </Box>
+                                    {touched.aboutMe && errors.aboutMe && (
+                                        <Typography sx={{ ml: 2, mt: 1 }} variant="caption" color="error">
+                                            {errors.aboutMe}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </Box>
 
               <Box display="flex" justifyContent="center" mt="20px">
                 <Button

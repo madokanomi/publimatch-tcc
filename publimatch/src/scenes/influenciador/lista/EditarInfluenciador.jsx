@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Box, Button, TextField, Typography, Avatar, Chip, Stack, IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
+import { Box, CircularProgress, Button, TextField, Typography, Avatar, Chip, Stack, IconButton, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import { Formik } from "formik";
 import * as yup from "yup";
 import useMediaQuery from "@mui/material/useMediaQuery";
@@ -18,17 +18,29 @@ import { useNavigate, useParams } from 'react-router-dom';
 import MenuIcon from "@mui/icons-material/Menu";
 import ArrowBack from "@mui/icons-material/ArrowBack";
 import axios from 'axios';
-
+import TiptapEditor from "../../../components/TipTapEditor";
 
 // importa os influencers existentes
 import { influencers } from "../../../data/mockInfluencer";
+
+const glassDialogStyle = {
+  sx: {
+    borderRadius: "15px",
+    backgroundColor: 'rgba(255, 255, 255, 0.75)', // Branco com 75% de opacidade
+    backdropFilter: "blur(10px)",
+    boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
+    border: "1px solid rgba(255, 255, 255, 0.18)",
+    width: '100%',
+    maxWidth: '500px'
+  }
+};
 
 const initialValues = {
   exibitionName: "",
   realName: "",
   age: "",
   description: "",
-  aboutMe: "",
+ aboutMe: null,
   categories: [],
   social: {
     tiktok: "",
@@ -90,7 +102,13 @@ const userSchema = yup.object().shape({
   realName: yup.string().required("Campo Obrigatório"),
   age: yup.number().required("Campo Obrigatório").positive().integer(),
   description: yup.string().required("Campo Obrigatório"),
-  aboutMe: yup.string().required("Campo Obrigatório"),
+  aboutMe: yup.mixed()
+    .required("Campo Obrigatório")
+    .test(
+      "is-not-empty",
+      "O campo 'Sobre mim' é obrigatório.",
+      (value) => value && value.content && !(value.content.length === 1 && !value.content[0].content)
+    ),
 });
 
 const EditarInfluenciador = () => {
@@ -107,6 +125,8 @@ const EditarInfluenciador = () => {
   const [showAllTags, setShowAllTags] = useState(false);
   const [novaTag, setNovaTag] = useState("");
   const [erroCategorias, setErroCategorias] = useState("");
+ const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [formValuesToSubmit, setFormValuesToSubmit] = useState(null);
 
   // Estados para as imagens
   const [imagemFundo, setImagemFundo] = useState(null); // Preview URL
@@ -135,25 +155,40 @@ const EditarInfluenciador = () => {
   useEffect(() => {
     const fetchInfluencerData = async () => {
       setIsLoading(true);
-      try {
-        const userInfo = JSON.parse(localStorage.getItem('user'));
-        const token = userInfo ? userInfo.token : null;
-        if (!token) throw new Error('Usuário não autenticado.');
+   try {
+                const userInfo = JSON.parse(localStorage.getItem('user'));
+                const token = userInfo ? userInfo.token : null;
+                if (!token) throw new Error('Usuário não autenticado.');
 
-        const { data } = await axios.get(`http://localhost:5001/api/influencers/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+                const { data } = await axios.get(`http://localhost:5001/api/influencers/${id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                // ✅ 4. TRATAR O CAMPO 'aboutMe' VINDO DA API
+                let aboutMeContent = null;
+                if (data.aboutMe) {
+                    try {
+                        // Tenta converter o texto (JSON string) para um objeto
+                        aboutMeContent = JSON.parse(data.aboutMe);
+                    } catch (e) {
+                        // Se falhar (for texto puro antigo), cria um objeto Tiptap a partir do texto
+                        aboutMeContent = {
+                            type: 'doc',
+                            content: [{ type: 'paragraph', content: [{ type: 'text', text: data.aboutMe }] }],
+                        };
+                    }
+                }
 
         setFormData({
           exibitionName: data.name || "",
           realName: data.realName || "",
           age: data.age || "",
           description: data.description || "",
-          aboutMe: data.aboutMe || "",
+       aboutMe: aboutMeContent,
           social: data.social || initialValues.social,
-          categories: data.categories || [],
+        categories: data.niches || [],
         });
-    setTagsSelecionadas(data.categories || []);
+   setTagsSelecionadas(data.niches || []);
         setImagemPerfil(data.profileImageUrl || null);
         setImagemFundo(data.backgroundImageUrl || null);
       } catch (error) {
@@ -166,23 +201,35 @@ const EditarInfluenciador = () => {
     fetchInfluencerData();
   }, [id]);
 
-
-const handleFormSubmit = async (values) => {
+ const handleFormSubmit = (values) => {
+    // A validação de categorias continua aqui
     if (tagsSelecionadas.length === 0) {
       setErroCategorias("Selecione ao menos uma categoria.");
       return;
     }
     setErroCategorias("");
+
+    // Armazena os valores do formulário e abre o diálogo de confirmação
+    setFormValuesToSubmit(values);
+    setIsConfirmDialogOpen(true);
+  };
+
+  // ✅ 3. CRIE A FUNÇÃO 'executeSubmit' PARA FAZER A CHAMADA À API
+  const executeSubmit = async () => {
+    if (!formValuesToSubmit) return; // Checagem de segurança
+
+    // Fecha o diálogo de confirmação
+    setIsConfirmDialogOpen(false);
     setIsSubmitting(true);
 
     const dataToSubmit = new FormData();
-    dataToSubmit.append('exibitionName', values.exibitionName);
-    dataToSubmit.append('realName', values.realName);
-    dataToSubmit.append('age', values.age);
-    dataToSubmit.append('description', values.description);
-    dataToSubmit.append('aboutMe', values.aboutMe);
-    dataToSubmit.append('categories', tagsSelecionadas.join(','));
-    dataToSubmit.append('social', JSON.stringify(values.social));
+    dataToSubmit.append('exibitionName', formValuesToSubmit.exibitionName);
+    dataToSubmit.append('realName', formValuesToSubmit.realName);
+    dataToSubmit.append('age', formValuesToSubmit.age);
+    dataToSubmit.append('description', formValuesToSubmit.description);
+    dataToSubmit.append('aboutMe', JSON.stringify(formValuesToSubmit.aboutMe));
+    dataToSubmit.append('niches', tagsSelecionadas.join(','));
+    dataToSubmit.append('social', JSON.stringify(formValuesToSubmit.social));
 
     if (arquivoImagemPerfil) dataToSubmit.append('profileImage', arquivoImagemPerfil);
     if (arquivoImagemFundo) dataToSubmit.append('backgroundImage', arquivoImagemFundo);
@@ -196,6 +243,7 @@ const handleFormSubmit = async (values) => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      // Mostra o diálogo de sucesso ao invés de navegar diretamente
       setShowSuccessDialog(true);
     } catch (error) {
       const message = error.response?.data?.message || "Ocorreu um erro inesperado.";
@@ -222,8 +270,13 @@ const handleFormSubmit = async (values) => {
     // se não encontrou, mostra mensagem simples (mantendo a aparência)
 if (isLoading) {
   return (
-    <Box m="20px">
-      <Typography color="white">Carregando...</Typography>
+     <Box 
+      display="flex" 
+      justifyContent="center" 
+      alignItems="center" 
+      sx={{ height: 'calc(100vh - 120px)' }} // Ocupa a altura útil da tela
+    >
+      <CircularProgress color="primary" />
     </Box>
   );
 }
@@ -266,6 +319,30 @@ if (showErrorDialog) {
     "&::-webkit-scrollbar-thumb:hover": {
       background: "rgba(255, 255, 255, 0.6)", // muda a cor ao passar o mouse
     },
+     '.tiptap-wrapper .ProseMirror': {
+                    backgroundColor: "#0000003e",
+                    padding: "16.5px 14px",
+                    color: "white",
+                    minHeight: '120px',
+                    transition: "background-color 0.3s ease",
+                    '&:hover': { backgroundColor: "#0000007a" },
+                    '& p.is-editor-empty:first-child::before': {
+                        content: 'attr(data-placeholder)',
+                        float: 'left',
+                        color: '#d2d2d2ff',
+                        pointerEvents: 'none',
+                        height: 0,
+                    },
+                },
+                '.tiptap-wrapper.is-focused': {
+                    backgroundColor: "#0000007c",
+                    boxShadow: "0px 0px 1px 2px #ffeafbff",
+                },
+                 '.tiptap-wrapper .tiptap-toolbar': {
+                    backgroundColor: 'transparent',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                },
+
   }}
 >
     <Box m="20px">
@@ -309,7 +386,7 @@ if (showErrorDialog) {
   validationSchema={userSchema}
   enableReinitialize
       >
-        {({ values, errors, touched, handleBlur, handleChange, handleSubmit }) => (
+        {({ values, errors, touched, handleBlur, handleChange, handleSubmit, setFieldValue }) => (
           <form onSubmit={handleSubmit}>
             <Box
               display="grid"
@@ -686,20 +763,37 @@ if (showErrorDialog) {
               />
 
               {/* Sobre mim */}
-              <Descricao
-                fullWidth
-                variant="filled"
-                label="Sobre mim"
-                multiline
-                rows={4}
-                name="aboutMe"
-                value={values.aboutMe}
-                onChange={handleChange}
-                error={!!touched.aboutMe && !!errors.aboutMe}
-                helperText={touched.aboutMe && errors.aboutMe}
-                sx={{ gridColumn: "span 4" }}
-              />
-            </Box>
+                                             <Box gridColumn="span 4">
+                                    <Typography variant="body1" sx={{ color: '#d2d2d2ff', mb: 1, ml: 0.5 }}>
+                                        Sobre mim
+                                    </Typography>
+                                    <Box
+                                        className="tiptap-wrapper"
+                                        sx={{
+                                            borderRadius: "15px",
+                                            overflow: 'hidden',
+                                            border: !!touched.aboutMe && !!errors.aboutMe ? '1px solid #ff0077ff' : 'none',
+                                            boxShadow: !!touched.aboutMe && !!errors.aboutMe ? '0px 0px 1px 2px #ff0077ff' : 'none',
+                                            transition: 'all 0.3s ease',
+                                        }}
+                                    >
+                                        <TiptapEditor
+                                            content={values.aboutMe} // Passa o conteúdo inicial
+                                            onContentChange={(jsonContent) => {
+                                                setFieldValue('aboutMe', jsonContent);
+                                            }}
+                                            placeholder="Fale um pouco sobre você, sua carreira..."
+                                        />
+                                    </Box>
+                                    {touched.aboutMe && errors.aboutMe && (
+                                        <Typography sx={{ ml: 2, mt: 1 }} variant="caption" color="error">
+                                            {errors.aboutMe}
+                                        </Typography>
+                                    )}
+                                </Box>
+                            </Box>
+
+     
 
             <Box display="flex" justifyContent="center" mt="20px">
               <Button
@@ -729,9 +823,52 @@ if (showErrorDialog) {
           </form>
         )}
       </Formik>
+<Dialog
+        open={isConfirmDialogOpen}
+        onClose={() => setIsConfirmDialogOpen(false)}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
+        PaperProps={glassDialogStyle} // ✅ ESTILO APLICADO AQUI
+      >
+        <DialogTitle id="alert-dialog-title" sx={{ color: '#1a1a1a', fontWeight: 'bold' }}>
+          Confirmar Alterações
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="alert-dialog-description" sx={{ color: '#555555' }}>
+            Você tem certeza que deseja salvar as alterações neste perfil?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: '16px 24px' }}>
+          <Button onClick={() => setIsConfirmDialogOpen(false)} color="primary">
+            Cancelar
+          </Button>
+          <Button onClick={executeSubmit} autoFocus variant="contained" color="primary">
+            Confirmar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* Dialogo de confirmação - reaproveitado do cadastro */}
-     
+      {/* --- DIÁLOGO DE SUCESSO ESTILIZADO --- */}
+      <Dialog
+        open={showSuccessDialog}
+        onClose={() => navigate(-1)}
+        PaperProps={glassDialogStyle} // ✅ ESTILO APLICADO AQUI
+      >
+        <DialogTitle sx={{ color: '#1a1a1a', fontWeight: 'bold' }}>
+            Sucesso!
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#555555' }}>
+            As informações do influenciador foram atualizadas com sucesso.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: '16px 24px' }}>
+          <Button onClick={() => navigate(-1)} autoFocus variant="contained" color="success">
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
+   
     </Box>
     </Box>
   );

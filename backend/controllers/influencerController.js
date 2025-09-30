@@ -185,3 +185,54 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
         throw new Error('Você não tem permissão para acessar este perfil.');
     }
 });
+export const updateInfluencer = asyncHandler(async (req, res) => {
+  const influencer = await Influencer.findById(req.params.id);
+
+  if (!influencer) {
+    res.status(404);
+    throw new Error('Influenciador não encontrado.');
+  }
+
+  // Garante que apenas o agente que o criou pode editar
+  if (influencer.agent.toString() !== req.user._id.toString()) {
+    res.status(401);
+    throw new Error('Você não tem permissão para editar este perfil.');
+  }
+
+  // Lógica de upload de novas imagens
+  if (req.files) {
+    if (req.files.profileImage) {
+      const result = await uploadToCloudinary(req.files.profileImage[0]);
+      influencer.profileImageUrl = result.secure_url;
+    }
+    if (req.files.backgroundImage) {
+      const result = await uploadToCloudinary(req.files.backgroundImage[0]);
+      influencer.backgroundImageUrl = result.secure_url;
+    }
+  }
+
+  // --- ATUALIZAÇÃO DOS DADOS DE TEXTO ---
+  const { exibitionName, realName, age, description, aboutMe, niches, social } = req.body;
+ 
+  // ✅ CORREÇÃO: Use 'exibitionName' para atualizar 'influencer.name'
+  influencer.name = exibitionName || influencer.name;
+  
+  influencer.realName = realName || influencer.realName;
+  influencer.age = age || influencer.age;
+  influencer.description = description || influencer.description;
+  
+  if (aboutMe) {
+    influencer.aboutMe = aboutMe;
+  }
+
+  if (niches) {
+    influencer.niches = typeof niches === 'string' ? niches.split(',') : niches;
+  }
+  if (social) {
+    influencer.social = typeof social === 'string' ? JSON.parse(social) : social;
+  }
+
+  const updatedInfluencer = await influencer.save();
+
+  res.status(200).json(updatedInfluencer);
+});
