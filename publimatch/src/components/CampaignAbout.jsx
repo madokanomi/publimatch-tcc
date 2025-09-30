@@ -14,41 +14,32 @@ import {
     TextField,
     Autocomplete,
     Avatar,
-    Snackbar, // MODIFICAÇÃO 1: Importar Snackbar
-    Alert,    // MODIFICAÇÃO 1: Importar Alert
+    Snackbar,
+    Alert,
 } from "@mui/material";
 import { Star, Check, Close } from "@mui/icons-material";
 import { influencers } from "../data/mockInfluencer";
-
-// MODIFICAÇÃO 2: Importar o hook de autenticação e as ROLES
-import { useAuth } from "../auth/AuthContext"; // Ajuste o caminho se necessário
-import { ROLES } from "../data/mockUsers"; // Ajuste o caminho se necessário
+import { useAuth } from "../auth/AuthContext"; 
+import { ROLES } from "../data/mockUsers"; 
+import TiptapContent from "./TiptapContent"; // Verifique se este caminho está correto para seu projeto
 
 const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
-    // MODIFICAÇÃO 3: Acessar os dados do usuário logado
     const { user } = useAuth();
 
-    // ESTADOS PARA OS POP-UPS E DADOS SELECIONADOS
     const [openCandidacyDialog, setOpenCandidacyDialog] = useState(false);
     const [selectedInfluencer, setSelectedInfluencer] = useState(null);
     const [openSuccessDialog, setOpenSuccessDialog] = useState(false);
     const [availableInfluencers, setAvailableInfluencers] = useState(influencers);
     const [autocompleteKey, setAutocompleteKey] = useState(0);
-
-    // MODIFICAÇÃO 4: Novo estado para o Snackbar do influenciador
     const [openSnackbar, setOpenSnackbar] = useState(false);
 
-
-    // MODIFICAÇÃO 5: Lógica condicional baseada no papel do usuário
     const handleCandidatarCampanha = () => {
-        if (!user) return; // Proteção caso não haja usuário
+        if (!user) return;
 
         if (user.role === ROLES.INFLUENCER_AGENT) {
-            // Comportamento para Agente de Influenciador: abre o pop-up
             setOpenCandidacyDialog(true);
             setAutocompleteKey(prevKey => prevKey + 1);
         } else if (user.role === ROLES.INFLUENCER) {
-            // Comportamento para Influenciador: mostra o snackbar diretamente
             console.log(`Candidatura do influenciador ${user.username} enviada para a campanha "${campaign.name}"`);
             setOpenSnackbar(true);
         }
@@ -60,11 +51,8 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
     };
 
     const handleConfirmCandidacy = () => {
-        // Lógica de cadastro aqui
         console.log(`Candidatura confirmada para a campanha "${campaign.name}" com o influenciador:`, selectedInfluencer);
-
         setAvailableInfluencers(prev => prev.filter(inf => inf.id !== selectedInfluencer.id));
-
         setOpenCandidacyDialog(false);
         setOpenSuccessDialog(true);
     };
@@ -74,7 +62,6 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
         setSelectedInfluencer(null);
     };
     
-    // MODIFICAÇÃO 6: Função para fechar o Snackbar
     const handleCloseSnackbar = (event, reason) => {
         if (reason === 'clickaway') {
             return;
@@ -98,7 +85,6 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
                 "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "rgba(255, 255, 255, 0.5)" }
             }}
         >
-            {/* Título da campanha e descrição inicial */}
             <Typography
                 sx={{
                     fontSize: "1.7rem",
@@ -109,80 +95,24 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
             >
                 {campaign.name}
             </Typography>
-            <Typography variant="body1" color="rgba(255, 255, 255, 0.8)" mb={3}>
-                {campaign.description?.split('.')[0] + '.' || "Descrição breve da campanha."}
-            </Typography>
 
-            {/* Briefing Completo da Campanha */}
             <Typography
                 variant="h6"
                 fontWeight={600}
                 color="white"
                 mb={2}
-                mt={4}
+                mt={-2}
             >
                 Briefing Completo da Campanha:
             </Typography>
 
-            {/* Objetivo */}
-            <Typography variant="h5" color="white" mb={1} fontWeight={700}>
-                Objetivo
-            </Typography>
-            <List sx={{ color: "rgba(255, 255, 255, 0.9)", mb: 3, py: 0 }}>
-                {campaign.objective && Array.isArray(campaign.objective) ? (
-                    campaign.objective.map((item, index) => (
-                        <ListItem disablePadding key={index} sx={{ pl: 2, mb: 0.5 }}>
-                            <Typography component="span" sx={{ fontSize: "1.4rem", lineHeight: 1.2, mr: 1.5 }}>•</Typography>
-                            <ListItemText
-                                primary={<Typography variant="body1">{item}</Typography>}
-                                sx={{ my: 0 }}
-                            />
-                        </ListItem>
-                    ))
-                ) : (
-                    <ListItem disablePadding sx={{ pl: 2 }}>
-                        <Typography component="span" sx={{ fontSize: "1.4rem", lineHeight: 1.2, mr: 1.5 }}>•</Typography>
-                        <ListItemText
-                            primary={<Typography variant="body1">{campaign.objective || "Objetivo não definido."}</Typography>}
-                            sx={{ my: 0 }}
-                        />
-                    </ListItem>
-                )}
-            </List>
-
-            {/* Público-Alvo */}
-            <Typography variant="h5" color="white" mb={1} fontWeight={700}>
-                Público-Alvo
-            </Typography>
-            <List sx={{ color: "rgba(255, 255, 255, 0.9)", mb: 3, py: 0 }}>
-                {campaign.target && Array.isArray(campaign.target) ? (
-                    campaign.target.map((item, index) => (
-                        <ListItem disablePadding key={index} sx={{ pl: 2, mb: 0.5 }}>
-                            <Typography component="span" sx={{ fontSize: "1.4rem", lineHeight: 1.2, mr: 1.5 }}>•</Typography>
-                            <ListItemText
-                                primary={<Typography variant="body1">{item}</Typography>}
-                                sx={{ my: 0 }}
-                            />
-                        </ListItem>
-                    ))
-                ) : (
-                    <ListItem disablePadding sx={{ pl: 2 }}>
-                        <Typography component="span" sx={{ fontSize: "1.4rem", lineHeight: 1.2, mr: 1.5 }}>•</Typography>
-                        <ListItemText
-                            primary={<Typography variant="body1">{campaign.target || "Público não definido."}</Typography>}
-                            sx={{ my: 0 }}
-                        />
-                    </ListItem>
-                )}
-            </List>
-
-            {/* Tom de Voz */}
-            <Typography variant="h5" color="white" mb={1} fontWeight={700}>
-                Tom de Voz
-            </Typography>
-            <Typography variant="body1" color="rgba(255, 255, 255, 0.9)" mb={3}>
-                {campaign.tone || "Não especificado."}
-            </Typography>
+            {campaign.description ? (
+                <TiptapContent content={campaign.description} />
+            ) : (
+                <Typography variant="body1" color="rgba(255, 255, 255, 0.8)">
+                    Descrição não fornecida.
+                </Typography>
+            )}
 
             {/* Botão "Candidatar Campanha" */}
             {isAboutOnlyView && (
@@ -332,7 +262,7 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
                 </DialogActions>
             </Dialog>
 
-            {/* MODIFICAÇÃO 7: Snackbar para confirmação do influenciador */}
+            {/* Snackbar para confirmação do influenciador */}
             <Snackbar
                 open={openSnackbar}
                 autoHideDuration={6000}
