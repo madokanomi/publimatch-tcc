@@ -2,7 +2,7 @@ import {
   Box, Typography, TextField, Slider, Button, Chip, Rating, Dialog,
   DialogContent, Avatar, IconButton, Fade
 } from "@mui/material";
-import { forwardRef, useMemo, useState } from "react";
+import { forwardRef, useMemo, useState, useEffect } from "react";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Header from "../../../components/Header";
 import InfluencerCard from "../../../components/InfluencerCard";
@@ -14,6 +14,7 @@ import { SiTwitch } from "react-icons/si";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 import InstagramIcon from "@mui/icons-material/Instagram";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
+import axios from 'axios';
 import { motion, AnimatePresence } from "framer-motion";
 
 // Componente auxiliar (sem alterações)
@@ -65,6 +66,9 @@ const AnimatedDialogPaper = forwardRef((props, ref) => (
 
 
 const Influenciadores = () => {
+  const [influencers, setInfluencers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [categoria, setCategoria] = useState("");
   const [inputValueCategoria, setInputValueCategoria] = useState("");
@@ -75,8 +79,60 @@ const Influenciadores = () => {
   const [searchTag, setSearchTag] = useState("");
   const [showAllTags, setShowAllTags] = useState(false);
   const [influencersParaComparar, setInfluencersParaComparar] = useState([]);
+  const [ocultos, setOcultos] = useState([]);
 
-   const [ocultos, setOcultos] = useState([]); // 👈 novos
+  // Buscar influenciadores do backend
+  useEffect(() => {
+    const fetchInfluencers = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('token'); // ou sessionStorage
+        
+        const response = await fetch('/api/influencers', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao buscar influenciadores');
+        }
+
+        const data = await response.json();
+        
+        // Transformar dados do backend para o formato esperado pelo frontend
+        const transformedData = data.map(inf => ({
+          id: inf._id,
+          nome: inf.name,
+          nomeReal: inf.realName,
+          imagem: inf.profileImageUrl || '/default-avatar.png',
+          imagemFundo: inf.backgroundImageUrl || '',
+          categorias: inf.niches || [],
+          tags: inf.niches || [], // Usando niches como tags
+          redes: Object.keys(inf.social || {}).filter(key => inf.social[key]),
+          seguidores: (inf.followersCount / 1000000).toFixed(1), // Converter para milhões
+          views: Math.random() * 500, // Placeholder - adicionar ao backend se necessário
+          inscritos: (inf.followersCount / 1000000 * 0.8).toFixed(1), // Estimativa
+          avaliacao: inf.engagementRate || 4.5,
+          engajamento: inf.engagementRate || Math.random() * 10,
+          descricao: inf.description || '',
+          sobre: inf.aboutMe || '',
+          social: inf.social || {}
+        }));
+
+        setInfluencers(transformedData);
+        setError(null);
+      } catch (err) {
+        console.error('Erro ao buscar influenciadores:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInfluencers();
+  }, []);
 
   const handleOcultar = (id) => {
     setOcultos((prev) => [...prev, id]);
@@ -94,6 +150,7 @@ const Influenciadores = () => {
   const todasCategorias = useMemo(() => Array.from(new Set(influencers.flatMap((inf) => inf.categorias))), []);
   const todasTags = useMemo(() => Array.from(new Set(influencers.flatMap((inf) => inf.tags))), []);
 
+
   const handleSelecionarParaComparar = (influencer) => {
     setInfluencersParaComparar((prev) => {
       const jaSelecionado = prev.find((inf) => inf.id === influencer.id);
@@ -102,6 +159,7 @@ const Influenciadores = () => {
       return [prev[0], influencer];
     });
   };
+
 
   const handleFecharComparacao = () => {
     setInfluencersParaComparar([]);

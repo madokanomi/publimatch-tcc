@@ -268,11 +268,51 @@ const Influenciadores = () => {
 
   const sortedInfluencers = useMemo(() => {
     if (!sortConfig.key) return listaInfluenciadores;
+    
     const sorted = [...listaInfluenciadores].sort((a, b) => {
-      let aVal = a[sortConfig.key];
-      let bVal = b[sortConfig.key];
+      let aVal, bVal;
+      
+      // Mapear as chaves para os campos corretos
+      switch (sortConfig.key) {
+        case "nome":
+          aVal = a.name || "";
+          bVal = b.name || "";
+          break;
+        case "avaliacao":
+          aVal = Number(a.avaliacao ?? a.rating ?? 0);
+          bVal = Number(b.avaliacao ?? b.rating ?? 0);
+          break;
+        case "campanhas":
+          aVal = Number(a.campanhasCount ?? a.campanhas ?? a.campaigns ?? 0);
+          bVal = Number(b.campanhasCount ?? b.campanhas ?? b.campaigns ?? 0);
+          break;
+        case "desempenho":
+          aVal = Number(a.desempenhoPercent ?? a.desempenho ?? a.performance ?? a.conversaoPercent ?? 0);
+          bVal = Number(b.desempenhoPercent ?? b.desempenho ?? b.performance ?? b.conversaoPercent ?? 0);
+          break;
+        case "contratos":
+          aVal = Number(a.contratos ?? 0);
+          bVal = Number(b.contratos ?? 0);
+          break;
+        case "engajamento":
+          // Para engajamento, usar seguidores como critério principal
+          aVal = Number(a.seguidores ?? a.followers ?? a.followersCount ?? 0);
+          bVal = Number(b.seguidores ?? b.followers ?? b.followersCount ?? 0);
+          break;
+        default:
+          aVal = a[sortConfig.key];
+          bVal = b[sortConfig.key];
+      }
+      
+      // Converter strings numéricas para números
       if (typeof aVal === "string" && !isNaN(Number(aVal))) aVal = Number(aVal);
       if (typeof bVal === "string" && !isNaN(Number(bVal))) bVal = Number(bVal);
+      
+      // Tratar valores nulos/undefined
+      if (aVal == null) aVal = sortConfig.direction === "asc" ? Infinity : -Infinity;
+      if (bVal == null) bVal = sortConfig.direction === "asc" ? Infinity : -Infinity;
+      
+      // Comparação
       if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
       if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
       return 0;
