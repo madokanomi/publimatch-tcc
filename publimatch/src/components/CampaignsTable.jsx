@@ -10,26 +10,8 @@ const CampaignsTable = () => {
     const [error, setError] = useState('');
     const { user } = useAuth();
 
-    useEffect(() => {
-        if (!user) {
-            setLoading(false);
-            return;
-        }
-        const fetchCampaigns = async () => {
-            try {
-                const config = { headers: { Authorization: `Bearer ${user.token}` } };
-                const { data } = await axios.get('http://localhost:5001/api/campaigns', config);
-                setCampaigns(data);
-            } catch (err) {
-                setError(err.response?.data?.message || 'Erro ao buscar campanhas.');
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchCampaigns();
-    }, [user]);
-
-    const handleRemove = async (id) => {
+    // ALTERAÇÃO 1: Reescrito como uma declaração de função async
+    async function handleRemove(id) {
         if (window.confirm('Tem certeza que deseja deletar esta campanha?')) {
             try {
                 const config = { headers: { Authorization: `Bearer ${user.token}` } };
@@ -40,9 +22,30 @@ const CampaignsTable = () => {
                 console.error(err);
             }
         }
-    };
+    }
 
-    // Bloco de verificação de estado
+    useEffect(() => {
+        // ALTERAÇÃO 2: Reescrito também como uma declaração de função async
+        async function fetchCampaigns() {
+            try {
+                const config = { headers: { Authorization: `Bearer ${user.token}` } };
+                const { data } = await axios.get('http://localhost:5001/api/campaigns', config);
+                setCampaigns(data);
+            } catch (err) {
+                setError(err.response?.data?.message || 'Erro ao buscar campanhas.');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        if (user) {
+            fetchCampaigns();
+        } else {
+            setLoading(false);
+        }
+    }, [user]);
+
+
     if (loading) {
         return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
     }
@@ -50,11 +53,10 @@ const CampaignsTable = () => {
         return <Typography color="error" sx={{ p: 4, textAlign: 'center' }}>{error}</Typography>;
     }
     
-    // Layout da tabela com 6 colunas
-    const gridTemplate = '3fr 1fr 1.5fr 1.5fr 1fr 1fr';
+    const gridTemplate = '2fr 1fr 1.5fr 1.5fr 1fr 1fr 1fr';
 
     return (
-        <Box sx={{ p: 3, pt: 0, color: 'white' }}>
+        <React.Fragment>
             {/* Cabeçalho da tabela */}
             <Box
                 sx={{
@@ -62,21 +64,23 @@ const CampaignsTable = () => {
                     gridTemplateColumns: gridTemplate,
                     gap: 2,
                     p: 2,
+                    pr: '96px',
                     borderBottom: '1px solid rgba(255,255,255,0.2)',
                     fontWeight: 'bold',
                     fontSize: '0.9em',
                     textTransform: 'uppercase',
-                    textAlign: 'left',
                 }}
             >
                 <Typography>Campanha</Typography>
-                <Typography>Status</Typography>
-                <Typography>Duração</Typography>
-                <Typography>Pagamento</Typography>
-                <Typography>Inscrições</Typography>
-                <Typography>Privacidade</Typography>
+                <Typography sx={{ textAlign: 'center' }}>Status</Typography>
+                <Typography sx={{ textAlign: 'center' }}>Duração</Typography>
+                <Typography sx={{ textAlign: 'center' }}>Pagamento</Typography>
+                <Typography sx={{ textAlign: 'center' }}>Inscrições</Typography>
+                <Typography sx={{ textAlign: 'center' }}>Privacidade</Typography>
+                <Typography sx={{ textAlign: 'center' }}>Influencers</Typography>
             </Box>
 
+            {/* Corpo da tabela */}
             <Box sx={{ mt: 2 }}>
                 {campaigns.length === 0 ? (
                     <Typography sx={{ textAlign: 'center', mt: 4 }}>
@@ -94,7 +98,7 @@ const CampaignsTable = () => {
                     ))
                 )}
             </Box>
-        </Box>
+        </React.Fragment>
     );
 };
 

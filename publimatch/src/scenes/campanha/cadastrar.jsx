@@ -1,6 +1,6 @@
 // src/scenes/campaigns/CampaignsRegister.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react'; // Adicionado useMemo
 import {
     Box,
     Typography,
@@ -26,15 +26,9 @@ import { useNavigate } from 'react-router-dom';
 import { SiTwitch, SiTiktok } from 'react-icons/si';
 import axios from 'axios';
 import { useAuth } from '../../auth/AuthContext';
-import TiptapEditor from '../../components/TipTapEditor'; // --- IMPORTAÇÃO DO NOVO EDITOR ---
+import TiptapEditor from '../../components/TipTapEditor';
+import { influencers } from '../../data/mockInfluencer'; // ✨ 1. IMPORTA OS DADOS DOS INFLUENCERS
 
-const availableCategories = [
-    'Comida', 'Jogos', 'Lifestyle', 'Família', 'Entretenimento',
-    'Vlogs', 'Comédia', 'Música', 'Terror', 'Arte', 'Livros',
-    'Automóveis', 'Tecnologia', 'Luxo', 'Saúde', 'Fitness'
-];
-
-// Função auxiliar para formatar data para YYYY-MM-DD
 const formatDate = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -45,17 +39,29 @@ const formatDate = (date) => {
 const CampaignsRegister = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const allCategories = availableCategories;
+    
+    // ✨ 2. CRIA A LISTA DE CATEGORIAS DINAMICAMENTE A PARTIR DO MOCK ✨
+    const allCategories = useMemo(() => {
+        const categoriesSet = new Set();
+        influencers.forEach(influencer => {
+            influencer.categorias.forEach(category => {
+                categoriesSet.add(category);
+            });
+        });
+        // Converte o Set para Array e ordena
+        return Array.from(categoriesSet).sort();
+    }, []); // O array vazio significa que isso só será calculado uma vez
 
     // Estados para os campos do formulário
     const [privacy, setPrivacy] = useState(false);
     const [title, setTitle] = useState('');
-    const [image, setImage] = useState(null);
+    const [campaignImageFile, setCampaignImageFile] = useState(null);
+    const [campaignImagePreview, setCampaignImagePreview] = useState(null);
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [minFollowers, setMinFollowers] = useState('');
     const [minViews, setMinViews] = useState('');
     const [selectedSocials, setSelectedSocials] = useState([]);
-    const [description, setDescription] = useState(null); // --- ALTERADO PARA NULL (TIPTAP) ---
+    const [description, setDescription] = useState(null);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [paymentType, setPaymentType] = useState('Indefinido');
@@ -64,6 +70,9 @@ const CampaignsRegister = () => {
     const [paymentValueMax, setPaymentValueMax] = useState('');
     const [errors, setErrors] = useState({});
     const allSocials = ['instagram', 'youtube', 'twitch', 'tiktok'];
+
+    const [categorySearch, setCategorySearch] = useState('');
+    const [showAllCategories, setShowAllCategories] = useState(false);
 
     const minDateAllowed = new Date();
     minDateAllowed.setDate(minDateAllowed.getDate() - 14);
@@ -90,7 +99,8 @@ const CampaignsRegister = () => {
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
-            setImage(URL.createObjectURL(file));
+            setCampaignImagePreview(URL.createObjectURL(file));
+            setCampaignImageFile(file);
             if (errors.image) setErrors(prev => ({ ...prev, image: false }));
         }
     };
@@ -99,7 +109,8 @@ const CampaignsRegister = () => {
         e.preventDefault();
         const file = e.dataTransfer.files[0];
         if (file) {
-            setImage(URL.createObjectURL(file));
+            setCampaignImagePreview(URL.createObjectURL(file));
+            setCampaignImageFile(file);
             if (errors.image) setErrors(prev => ({ ...prev, image: false }));
         }
     };
@@ -121,22 +132,18 @@ const CampaignsRegister = () => {
             setStartDate('');
             return;
         }
-
         const selectedDate = new Date(`${selectedDateValue}T00:00:00`);
         const minDate = new Date(`${minDateString}T00:00:00`);
-
         if (selectedDate < minDate) {
             setErrors(prev => ({ ...prev, startDate: true }));
             setStartDate(selectedDateValue);
         } else {
             setErrors(prev => ({ ...prev, startDate: false }));
             setStartDate(selectedDateValue);
-
             if (endDate) {
                 const minEndDate = new Date(`${selectedDateValue}T00:00:00`);
                 minEndDate.setDate(minEndDate.getDate() + 7);
                 const currentEndDate = new Date(`${endDate}T00:00:00`);
-
                 if (currentEndDate < minEndDate) {
                     setEndDate('');
                 }
@@ -151,11 +158,9 @@ const CampaignsRegister = () => {
             setEndDate('');
             return;
         }
-
         const minEndDate = new Date(`${startDate}T00:00:00`);
         minEndDate.setDate(minEndDate.getDate() + 7);
         const selectedEndDate = new Date(`${selectedEndDateValue}T00:00:00`);
-
         if (selectedEndDate < minEndDate) {
             setErrors(prev => ({ ...prev, endDate: true }));
             setEndDate(selectedEndDateValue);
@@ -167,16 +172,13 @@ const CampaignsRegister = () => {
     
     const validateForm = () => {
         const newErrors = {};
-
         if (!title.trim()) newErrors.title = true;
-        if (!image) newErrors.image = true;
-        
+        if (!campaignImageFile) newErrors.image = true;
         if (!startDate) {
             newErrors.startDate = true;
         } else if (new Date(`${startDate}T00:00:00`) < new Date(`${minDateString}T00:00:00`)) {
             newErrors.startDate = true;
         }
-
         if (!endDate) {
             newErrors.endDate = true;
         } else if (startDate && !newErrors.startDate) {
@@ -187,7 +189,6 @@ const CampaignsRegister = () => {
                 newErrors.endDate = true;
             }
         }
-        
         if (paymentType === 'Exato' && !paymentValueExact) newErrors.paymentValueExact = true;
         if (paymentType === 'Aberto' && !paymentValueMin) newErrors.paymentValueMin = true;
         if (paymentType === 'Aberto' && !paymentValueMax) newErrors.paymentValueMax = true;
@@ -195,12 +196,9 @@ const CampaignsRegister = () => {
         if (!minFollowers.trim()) newErrors.minFollowers = true;
         if (!minViews.trim()) newErrors.minViews = true;
         if (selectedSocials.length === 0) newErrors.socials = true;
-
-        // --- VALIDAÇÃO PARA O TIPTAP ---
         if (!description || !description.content || (description.content.length === 1 && !description.content[0].content)) {
             newErrors.description = true;
         }
-
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -210,31 +208,35 @@ const CampaignsRegister = () => {
             alert("Você precisa estar logado para criar uma campanha.");
             return;
         }
-
         if (!validateForm()) {
             return;
         }
 
-        const campaignData = {
-            title,
-            description, // --- ENVIANDO O OBJETO JSON DO TIPTAP ---
-            privacy: privacy ? "Privada" : "Pública",
-            categories: selectedCategories,
-            minFollowers,
-            minViews,
-            requiredSocials: selectedSocials,
-            paymentType,
-            paymentValueExact: Number(paymentValueExact) || 0,
-            paymentValueMin: Number(paymentValueMin) || 0,
-            paymentValueMax: Number(paymentValueMax) || 0,
-            startDate,
-            endDate,
-        };
+        const formData = new FormData();
+        
+        formData.append('title', title);
+        formData.append('privacy', privacy ? "Privada" : "Pública");
+        formData.append('minFollowers', minFollowers);
+        formData.append('minViews', minViews);
+        formData.append('paymentType', paymentType);
+        formData.append('paymentValueExact', Number(paymentValueExact) || 0);
+        formData.append('paymentValueMin', Number(paymentValueMin) || 0);
+        formData.append('paymentValueMax', Number(paymentValueMax) || 0);
+        formData.append('startDate', startDate);
+        formData.append('endDate', endDate);
+
+        formData.append('description', JSON.stringify(description));
+        formData.append('categories', JSON.stringify(selectedCategories));
+        formData.append('requiredSocials', JSON.stringify(selectedSocials));
+
+        if (campaignImageFile) {
+            formData.append('logo', campaignImageFile);
+        }
 
         try {
             await axios.post(
                 'http://localhost:5001/api/campaigns',
-                campaignData,
+                formData,
                 {
                     headers: {
                         Authorization: `Bearer ${user.token}`
@@ -259,7 +261,6 @@ const CampaignsRegister = () => {
                 handleEndDateChange(e);
                 return;
             }
-
             const stateSetter = {
                 title: setTitle,
                 paymentValueExact: setPaymentValueExact,
@@ -268,7 +269,6 @@ const CampaignsRegister = () => {
                 minFollowers: setMinFollowers,
                 minViews: setMinViews,
             };
-            
             stateSetter[fieldName](e.target.value);
             if (errors[fieldName]) {
                 setErrors(prev => ({ ...prev, [fieldName]: false }));
@@ -301,24 +301,23 @@ const CampaignsRegister = () => {
                 '&::-webkit-scrollbar': { width: '8px' }, '&::-webkit-scrollbar-track': { background: 'transparent' },
                 '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(255, 255, 255, 0.3)', borderRadius: '10px' },
                 '&::-webkit-scrollbar-thumb:hover': { backgroundColor: 'rgba(255, 255, 255, 0.5)' },
-                // --- ESTILOS DO TIPTAP EMBUTIDOS ---
                 '.ProseMirror': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  color: 'white',
-                  padding: '1rem',
-                  minHeight: '250px',
-                  borderBottomLeftRadius: '8px',
-                  borderBottomRightRadius: '8px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    color: 'white',
+                    padding: '1rem',
+                    minHeight: '250px',
+                    borderBottomLeftRadius: '8px',
+                    borderBottomRightRadius: '8px',
                 },
                 '.ProseMirror:focus': {
-                  outline: 'none',
+                    outline: 'none',
                 },
                 '.ProseMirror p.is-editor-empty:first-child::before': {
-                  content: 'attr(data-placeholder)',
-                  float: 'left',
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  pointerEvents: 'none',
-                  height: 0,
+                    content: 'attr(data-placeholder)',
+                    float: 'left',
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    pointerEvents: 'none',
+                    height: 0,
                 },
             }}
         >
@@ -420,51 +419,121 @@ const CampaignsRegister = () => {
                     '&:hover': { borderColor: errors.image ? '#d32f2f' : 'rgba(255,255,255,0.5)' },
                     position: 'relative', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }} onDrop={handleImageDrop} onDragOver={(e) => e.preventDefault()} onClick={() => document.getElementById('image-upload').click()}>
-                    {image ? (<Box component="img" src={image} alt="Pré-visualização da Imagem" sx={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />) : (<Box sx={{ textAlign: 'center' }}> <CameraAltOutlined sx={{ fontSize: '4rem', color: 'rgba(255,255,255,0.5)' }} /> <Typography color="rgba(255,255,255,0.5)" mt={1}> Insira a imagem da campanha </Typography> </Box>)}
+                    
+                    {campaignImagePreview ? (
+                        <Box component="img" src={campaignImagePreview} alt="Pré-visualização da Imagem" sx={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' }} />
+                    ) : (
+                        <Box sx={{ textAlign: 'center' }}>
+                            <CameraAltOutlined sx={{ fontSize: '4rem', color: 'rgba(255,255,255,0.5)' }} />
+                            <Typography color="rgba(255,255,255,0.5)" mt={1}> Insira a imagem da campanha </Typography>
+                        </Box>
+                    )}
                     <input id="image-upload" type="file" accept="image/*" hidden onChange={handleImageChange} />
                 </Box>
             </Box>
 
             <Box sx={{ backgroundColor: 'rgba(255,255,255,0.05)', p: 3, borderRadius: '12px', mb: 4 }}>
                 <Typography sx={{ color: 'rgba(255,255,255,0.8)', mb: 2 }}>Detalhes da Segmentação</Typography>
-                <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
-                    <Box sx={{ flex: 2 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 3, alignItems: 'flex-start' }}>
+                    
+                    <Box>
                         <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Categorias de Influenciador</Typography>
-                        <Box sx={{
-                            border: errors.categories ? '1px solid #d32f2f' : 'none',
-                            borderRadius: '8px', p: errors.categories ? 1 : 0, mt: errors.categories ? '4px' : 0
-                        }}>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                {allCategories.map((category) => (<Chip key={category} label={category} onClick={() => handleCategoryClick(category)} deleteIcon={selectedCategories.includes(category) ? <DeleteForeverOutlined /> : null} onDelete={selectedCategories.includes(category) ? () => handleCategoryClick(category) : undefined} sx={{ backgroundColor: selectedCategories.includes(category) ? '#BF28B0' : 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 'bold', borderRadius: '8px', '& .MuiChip-deleteIcon': { color: 'white', '&:hover': { color: 'rgba(255,255,255,0.7)' }, }, }} />))}
+                        <TextField
+    fullWidth
+    size="small"
+    label="Buscar categoria..." // 1. MUDANÇA AQUI
+    value={categorySearch}
+    onChange={(e) => setCategorySearch(e.target.value)}
+    sx={{ 
+        mb: 1.5,
+        '& .MuiOutlinedInput-root': {
+            borderRadius: "8px",
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            '& fieldset': { borderColor: 'transparent' },
+            '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.3)' },
+            '&.Mui-focused fieldset': { borderColor: '#BF28B0' },
+        },
+        '& .MuiInputBase-input': { color: 'white' },
+        '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)' },
+        '& .MuiInputLabel-root.Mui-focused': { color: '#BF28B0' },
+    }}
+/>
+                        <Box
+                            sx={{
+                                border: errors.categories ? '1px solid #d32f2f' : 'none',
+                                borderRadius: '8px',
+                                p: errors.categories ? 1 : 0
+                            }}
+                        >
+                            <Box display="flex" flexWrap="wrap" gap={1}>
+                                {(showAllCategories ? allCategories : allCategories.slice(0, 10))
+                                    .filter((cat) => cat.toLowerCase().includes(categorySearch.toLowerCase()))
+                                    .map((category) => (
+                                        <Chip
+                                            key={category}
+                                            label={category}
+                                            onClick={() => handleCategoryClick(category)}
+                                            deleteIcon={selectedCategories.includes(category) ? <DeleteForeverOutlined /> : null}
+                                            onDelete={selectedCategories.includes(category) ? () => handleCategoryClick(category) : undefined}
+                                            sx={{
+                                                backgroundColor: selectedCategories.includes(category) ? '#BF28B0' : 'rgba(255,255,255,0.1)',
+                                                color: 'white',
+                                                fontWeight: 'bold',
+                                                borderRadius: '8px',
+                                                '& .MuiChip-deleteIcon': { color: 'white', '&:hover': { color: 'rgba(255,255,255,0.7)' } },
+                                                '&:hover': {
+                                                    backgroundColor: selectedCategories.includes(category) ? '#a9239d' : 'rgba(255,255,255,0.2)',
+                                                }
+                                            }}
+                                        />
+                                    ))
+                                }
+                            </Box>
+                        </Box>
+                        {allCategories.length > 10 && (
+                            <Button
+                                onClick={() => setShowAllCategories(!showAllCategories)}
+                                size="small"
+                                fullWidth
+                                sx={{ 
+                                    mt: 1.5, 
+                                    color: "white", 
+                                    textTransform: "none", 
+                                    backgroundColor: "rgba(255, 255, 255, 0.1)", 
+                                    borderRadius: "8px",
+                                    "&:hover": { bgcolor: "rgba(255, 255, 255, 0.2)" } 
+                                }}
+                            >
+                                {showAllCategories ? "Ver menos" : "Ver mais"}
+                            </Button>
+                        )}
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Mínimo de seguidores:</Typography>
+                            <TextField fullWidth variant="outlined" placeholder="Ex: 10000" value={minFollowers} {...getTextFieldProps('minFollowers')} />
+                        </Box>
+                        <Box>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Mínimo de visualizações:</Typography>
+                            <TextField fullWidth variant="outlined" placeholder="Ex: 5000" value={minViews} {...getTextFieldProps('minViews')} />
+                        </Box>
+                        <Box>
+                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Redes Sociais</Typography>
+                             <Box sx={{ border: errors.socials ? '1px solid #d32f2f' : 'none', borderRadius: '8px', p: errors.socials ? 1 : 0, display: 'inline-block' }}>
+                                <Box sx={{ display: 'flex', gap: 1 }}>
+                                    {allSocials.map((social) => (<IconButton key={social} onClick={() => handleSocialClick(social)} sx={{ color: 'white', backgroundColor: selectedSocials.includes(social) ? '#BF28B0' : 'rgba(255,255,255,0.1)', '&:hover': { backgroundColor: selectedSocials.includes(social) ? '#a9239d' : 'rgba(255,255,255,0.2)', }, }} > {getSocialIcon(social)} </IconButton>))}
+                                </Box>
                             </Box>
                         </Box>
                     </Box>
-                    <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Mínimo de seguidores:</Typography>
-                        <TextField fullWidth variant="outlined" placeholder="Ex: 10000" value={minFollowers} {...getTextFieldProps('minFollowers')} />
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Mínimo de visualizações:</Typography>
-                        <TextField fullWidth variant="outlined" placeholder="Ex: 5000" value={minViews} {...getTextFieldProps('minViews')} />
-                    </Box>
-                    <Box sx={{ flex: 1, minWidth: '220px' }}>
-                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Redes Sociais</Typography>
-                        <Box sx={{
-                            border: errors.socials ? '1px solid #d32f2f' : 'none',
-                            borderRadius: '8px', p: errors.socials ? 1 : 0, display: 'inline-block'
-                        }}>
-                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                {allSocials.map((social) => (<IconButton key={social} onClick={() => handleSocialClick(social)} sx={{ color: 'white', backgroundColor: selectedSocials.includes(social) ? '#BF28B0' : 'rgba(255,255,255,0.1)', '&:hover': { backgroundColor: selectedSocials.includes(social) ? '#a9239d' : 'rgba(255,255,255,0.2)', }, }} > {getSocialIcon(social)} </IconButton>))}
-                            </Box>
-                        </Box>
-                    </Box>
+
                 </Box>
             </Box>
 
             <Box sx={{ backgroundColor: 'rgba(255,255,255,0.05)', p: 3, borderRadius: '12px', mb: 4 }}>
                 <Typography sx={{ color: 'rgba(255,255,255,0.8)', mb: 1 }}>Detalhes da Campanha</Typography>
                 
-                {/* --- EDITOR TIPTAP INTEGRADO --- */}
                 <TiptapEditor 
                     onContentChange={(jsonContent) => {
                         setDescription(jsonContent);
