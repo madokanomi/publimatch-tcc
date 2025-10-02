@@ -3,15 +3,16 @@
 import React from 'react';
 import { Box, Typography, IconButton, Card, Tooltip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { useNavigate } from 'react-router-dom';
 
-const CampaignRow = ({ campaign, gridTemplate, showActions, onRemove }) => {
+const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState }) => {
     const navigate = useNavigate();
 
-    const handleRemoveClick = (event) => {
+    const handleToggleStateClick = (event) => {
         event.stopPropagation();
-        onRemove(campaign._id);
+        onToggleState(campaign._id);
     };
 
     const handleEditClick = (event) => {
@@ -53,25 +54,23 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onRemove }) => {
         <Card
             onClick={() => navigate(`/campaign/${campaign._id}`)}
             sx={{
-                // ✨ A MÁGICA ACONTECE AQUI ✨
                 backgroundImage: `linear-gradient(90deg, rgba(22, 7, 83, 0.8), rgba(81, 4, 61, 0.7)), url(${campaign.logo})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
-                // --- Fim da alteração ---
                 backdropFilter: "blur(10px)",
                 borderRadius: "12px",
                 mb: 1.5,
                 cursor: "pointer",
                 transition: "all 0.2s ease-in-out",
                 position: "relative",
+                opacity: campaign.state === 'Hidden' ? 0.6 : 1,
                 "&:hover": {
                     transform: "translateY(-2px)",
                     boxShadow: "0 4px 20px rgba(255, 55, 235, 0.25)",
                 },
             }}
         >
-            {/* O resto do seu código permanece igual */}
             {showActions && (
                 <Box 
                     sx={{
@@ -99,19 +98,23 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onRemove }) => {
                             <EditIcon fontSize="small" />
                         </IconButton>
                     </Tooltip>
-                    <Tooltip title="Remover">
+                    
+                    <Tooltip title={campaign.state === 'Hidden' ? 'Mostrar campanha' : 'Ocultar campanha'}>
                         <IconButton
-                            onClick={handleRemoveClick}
+                            onClick={handleToggleStateClick}
                             size="small"
                             sx={{ 
-                                bgcolor: "rgba(255,0,0,0.1)", 
-                                color: "#ff6b6b", 
-                                "&:hover": { bgcolor: "rgba(255,0,0,0.2)" },
+                                // ALTERAÇÃO: O estilo para o botão de ocultar (estado "Open") agora é igual ao do botão de editar
+                                bgcolor: campaign.state === 'Hidden' ? "rgba(0,255,0,0.1)" : "rgba(255,255,255,0.1)", 
+                                color: campaign.state === 'Hidden' ? "#81c784" : "white", 
+                                "&:hover": { 
+                                    bgcolor: campaign.state === 'Hidden' ? "rgba(0,255,0,0.2)" : "rgba(255,255,255,0.2)" 
+                                },
                                 width: 32,
                                 height: 32
                             }}
                         >
-                            <DeleteIcon fontSize="small" />
+                            {campaign.state === 'Hidden' ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
                         </IconButton>
                     </Tooltip>
                 </Box>
@@ -125,8 +128,6 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onRemove }) => {
                 p: 2, 
                 minHeight: "80px",
                 pr: '96px',
-                // Adiciona um fundo sutil ao texto para garantir legibilidade
-                // caso a imagem de fundo seja muito clara.
                 backgroundColor: 'rgba(0, 0, 0, 0.2)'
             }}>
                 <Typography variant="subtitle1" fontWeight={700}>{campaign.title}</Typography>

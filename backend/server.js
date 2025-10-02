@@ -35,7 +35,7 @@ const corsOptions = {
     }
   },
   // ✅ ADICIONE ESTA LINHA:
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
 };
 
 // --- MIDDLEWARES ---

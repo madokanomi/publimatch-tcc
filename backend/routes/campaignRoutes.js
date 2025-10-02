@@ -1,17 +1,17 @@
 // backend/routes/campaignRoutes.js
-// Lógica adaptada do seu influencerRoutes.js
 
-import express from 'express'; // MODIFICADO: Padronizando para 'import'
-import { protect, authorize } from '../middleware/authMiddleware.js'; // MODIFICADO
-import upload from '../middleware/uploadMiddleware.js'; // MODIFICADO: Importando o upload
-import { 
-    createCampaign, 
-    getCampaigns, 
-    getCampaignById, 
-    updateCampaign, 
-    deleteCampaign,
+import express from 'express';
+import { protect, authorize } from '../middleware/authMiddleware.js';
+import upload from '../middleware/uploadMiddleware.js';
+import {
+    createCampaign,
+    getCampaigns,
+    getCampaignById,
+    updateCampaign,
+    // --- deleteCampaign foi removido daqui ---
+    updateCampaignState, // --- E updateCampaignState foi adicionado ---
     searchCampaigns
-} from '../controllers/campaignControllers.js'; // MODIFICADO
+} from '../controllers/campaignControllers.js';
 
 const router = express.Router();
 
@@ -19,14 +19,16 @@ router.route('/search')
     .get(protect, authorize('INFLUENCER', 'INFLUENCER_AGENT'), searchCampaigns);
 
 router.route('/')
-    // MODIFICADO: Adicionado middleware de upload para um único arquivo chamado 'logo'
-    .post(protect, authorize('AD_AGENT'), upload.single('logo'), createCampaign) 
+    .post(protect, authorize('AD_AGENT'), upload.single('logo'), createCampaign)
     .get(protect, authorize('AD_AGENT'), getCampaigns);
 
-router.route('/:id')
-    .get(protect, getCampaignById) 
-    // MODIFICADO: Adicionado 'upload.single('logo')' também na rota de update, caso queira trocar a imagem
-    .put(protect, authorize('AD_AGENT'), upload.single('logo'), updateCampaign)
-    .delete(protect, authorize('AD_AGENT'), deleteCampaign);
+// --- NOVA ROTA PARA ATUALIZAR O ESTADO (OCULTAR/MOSTRAR) ---
+router.route('/:id/state')
+    .patch(protect, authorize('AD_AGENT'), updateCampaignState);
 
-export default router; // MODIFICADO: Padronizando para 'export default'
+router.route('/:id')
+    .get(protect, getCampaignById)
+    .put(protect, authorize('AD_AGENT'), upload.single('logo'), updateCampaign);
+    // --- ROTA ANTIGA .delete() FOI REMOVIDA DAQUI ---
+
+export default router;

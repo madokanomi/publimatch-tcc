@@ -1,29 +1,27 @@
-// backend/controllers/campaignControllers.js
-// Lógica adaptada do seu influencerController.js
+// backend/controllers/campaignController.js
 
 import Campaign from '../models/campaignModel.js';
-import cloudinary from '../config/cloudinaryConfig.js'; // Assumindo que você tenha um arquivo de configuração como no influencer
+import cloudinary from '../config/cloudinaryConfig.js';
 
-// --- FUNÇÃO AUXILIAR PARA UPLOAD (ADAPTADA DO SEU INFLUENCER CONTROLLER) ---
+// --- FUNÇÃO AUXILIAR PARA UPLOAD (sem alterações) ---
 const uploadToCloudinary = (file) => {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: "campaigns_logos" }, // Pasta diferente para organizar no Cloudinary
-      (error, result) => {
-        if (error) {
-          console.error("Cloudinary Upload Error:", error);
-          reject(new Error("Falha no upload da imagem."));
-        } else {
-          resolve(result);
-        }
-      }
-    );
-    stream.end(file.buffer);
-  });
+    return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+            { folder: "campaigns_logos" },
+            (error, result) => {
+                if (error) {
+                    console.error("Cloudinary Upload Error:", error);
+                    reject(new Error("Falha no upload da imagem."));
+                } else {
+                    resolve(result);
+                }
+            }
+        );
+        stream.end(file.buffer);
+    });
 };
 
-// @desc    Criar uma nova campanha
-// @route   POST /api/campaigns
+// --- createCampaign (sem alterações) ---
 export const createCampaign = async (req, res) => {
     try {
         const {
@@ -32,9 +30,8 @@ export const createCampaign = async (req, res) => {
             paymentValueMin, paymentValueMax
         } = req.body;
 
-        // --- LÓGICA DE UPLOAD DE IMAGEM (ADAPTADA DO SEU INFLUENCER CONTROLLER) ---
         let logoUrl = '';
-        if (req.file) { // Para upload.single, o arquivo vem em req.file
+        if (req.file) {
             const result = await uploadToCloudinary(req.file);
             logoUrl = result.secure_url;
         } else {
@@ -42,7 +39,6 @@ export const createCampaign = async (req, res) => {
             throw new Error('A imagem da campanha (logo) é obrigatória.');
         }
 
-        // Converter campos que o FormData envia como string
         const description = JSON.parse(req.body.description);
         const categories = JSON.parse(req.body.categories);
         const requiredSocials = JSON.parse(req.body.requiredSocials);
@@ -55,7 +51,7 @@ export const createCampaign = async (req, res) => {
             title, description, privacy, categories,
             minFollowers, minViews, requiredSocials,
             startDate, endDate, paymentType,
-            logo: logoUrl, // Salva a URL do Cloudinary
+            logo: logoUrl,
             brandName: req.user.name,
             createdBy: req.user._id
         };
@@ -76,8 +72,7 @@ export const createCampaign = async (req, res) => {
     }
 };
 
-// --- OUTRAS FUNÇÕES CONVERTIDAS PARA A SINTAXE 'EXPORT' ---
-
+// --- getCampaigns (sem alterações) ---
 export const getCampaigns = async (req, res) => {
     try {
         const campaigns = await Campaign.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
@@ -87,6 +82,7 @@ export const getCampaigns = async (req, res) => {
     }
 };
 
+// --- getCampaignById (sem alterações) ---
 export const getCampaignById = async (req, res) => {
     try {
         const campaign = await Campaign.findById(req.params.id).populate('createdBy', 'name email');
@@ -99,7 +95,7 @@ export const getCampaignById = async (req, res) => {
     }
 };
 
-
+// --- updateCampaign (sem alterações) ---
 export const updateCampaign = async (req, res) => {
     try {
         const campaign = await Campaign.findById(req.params.id);
@@ -107,25 +103,19 @@ export const updateCampaign = async (req, res) => {
         if (!campaign) {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
         }
-
         if (campaign.createdBy.toString() !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Usuário não autorizado a modificar esta campanha.' });
         }
 
         const updateData = { ...req.body };
-
-        // Remove os campos que não devem ser modificados por este formulário
         delete updateData.createdBy;
-        // 👇 ADICIONE ESTA LINHA
         delete updateData.participatingInfluencers;
 
-        // Lógica para atualizar a imagem se uma nova for enviada
         if (req.file) {
             const result = await uploadToCloudinary(req.file);
             updateData.logo = result.secure_url;
         }
 
-        // Converte campos que vêm como string do FormData de volta para JSON
         try {
             if (updateData.description && typeof updateData.description === 'string') {
                 updateData.description = JSON.parse(updateData.description);
@@ -137,7 +127,6 @@ export const updateCampaign = async (req, res) => {
                 updateData.requiredSocials = JSON.parse(updateData.requiredSocials);
             }
         } catch (parseError) {
-            console.error("Erro de JSON.parse na atualização:", parseError);
             return res.status(400).json({ message: "Dados em formato inválido." });
         }
         
@@ -145,30 +134,40 @@ export const updateCampaign = async (req, res) => {
             new: true,
             runValidators: true
         });
-
         res.status(200).json(updatedCampaign);
     } catch (error) {
-        console.error("ERRO DETALHADO AO ATUALIZAR CAMPANHA:", error);
         res.status(500).json({ message: 'Erro no servidor ao atualizar campanha', error: error.message });
     }
 };
 
-export const deleteCampaign = async (req, res) => {
+// --- ANTIGA FUNÇÃO deleteCampaign REMOVIDA ---
+
+// --- NOVA FUNÇÃO PARA OCULTAR/MOSTRAR CAMPANHA ---
+export const updateCampaignState = async (req, res) => {
     try {
         const campaign = await Campaign.findById(req.params.id);
+
         if (!campaign) {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
         }
+
         if (campaign.createdBy.toString() !== req.user._id.toString()) {
-            return res.status(401).json({ message: 'Usuário não autorizado a deletar esta campanha.' });
+            return res.status(401).json({ message: 'Usuário não autorizado a modificar esta campanha.' });
         }
-        await Campaign.findByIdAndDelete(req.params.id);
-        res.status(200).json({ message: 'Campanha deletada com sucesso.' });
+
+        // Alterna o estado: se for 'Hidden', vira 'Open', e vice-versa.
+        campaign.state = campaign.state === 'Hidden' ? 'Open' : 'Hidden';
+
+        await campaign.save();
+
+        res.status(200).json({ message: `Campanha agora está ${campaign.state}`, campaign });
+
     } catch (error) {
-        res.status(500).json({ message: 'Erro no servidor ao deletar campanha', error: error.message });
+        res.status(500).json({ message: 'Erro no servidor ao atualizar estado da campanha', error: error.message });
     }
 };
 
+// --- searchCampaigns (sem alterações) ---
 export const searchCampaigns = async (req, res) => {
     try {
         const campaigns = await Campaign.find({ status: 'Ativa' })
