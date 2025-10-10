@@ -10,7 +10,9 @@ import {
     updateCampaign,
     // --- deleteCampaign foi removido daqui ---
     updateCampaignState, // --- E updateCampaignState foi adicionado ---
-    searchCampaigns
+    searchCampaigns,
+    updateCampaignStatus,
+    cancelCampaignWithPassword
 } from '../controllers/campaignControllers.js';
 
 const router = express.Router();
@@ -22,6 +24,9 @@ router.route('/')
     .post(protect, authorize('AD_AGENT'), upload.single('logo'), createCampaign)
     .get(protect, authorize('AD_AGENT'), getCampaigns);
 
+router.route('/:id/cancel')
+    .post(protect, authorize('AD_AGENT'), cancelCampaignWithPassword);
+
 // --- NOVA ROTA PARA ATUALIZAR O ESTADO (OCULTAR/MOSTRAR) ---
 router.route('/:id/state')
     .patch(protect, authorize('AD_AGENT'), updateCampaignState);
@@ -30,5 +35,8 @@ router.route('/:id')
     .get(protect, getCampaignById)
     .put(protect, authorize('AD_AGENT'), upload.single('logo'), updateCampaign);
     // --- ROTA ANTIGA .delete() FOI REMOVIDA DAQUI ---
+
+router.route('/:id/status')
+    .patch(protect, authorize('AD_AGENT'), updateCampaignStatus);
 
 export default router;

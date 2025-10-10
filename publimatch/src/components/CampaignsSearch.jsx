@@ -1,15 +1,16 @@
 // src/scenes/campaigns/CampaignsSearch.jsx
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
      Box, Typography, TextField, InputAdornment, IconButton,
     FormControl, Select, MenuItem, Slider, FormGroup,
-    FormControlLabel, Checkbox, Button, CircularProgress
+    FormControlLabel, Checkbox, Button, CircularProgress, Chip
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 // Importe o novo componente de linha e os ícones necessários
 import CampaignSearchRow from "./CampaignSearchRow"; // Corrigido o caminho
+import { influencers } from "../data/mockInfluencer"
 
 import {
   FaYoutube,
@@ -26,39 +27,35 @@ import {
 } from "@mui/icons-material";
 import { useAuth } from "../auth/AuthContext";
 import axios from "axios";
-const allCategories = [
-  "Comida",
-  "Jogos",
-  "Lifestyle",
-  "Família",
-  "Entretenimento",
-  "Vlogs",
-  "Comédia",
-  "Música",
-  "Terror",
-  "Arte",
-  "Livros",
-  "Automóveis",
-  "Tecnologia",
-  "Luxo",
-  "Saúde",
-  "Fitness",
-];
+
 const allPlatforms = ["instagram", "youtube", "twitch", "tiktok", "twitter"];
 
 const CampaignsSearch = () => {
+
+  const allCategories = useMemo(() => {
+    const categoriesSet = new Set();
+    influencers.forEach(influencer => {
+        influencer.categorias.forEach(category => {
+            categoriesSet.add(category);
+        });
+    });
+    return Array.from(categoriesSet).sort();
+}, []);
+
   const { user } = useAuth();
 
   // Estados para a busca e os filtros
   const [searchTerm, setSearchTerm] = useState("");
 const [filters, setFilters] = useState({
-    categoria: "",
+    categorias: [], 
     plataforma: "",
     faixaSeguidores: 0,
+    faixaVisualizacoes: 0,
     vagasAbertas: false,
   });
 
   // Estados para os dados da API
+  const [categorySearch, setCategorySearch] = useState('');
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -74,15 +71,19 @@ const [filters, setFilters] = useState({
 
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, filters, user]);
+
+
 const fetchCampaigns = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchTerm) params.append("title", searchTerm);
-      if (filters.categoria) params.append("category", filters.categoria);
+      if (filters.categorias.length > 0) params.append("category", filters.categorias[0]);
       if (filters.plataforma) params.append("platform", filters.plataforma);
-      if (filters.faixaSeguidores > 0) params.append("minFollowers", filters.faixaSeguidores);
+      if (filters.faixaSeguidores > 0) params.append("minFollowers", filters.faixaSeguidores * 1000000);
+      if (filters.faixaVisualizacoes > 0) params.append("minViews", filters.faixaVisualizacoes * 1000000);
       if (filters.vagasAbertas) params.append("openSlots", filters.vagasAbertas);
+      
 
       const config = {
         headers: { Authorization: `Bearer ${user.token}` },
@@ -103,6 +104,14 @@ const fetchCampaigns = async () => {
     }
   };
 
+  const handleCategoryClick = (category) => {
+        setFilters((prev) => {
+            const newCategories = prev.categorias.includes(category)
+                ? prev.categorias.filter((c) => c !== category)
+                : [...prev.categorias, category];
+            return { ...prev, categorias: newCategories };
+        });
+    };
 
   // Handlers para os filtros
   const handleFilterChange = (event) => {
@@ -114,22 +123,30 @@ const fetchCampaigns = async () => {
   };
 
   const handleSliderChange = (event, newValue) => {
-    setFilters((prev) => ({ ...prev, minFollowers: newValue }));
+    setFilters((prev) => ({ ...prev, faixaSeguidores: newValue }));
   };
+
+  const handleViewsSliderChange = (event, newValue) => {
+  setFilters((prev) => ({ ...prev, faixaVisualizacoes: newValue }));
+};
+
+const formatViewsValue = (value) => `${value}M`; 
 
 const clearFilters = () => {
     setSearchTerm("");
+    setCategorySearch("");
     setFilters({
-      categoria: "",
+      categoria: [],
       plataforma: "",
       faixaSeguidores: 0,
+      faixaVisualizacoes: 0,
       vagasAbertas: false,
     });
   };
 
    const gridTemplate = "1.5fr 1fr 1fr 1fr 1fr 1fr";
 
-  const formatSliderValue = (value) => `${value}k`;
+  const formatSliderValue = (value) => `${value}M`;
   return (
     <Box
       sx={{
@@ -187,34 +204,48 @@ const clearFilters = () => {
           }}
         >
           {/* Campos de filtro (mesmos do seu código) */}
-          <Typography variant="body2" fontWeight="500">
-            Categoria
-          </Typography>
-          <TextField
-            fullWidth
-            size="small"
-            select
-            name="categoria"
-            value={filters.categoria}
-            onChange={handleFilterChange}
-            SelectProps={{ native: true }}
-            sx={{
-              mb: 2,
-              mt: 0.5,
-              bgcolor: "rgba(255,255,255,0.1)",
-              borderRadius: "10px",
-              "& .MuiOutlinedInput-input": { color: "white" },
-              "& fieldset": { border: "none" },
-              "& svg": { color: "white" },
-            }}
-          >
-            <option value="">Todas</option>
-            {allCategories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </TextField>
+<TextField
+    fullWidth
+    size="small"
+    label="Buscar categoria..."
+    value={categorySearch}
+    onChange={(e) => setCategorySearch(e.target.value)}
+    sx={{
+        mb: 1.5,
+        '& .MuiOutlinedInput-root': {
+            borderRadius: "10px",
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            '& fieldset': { borderColor: 'transparent' },
+            '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.3)' },
+            '&.Mui-focused fieldset': { borderColor: '#BF28B0' },
+        },
+        '& .MuiInputBase-input': { color: 'white' },
+        '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.5)' },
+        '& .MuiInputLabel-root.Mui-focused': { color: '#BF28B0' },
+    }}
+/>
+<Box display="flex" flexWrap="wrap" gap={1} sx={{ mb: 2 }}>
+    {allCategories
+        .filter((cat) => cat.toLowerCase().includes(categorySearch.toLowerCase()))
+        .slice(0, 3)
+        .map((category) => (
+            <Chip
+                key={category}
+    label={category}
+    onClick={() => handleCategoryClick(category)}
+    sx={{
+        backgroundColor: filters.categorias.includes(category) ? '#BF28B0' : 'rgba(255,255,255,0.1)',
+        color: 'white',
+        fontWeight: 'bold',
+        borderRadius: '8px',
+        '&:hover': {
+            backgroundColor: filters.categorias.includes(category) ? '#a9239d' : 'rgba(255,255,255,0.2)',
+        }
+    }}
+            />
+        ))
+    }
+</Box>
 
           <Typography variant="body2" fontWeight="500">
             Plataforma
@@ -267,6 +298,29 @@ const clearFilters = () => {
               }}
             />
           </Box>
+
+          <Typography variant="body2" fontWeight="500" mb={1}>
+  Faixa de Visualizações (milhares)
+</Typography>
+<Box sx={{ width: "calc(100% - 20px)", ml: "10px" }}>
+  <Slider
+    value={filters.faixaVisualizacoes} 
+    onChange={handleViewsSliderChange} // Nova função
+    valueLabelDisplay="auto"
+    valueLabelFormat={formatViewsValue} // Nova função
+    min={0}
+    max={50} // Ex: de 0 a 1000k (1 milhão) de views
+    step={1}  // Pulos de 10k
+    sx={{
+        color: "#ff00d4",
+        "& .MuiSlider-thumb": {
+            bgcolor: "white",
+            border: "2px solid #ff00d4",
+        },
+        "& .MuiSlider-track": { bgcolor: "#ff00d4" },
+    }}
+  />
+</Box>
 
           <FormGroup sx={{ mb: 2 }}>
             <FormControlLabel

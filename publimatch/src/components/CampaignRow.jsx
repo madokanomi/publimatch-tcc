@@ -3,21 +3,16 @@
 import React from 'react';
 import { Box, Typography, IconButton, Card, Tooltip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
-import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate } from 'react-router-dom';
 
-const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState }) => {
+const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState, onCancelCampaign }) => {
     const navigate = useNavigate();
 
-    const handleToggleStateClick = (event) => {
+    const handleActionClick = (event, action, campaignId) => {
         event.stopPropagation();
-        onToggleState(campaign._id);
-    };
-
-    const handleEditClick = (event) => {
-        event.stopPropagation();
-        navigate(`/campaigns/edit/${campaign._id}`);
+        action(campaignId);
     };
 
     const getStatusColor = (status) => {
@@ -25,6 +20,7 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState }) => 
             case "aberta": return "#A8E349";
             case "finalizada": return "#DF3A3A";
             case "planejamento": return "#4dabf5";
+            case "cancelada": return "#DF3A3A"; // Cor para o status "Cancelada"
             default: return "white";
         }
     };
@@ -85,7 +81,10 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState }) => 
                 >
                     <Tooltip title="Editar">
                         <IconButton
-                            onClick={handleEditClick}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/campaigns/edit/${campaign._id}`);
+                            }}
                             size="small"
                             sx={{ 
                                 bgcolor: "rgba(255,255,255,0.1)", 
@@ -99,24 +98,43 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState }) => 
                         </IconButton>
                     </Tooltip>
                     
-                    <Tooltip title={campaign.state === 'Hidden' ? 'Mostrar campanha' : 'Ocultar campanha'}>
-                        <IconButton
-                            onClick={handleToggleStateClick}
-                            size="small"
-                            sx={{ 
-                                // ALTERAÇÃO: O estilo para o botão de ocultar (estado "Open") agora é igual ao do botão de editar
-                                bgcolor: campaign.state === 'Hidden' ? "rgba(0,255,0,0.1)" : "rgba(255,255,255,0.1)", 
-                                color: campaign.state === 'Hidden' ? "#81c784" : "white", 
-                                "&:hover": { 
-                                    bgcolor: campaign.state === 'Hidden' ? "rgba(0,255,0,0.2)" : "rgba(255,255,255,0.2)" 
-                                },
-                                width: 32,
-                                height: 32
-                            }}
-                        >
-                            {campaign.state === 'Hidden' ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
-                        </IconButton>
-                    </Tooltip>
+                    {/* Botão de Cancelar para campanhas Abertas */}
+                    {campaign.status === 'Aberta' && (
+                        <Tooltip title="Cancelar Campanha">
+                            <IconButton
+                                onClick={(e) => handleActionClick(e, onCancelCampaign, campaign._id)}
+                                size="small"
+                                sx={{ 
+                                    bgcolor: "rgba(255,0,0,0.1)", 
+                                    color: "#ff6b6b", 
+                                    "&:hover": { bgcolor: "rgba(255,0,0,0.2)" },
+                                    width: 32,
+                                    height: 32
+                                }}
+                            >
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+
+                    {/* Botão de Ocultar para campanhas Canceladas */}
+                    {campaign.status === 'Cancelada' && (
+                         <Tooltip title="Ocultar Campanha">
+                            <IconButton
+                                onClick={(e) => handleActionClick(e, onToggleState, campaign._id)}
+                                size="small"
+                                sx={{
+                                    bgcolor: "rgba(255,255,255,0.1)", 
+                                    color: "white", 
+                                    "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
+                                    width: 32,
+                                    height: 32
+                                }}
+                            >
+                                <VisibilityOffIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                 </Box>
             )}
 

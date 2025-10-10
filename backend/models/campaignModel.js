@@ -8,8 +8,8 @@ const campaignSchema = new mongoose.Schema({
     privacy: { type: String, enum: ['Pública', 'Privada'], default: 'Pública' },
     logo: { type: String, required: true },
     categories: [{ type: String }],
-    minFollowers: { type: String },
-    minViews: { type: String },
+    minFollowers: { type: Number, default: 0 },
+    minViews: { type: Number, default: 0 },
     requiredSocials: [{ type: String }],
     brandName: { type: String },
     paymentType: {

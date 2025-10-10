@@ -4,7 +4,7 @@ import React from 'react';
 import { Box, Typography, IconButton, Card, Avatar, Tooltip, Chip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { FaYoutube, FaInstagram, FaTwitter, FaTiktok } from 'react-icons/fa';
-import { Groups, Category, AccessTimeFilled, AutoFixHigh, EventNote } from '@mui/icons-material'; // 👈 Adicionado EventNote
+import { Groups, Category, AccessTimeFilled, AutoFixHigh, EventNote } from '@mui/icons-material';
 
 const SocialMediaIcon = ({ platform }) => {
     const socialMediaIcons = {
@@ -13,7 +13,7 @@ const SocialMediaIcon = ({ platform }) => {
         twitter: <FaTwitter />,
         tiktok: <FaTiktok />,
     };
-    const icon = socialMediaIcons[platform.toLowerCase()];
+    const icon = socialMediaIcons[platform?.toLowerCase()]; // Adicionado optional chaining para segurança
     return icon ? (
         <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', color: 'white' }}>
             {icon}
@@ -24,12 +24,24 @@ const SocialMediaIcon = ({ platform }) => {
 const CampaignSearchRow = ({ campaign }) => {
     const navigate = useNavigate();
 
+    // Funções auxiliares (pode copiar ou adaptar se necessário do CampaignRow)
+    const formatDate = (dateString) => {
+        if (!dateString) return 'Indefinida';
+        const date = new Date(dateString);
+        // Usar 'pt-BR' e 'UTC' para garantir consistência, como no CampaignRow
+        return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+    };
+
     return (
         <Card
-            // ALTERAÇÃO: Adicionando um parâmetro de URL "view=about"
-            onClick={() => navigate(`/campaign/${campaign.id}?view=about`)}
+            // ALTERAÇÃO: Adicionando um parâmetro de URL "view=about" e usando _id
+            onClick={() => navigate(`/campaign/${campaign._id}?view=about`)} // Use campaign._id aqui
             sx={{
-                backgroundImage: "linear-gradient(90deg, rgba(22, 7, 83, 0.8), rgba(81, 4, 61, 0.6))",
+                // ESTILIZAÇÃO DE FUNDO COM A IMAGEM
+                backgroundImage: `linear-gradient(90deg, rgba(22, 7, 83, 0.8), rgba(81, 4, 61, 0.7)), url(${campaign.logo})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
                 backdropFilter: "blur(10px)",
                 borderRadius: "12px",
                 mb: 1.5,
@@ -44,28 +56,21 @@ const CampaignSearchRow = ({ campaign }) => {
             <Box
                 sx={{
                     display: "grid",
-                    // NOVO gridTemplateColumns: Adicionada uma coluna extra
+                    // Mantido o gridTemplateColumns da busca
                     gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr 1fr",
                     gap: 2,
                     alignItems: "center",
                     p: 2,
                     minHeight: "80px",
+                    // Adicionado um background semi-transparente para melhor legibilidade do texto
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
                 }}
             >
-                {/* Coluna Nome e Logo */}
+                {/* Coluna Nome e Logo (Agora apenas o nome, a logo está no fundo) */}
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                    <Avatar
-                        src={campaign.logo}
-                        alt={campaign.name}
-                        variant="rounded"
-                        sx={{
-                            width: 50,
-                            height: 50,
-                            border: "2px solid rgba(255,255,255,0.2)",
-                        }}
-                    />
+                    {/* A logo não será mais um Avatar aqui, pois está no fundo */}
                     <Typography variant="subtitle1" fontWeight={700} color="white">
-                        {campaign.name}
+                        {campaign.title} {/* Usando campaign.title para o nome da campanha */}
                     </Typography>
                 </Box>
 
@@ -74,7 +79,7 @@ const CampaignSearchRow = ({ campaign }) => {
                     <Tooltip title="Data de Início">
                         <EventNote sx={{ color: "rgba(255,255,255,0.7)" }} />
                     </Tooltip>
-                    <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>{campaign.startDate}</Typography>
+                    <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>{formatDate(campaign.startDate)}</Typography>
                 </Box>
 
                 {/* Coluna Data de Término */}
@@ -82,7 +87,7 @@ const CampaignSearchRow = ({ campaign }) => {
                     <Tooltip title="Data de Término">
                         <AccessTimeFilled sx={{ color: "rgba(255,255,255,0.7)" }} />
                     </Tooltip>
-                    <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>{campaign.endDate}</Typography>
+                    <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>{formatDate(campaign.endDate)}</Typography>
                 </Box>
 
                 {/* Coluna Categorias */}
@@ -90,7 +95,7 @@ const CampaignSearchRow = ({ campaign }) => {
                     <Tooltip title="Categorias">
                         <Category sx={{ color: "rgba(255,255,255,0.7)" }} />
                     </Tooltip>
-                    {campaign.categorias.slice(0, 2).map((cat, index) => (
+                    {campaign.categories?.slice(0, 2).map((cat, index) => (
                         <Chip
                             key={index}
                             label={cat}
@@ -109,7 +114,7 @@ const CampaignSearchRow = ({ campaign }) => {
                     <Tooltip title="Vagas Abertas">
                         <Groups sx={{ color: "rgba(255,255,255,0.7)" }} />
                     </Tooltip>
-                    <Typography fontWeight={500} color="white">{campaign.applications}</Typography>
+                    <Typography fontWeight={500} color="white">{campaign.applications || 0}</Typography>
                 </Box>
 
                 {/* Coluna Redes Sociais */}
@@ -118,7 +123,7 @@ const CampaignSearchRow = ({ campaign }) => {
                         <AutoFixHigh sx={{ color: "rgba(255,255,255,0.7)" }} />
                     </Tooltip>
                     <Box display="flex" gap={1}>
-                        {campaign.redesNecessarias.map((social, index) => (
+                        {campaign.requiredSocials?.map((social, index) => (
                             <Tooltip key={index} title={social}>
                                 <SocialMediaIcon platform={social} />
                             </Tooltip>
