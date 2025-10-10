@@ -105,6 +105,7 @@ function App() {
               <Route path="/influenciador/cadastro" element={<CadastrarInflu />} />
               <Route path="/influenciador/editar/:id" element={<EditarInfluenciador />} />
               <Route path="/influenciadores/perfil/:id" element={<Sobrespec />} />
+              
             </Route>
 
             {/* == Rotas para INFLUENCIADOR e seu AGENTE == */}

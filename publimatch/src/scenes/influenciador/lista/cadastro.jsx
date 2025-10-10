@@ -721,15 +721,15 @@ const CadastroInflu = () => {
                 </Dialog>
 
                 {/* --- DIÁLOGOS DE SUCESSO E ERRO --- */}
-                <Dialog open={showSuccessDialog} onClose={handleCloseSuccessDialog} PaperProps={{ sx: { borderRadius: '20px', padding: '10px' } }}>
+                <Dialog open={showSuccessDialog} onClose={handleCloseSuccessDialog} PaperProps={{ sx: { borderRadius: '20px', padding: '10px', backgroundColor:'white', color:'green'} }}>
                     <DialogTitle sx={{ textAlign: 'center' }}><CheckCircleIcon color="success" sx={{ fontSize: 40 }} /><br/>Sucesso!</DialogTitle>
-                    <DialogContent><DialogContentText>O influenciador foi cadastrado com sucesso.</DialogContentText></DialogContent>
+                    <DialogContent><DialogContentText sx={{color:'green'}}>O influenciador foi cadastrado com sucesso.</DialogContentText></DialogContent>
                     <DialogActions sx={{ justifyContent: 'center' }}><Button onClick={handleCloseSuccessDialog} variant="contained" color="success">Ok</Button></DialogActions>
                 </Dialog>
 
-                <Dialog open={showErrorDialog} onClose={handleCloseErrorDialog} PaperProps={{ sx: { borderRadius: '20px', padding: '10px' } }}>
+                <Dialog open={showErrorDialog} onClose={handleCloseErrorDialog} PaperProps={{ sx: { borderRadius: '20px', padding: '10px', backgroundColor:'white', color:'green' } }}>
                     <DialogTitle sx={{ textAlign: 'center' }}><ErrorIcon color="error" sx={{ fontSize: 40 }} /><br/>Erro ao Cadastrar</DialogTitle>
-                    <DialogContent><DialogContentText sx={{ textAlign: 'center' }}>{errorMessage}</DialogContentText></DialogContent>
+                    <DialogContent><DialogContentText sx={{ textAlign: 'center', color:'red' }}>{errorMessage}</DialogContentText></DialogContent>
                     <DialogActions sx={{ justifyContent: 'center' }}><Button onClick={handleCloseErrorDialog} variant="contained" color="error">Fechar</Button></DialogActions>
                 </Dialog>
       </Box>

@@ -1,6 +1,6 @@
 import {
   Box, Typography, TextField, Slider, Button, Chip, Rating, Dialog,
-  DialogContent, Avatar, IconButton, Fade
+  DialogContent, Avatar, IconButton, Fade, Skeleton
 } from "@mui/material";
 import { forwardRef, useMemo, useState, useEffect } from "react";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -83,12 +83,16 @@ const Influenciadores = () => {
 
   // Buscar influenciadores do backend
   useEffect(() => {
-    const fetchInfluencers = async () => {
+     const fetchInfluencers = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token'); // ou sessionStorage
         
-        const response = await fetch('/api/influencers', {
+        // A busca de 'todos' pode não precisar de token, mas é boa prática enviar
+        // caso a rota se torne protegida no futuro.
+        const token = localStorage.getItem('token'); 
+        
+        // 🎯 AQUI ESTÁ A MUDANÇA PRINCIPAL: Usar a rota '/api/influencers/all'
+        const response = await fetch('/api/influencers/all', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -96,30 +100,53 @@ const Influenciadores = () => {
         });
 
         if (!response.ok) {
-          throw new Error('Erro ao buscar influenciadores');
+          // Tenta ler a mensagem de erro do backend, se houver
+          const errorData = await response.json().catch(() => ({ message: 'Erro ao buscar influenciadores' }));
+          throw new Error(errorData.message || 'Erro de rede');
         }
+
 
         const data = await response.json();
         
         // Transformar dados do backend para o formato esperado pelo frontend
-        const transformedData = data.map(inf => ({
-          id: inf._id,
-          nome: inf.name,
-          nomeReal: inf.realName,
-          imagem: inf.profileImageUrl || '/default-avatar.png',
-          imagemFundo: inf.backgroundImageUrl || '',
-          categorias: inf.niches || [],
-          tags: inf.niches || [], // Usando niches como tags
-          redes: Object.keys(inf.social || {}).filter(key => inf.social[key]),
-          seguidores: (inf.followersCount / 1000000).toFixed(1), // Converter para milhões
-          views: Math.random() * 500, // Placeholder - adicionar ao backend se necessário
-          inscritos: (inf.followersCount / 1000000 * 0.8).toFixed(1), // Estimativa
-          avaliacao: inf.engagementRate || 4.5,
-          engajamento: inf.engagementRate || Math.random() * 10,
-          descricao: inf.description || '',
-          sobre: inf.aboutMe || '',
-          social: inf.social || {}
-        }));
+        const transformedData = data.map(inf => {
+            // Se o backend não fornecer esses dados, podemos simular ou deixar 0.
+            // O ideal é que o backend envie esses valores.
+            const followersInMillions = (inf.followersCount || 0) / 1000000;
+            const engagement = parseFloat(inf.engagementRate || 0);
+            
+            // Simulações (idealmente viriam do backend)
+              const simulatedViews = parseFloat((Math.random() * 5).toFixed(1));
+    const simulatedInscritos = parseFloat((followersInMillions * 0.8).toFixed(1));
+
+            return {
+              // --- Dados diretos do Backend ---
+              id: inf._id,
+              _id: inf._id,
+              name: inf.name,
+              realName: inf.realName,
+              profileImageUrl: inf.profileImageUrl || '/default-avatar.png',
+              backgroundImageUrl: inf.backgroundImageUrl || '',
+              niches: inf.niches || [],
+              tags: inf.niches || [], // Usando niches como tags
+              social: inf.social || {},
+              description: inf.description || '',
+
+              // --- Métricas como NÚMEROS ---
+              followersCount: followersInMillions, // Agora é um número (ex: 5.2)
+              engagementRate: engagement,         // Agora é um número (ex: 4.8)
+             avaliacao: Number(engagement > 0 ? (engagement / 2).toFixed(1) : 4.5),
+
+              // --- Propriedades para o Card e Comparação (também como NÚMEROS) ---
+              nome: inf.name,
+              imagem: inf.profileImageUrl || '/default-avatar.png',
+              redes: Object.keys(inf.social || {}).filter(k => inf.social[k]),
+              seguidores: followersInMillions, // Número
+              engajamento: engagement,        // Número
+              views: simulatedViews,          // Número (simulado)
+              inscritos: simulatedInscritos,  // Número (simulado)
+          };
+        });
 
         setInfluencers(transformedData);
         setError(null);
@@ -147,8 +174,16 @@ const Influenciadores = () => {
     visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 120 }},
   };
 
-  const todasCategorias = useMemo(() => Array.from(new Set(influencers.flatMap((inf) => inf.categorias))), []);
-  const todasTags = useMemo(() => Array.from(new Set(influencers.flatMap((inf) => inf.tags))), []);
+ const todasCategorias = useMemo(() => {
+  console.log("Recalculando categorias...");
+ return Array.from(new Set(influencers.flatMap((inf) => inf.niches)));
+}, [influencers]);
+
+
+ const todasTags = useMemo(() => {
+  console.log("Recalculando tags...");
+  return Array.from(new Set(influencers.flatMap((inf) => inf.tags)));
+}, [influencers]);
 
 
   const handleSelecionarParaComparar = (influencer) => {
@@ -156,7 +191,7 @@ const Influenciadores = () => {
       const jaSelecionado = prev.find((inf) => inf.id === influencer.id);
       if (jaSelecionado) return prev.filter((inf) => inf.id !== influencer.id);
       if (prev.length < 2) return [...prev, influencer];
-      return [prev[0], influencer];
+       return [prev[1], influencer];
     });
   };
 
@@ -165,23 +200,26 @@ const Influenciadores = () => {
     setInfluencersParaComparar([]);
   };
 
-  const filtrados = useMemo(() => {
-    return influencers.filter((inf) => {
-      const seg = parseFloat(inf.seguidores);
-      return (
-        !ocultos.includes(inf.id) && // 👈 não mostra ocultos
-        inf.nome.toLowerCase().includes(search.toLowerCase()) &&
-        (categoria ? inf.categorias.includes(categoria) : true) &&
-        (plataforma ? inf.redes.includes(plataforma) : true) &&
-        seg >= seguidores[0] &&
-        seg <= seguidores[1] &&
-        inf.avaliacao >= avaliacao &&
-        (tagsSelecionadas.length > 0
-          ? tagsSelecionadas.every((tag) => inf.tags.includes(tag))
-          : true)
-      );
-    });
-  }, [search, categoria, plataforma, seguidores, avaliacao, tagsSelecionadas, ocultos]);
+const filtrados = useMemo(() => {
+  console.log("REFILTRANDO A LISTA de", influencers.length, "influenciadores...");
+  return influencers.filter((inf) => {
+    // ✅ CORREÇÃO: Acessar 'followersCount' diretamente, sem parseFloat
+    const seg = inf.followersCount; 
+    return (
+      !ocultos.includes(inf._id) && // Usar _id que vem do backend
+      inf.name.toLowerCase().includes(search.toLowerCase()) && // Usar 'name'
+      (categoria ? inf.niches.includes(categoria) : true) && // Usar 'niches'
+      // O filtro de plataforma precisa de uma correção para verificar o objeto 'social'
+      (plataforma ? inf.social[plataforma] : true) &&
+      seg >= seguidores[0] &&
+      seg <= seguidores[1] &&
+      inf.avaliacao >= avaliacao &&
+      (tagsSelecionadas.length > 0
+        ? tagsSelecionadas.every((tag) => inf.tags.includes(tag))
+        : true)
+    );
+  });
+}, [influencers, search, categoria, plataforma, seguidores, avaliacao, tagsSelecionadas, ocultos]);
 
 
   const inf1 = influencersParaComparar[0];
@@ -237,28 +275,40 @@ const Influenciadores = () => {
             </Button>
           </Box>
           {/* Lista de Influenciadores */}
-          <Box
-            component={motion.div}
-            key={filtrados.map(f => f.id).join('-')}
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            flex={1}
-            display="grid"
-            gridTemplateColumns="repeat(auto-fill, minmax(350px, 1fr))"
-            gap={4}
-            pl={3}
-            pb={20}
-            // CORREÇÃO: Alinha os cards à esquerda para não esticarem
-            sx={{
-              justifyContent: 'flex-start',
-              alignContent: 'flex-start'
-            }}
-          >
-            {filtrados.length > 0 ? ( filtrados.map((inf) => ( <motion.div key={inf.id} variants={itemVariants}> <InfluencerCard {...inf} onCompararClick={() => handleSelecionarParaComparar(inf)} estaSelecionado={influencersParaComparar.some( (i) => i.id === inf.id )}  onOcultar={handleOcultar}  /> </motion.div> )) ) : ( <Typography variant="h3" fontWeight="bold" color="white" textAlign="center" gridColumn="1/-1"> Nenhum influenciador encontrado </Typography> )}
+    <Box component={motion.div} key={filtrados.map(f => f.id).join('-')} variants={containerVariants} initial="hidden" animate="visible" flex={1} display="grid" gridTemplateColumns="repeat(auto-fill, minmax(350px, 1fr))" gap={4} pl={3} pb={20} sx={{ justifyContent: 'flex-start', alignContent: 'flex-start' }}>
+              {loading ? (
+                // Se estiver carregando, mostra 8 skeletons
+                [...Array(8)].map((_, index) => (
+                  <motion.div key={index} variants={itemVariants}>
+                    <Skeleton variant="rectangular" animation="wave" width="100%" height={450} sx={{ borderRadius: "24px", bgcolor: 'rgba(255,255,255,0.1)' }} />
+                  </motion.div>
+                ))
+              ) : error ? (
+                // Se der erro, mostra a mensagem de erro
+                <Typography variant="h4" color="error" textAlign="center" gridColumn="1/-1">
+                  Erro ao carregar: {error}
+                </Typography>
+              ) : filtrados.length > 0 ? (
+                // Se tiver dados, mostra os cards
+                filtrados.map((inf) => (
+                  <motion.div key={inf.id} variants={itemVariants}>
+                    <InfluencerCard
+                      influencer={inf}
+                      onCompararClick={() => handleSelecionarParaComparar(inf)}
+                      estaSelecionado={influencersParaComparar.some((i) => i.id === inf.id)}
+                      onOcultar={handleOcultar}
+                    />
+                  </motion.div>
+                ))
+              ) : (
+                // Se não tiver dados (após carregar), mostra a mensagem de "não encontrado"
+                <Typography variant="h3" fontWeight="bold" color="white" textAlign="center" gridColumn="1/-1">
+                  Nenhum influenciador encontrado
+                </Typography>
+              )}
+            </Box>
           </Box>
         </Box>
-      </Box>
       
       <AnimatePresence>
         {influencersParaComparar.length === 2 && (

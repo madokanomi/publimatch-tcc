@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
+
   Box, Typography, Avatar, Button, Chip, Divider, IconButton, Card,
   CardContent, Grid, Rating, LinearProgress, Dialog, DialogActions,
   DialogContent, DialogContentText, DialogTitle, FormControl,
-  InputLabel, Select, MenuItem, Snackbar, Alert,
+  InputLabel, Select, MenuItem, Snackbar, Alert, CircularProgress
 } from "@mui/material";
 import { 
   Favorite, Visibility, Groups, Menu as MenuIcon, ArrowBack,
@@ -17,34 +18,68 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import { useParams, useNavigate } from "react-router-dom";
-import { influencers } from "../../../data/mockInfluencer.js";
 import Estatisticas from "../../../components/Estatisticas.jsx";
-
+import TiptapContent from "../../../components/TiptapContent.jsx";
 // 1. IMPORTS DE ANIMAÇÃO
 import { motion, AnimatePresence } from 'framer-motion';
-
+import axios from 'axios';
 // Importar o hook de autenticação e as ROLES
 import { useAuth } from '../../../auth/AuthContext'; // Ajuste o caminho se necessário
 import { ROLES } from '../../../data/mockUsers'; // Ajuste o caminho se necessário
 
 const InfluencerProfile = () => {
   // Acessar os dados do usuário logado
-  const { user } = useAuth();
-  
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const influencer = influencers.find((inf) => inf.id === Number(id));
+   const { user } = useAuth();
+  const { id } = useParams();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState("Sobre");
-  const [openHireDialog, setOpenHireDialog] = useState(false);
+    const [influencer, setInfluencer] = useState(null); // Começa como nulo
+  const [loading, setLoading] = useState(true); // Começa carregando
+
+  const [activeTab, setActiveTab] = useState("Sobre");
+  const [openHireDialog, setOpenHireDialog] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+ const [error, setError] = useState(null); 
 
+  
   // Condição para exibir o botão de contratar
   const canHire = user && user.role === ROLES.AD_AGENT;
 
   // MODIFICAÇÃO 1: Criar nova condição para ver detalhes das avaliações
   const canSeeDetailedReviews = user && user.role === ROLES.AD_AGENT;
+useEffect(() => {
+        const fetchPublicInfluencerData = async () => {
+            try {
+                // A URL agora aponta para a nova rota '/public/'
+                const { data } = await axios.get(`http://localhost:5001/api/influencers/public/${id}`);
+                
+                setInfluencer(data);
+            } catch (err) {
+                console.error("Erro ao buscar perfil público:", err.response);
+                setError(err.response?.data?.message || 'Este perfil não pôde ser carregado.');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (id) {
+            fetchPublicInfluencerData();
+        }
+    }, [id]);
+
+  // ALTERADO: Tratamento de loading e erro, igual ao do Sobrespec
+  if (loading) {
+    return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><CircularProgress /></Box>;
+  }
+
+  if (error) {
+    return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><Typography color="error">{error}</Typography></Box>;
+  }
+
+  if (!influencer) {
+    return <Typography sx={{ m: 3 }}>Influenciador não encontrado.</Typography>;
+  }
 
 
   // 2. DEFINIÇÃO DAS VARIANTES DE ANIMAÇÃO
@@ -109,55 +144,37 @@ const InfluencerProfile = () => {
   
   const renderTabContent = () => {
     switch(activeTab) {
-      case 'Sobre':
+      case "Sobre":
         return (
-          // 5. ANIMAÇÃO DO CONTEÚDO DAS ABAS (aplicado a cada 'case')
           <Box
-            component={motion.div}
-            key="sobre"
-            variants={tabContentVariant}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            display="flex" gap={4} pl={5} pr={5} sx={{backgroundColor: "rgba(27, 27, 27, 0.05)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}>
+            display="flex"
+            gap={4}
+            pl={5}
+            pr={5}
+            sx={{
+              backgroundColor: "rgba(27, 27, 27, 0.26)",
+              borderRadius: "20px",
+              p: 3,
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
             <Box flex={2}>
               <Typography variant="h4" fontWeight="bold" mb={3} color="white">
                 Sobre Mim
               </Typography>
-              <Typography variant="body1" lineHeight={1.8} fontSize="16px" color="white">
-                Sou criador de conteúdo digital com mais de{" "}
-                <Typography component="span" fontWeight="bold">10 anos</Typography> de experiência no YouTube e nas principais
-                plataformas de streaming. Meu foco é a{" "}
-                <Typography component="span" fontWeight="bold">
-                  produção de vídeos e transmissões ao vivo voltadas para o público gamer e jovem adulto
-                </Typography>,
-                com uma abordagem bem-humorada, crítica e autêntica — características
-                que me aproximaram de uma comunidade engajada e fiel ao longo dos anos.
-                <br /><br />
-                Tenho experiência com campanhas publicitárias, ativações de marca,
-                publieditoriais e ações multiplataforma. Meu diferencial está na{" "}
-                <Typography component="span" fontWeight="bold">criação de conteúdos personalizados</Typography>, que comunicam a proposta
-                da marca de forma natural e envolvente, sem perder minha identidade criativa.
-                <br /><br />
-                <Typography component="span" fontWeight="bold" fontSize="18px">
-                  Métricas reais, engajamento verdadeiro.
-                </Typography>{" "}
-                Trabalho com dados, insights e entregas alinhadas com os objetivos
-                das marcas, buscando sempre gerar valor tanto para o público quanto para os parceiros comerciais.
-                Estou aberto a colaborações com agências e marcas que buscam criadores com posicionamento sólido,
-                criatividade e responsabilidade na comunicação.
-              </Typography>
-            </Box>
-            <Box flex={1}>
-              <img
-                src="https://pulliginfluencers.com.br/wp-content/uploads/2022/06/image-1-1.png"
-                alt="Influencer foto"
-                style={{
-                  width: "100%",
-                  borderRadius: "15px",
-                  boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
-                }}
-              />
+              {sobreMim ? (
+                <TiptapContent content={JSON.parse(sobreMim)} />
+              ) : (
+                <Typography
+                  variant="body1"
+                  lineHeight={1.8}
+                  fontSize="16px"
+                  color="white"
+                >
+                  {descricao || 'Informação não disponível'}
+                </Typography>
+              )}
             </Box>
           </Box>
         );
@@ -464,10 +481,24 @@ const InfluencerProfile = () => {
   };
 
 
-  const {
-    nome, nomeReal, avaliacao, seguidores, views, inscritos,
-    descricao, engajamento, categorias, imagem, imagemFundo,
-  } = influencer;
+const {
+    name: nome = 'Nome não disponível',
+    realName: nomeReal = '',
+    age: idade = 0,
+    followersCount: inscritos = 0,
+    engagementRate: engajamento = 0,
+    description: descricao = '',
+    aboutMe: sobreMim = '',
+    niches: categorias = [],
+    profileImageUrl: imagem = '',
+    backgroundImageUrl: imagemFundo = '',
+    social = {},
+    // Adicionamos a avaliação aqui com um valor padrão
+    avaliacao = 4.5,
+    // Adicionamos os outros campos aqui também
+    views = 150,
+    seguidores = 80
+} = influencer || {};
 
   return (
       <Box pr={3} pl={3}>

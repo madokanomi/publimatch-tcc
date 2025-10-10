@@ -9,32 +9,25 @@ import InstagramIcon from "@mui/icons-material/Instagram";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 
 const InfluencerCard = ({
-  id,
-  nome,
-  nomeReal,
-  avaliacao,
-  seguidores,
-  views,
-  inscritos,
-  engajamento,
-  descricao,
-  tags = [],
-  imagem,
-  redes = [],
-  categorias = [],
-  imagemFundo,
+   influencer, // Recebe o objeto completo do influencer
   onCompararClick,
   estaSelecionado,
-  onOcultar, // 👈 nova prop
+  onOcultar,
 }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
-
+ 
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
   const handleClose = () => setAnchorEl(null);
+  
+ const {
+    _id, name, realName, description, profileImageUrl, backgroundImageUrl,
+    niches = [], social = {}, followersCount = 0, engagementRate = 0,
+    avaliacao = 4.5, views = 0, inscritos = 0, tags = [],
+  } = influencer;
 
   const handleOcultar = () => {
-    onOcultar(id); // chama o pai
+    onOcultar(_id); // chama o pai
     handleClose();
   };
 
@@ -43,7 +36,7 @@ const InfluencerCard = ({
       sx={{
         borderRadius: "20px",
         p: 2,
-        background: `linear-gradient(0deg, rgba(20, 3, 41, 0.75), rgba(20, 3, 41, 0.52)), url(${imagemFundo})`,
+        background: `linear-gradient(0deg, rgba(20, 3, 41, 0.75), rgba(20, 3, 41, 0.52)), url(${backgroundImageUrl})`,
         backgroundSize: "cover",
         color: "white",
         position: "relative",
@@ -60,18 +53,18 @@ const InfluencerCard = ({
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start">
         <Box display="flex" alignItems="center" gap={2}>
-          <Avatar src={imagem} sx={{ width: 90, height: 90, border: "3px solid white" }} />
+          <Avatar src={profileImageUrl} sx={{ width: 90, height: 90, border: "3px solid white" }} />
           <Box>
-            <Typography variant="h5" fontWeight="bold">{nome}</Typography>
-            <Typography variant="body2" color="white">{nomeReal}</Typography>
+            <Typography variant="h5" fontWeight="bold">{name}</Typography>
+            <Typography variant="body2" color="white">{realName}</Typography>
             <Box display="flex" gap={1} mt={0.5}>
-              {redes.includes("tiktok") && <MusicNoteIcon />}
-              {redes.includes("twitch") && <SiTwitch style={{ color: "white", fontSize: 18 }} />}
-              {redes.includes("instagram") && <InstagramIcon />}
-              {redes.includes("youtube") && <YouTubeIcon />}
+             {social?.tiktok && <MusicNoteIcon />}
+            {social?.twitch && <SiTwitch style={{ color: "white", fontSize: 18 }} />}
+            {social?.instagram && <InstagramIcon />}
+            {social?.youtube && <YouTubeIcon />}
             </Box>
             <Box display="flex" gap={1} mt={0.5} flexWrap="wrap">
-              {categorias?.map((cat, i) => (
+              {niches?.map((cat, i) => (
                 <Chip key={i} label={cat} size="small"
                   sx={{ backdropFilter: "blur(10px)", p: "2px", bgcolor: "#d4d4d414", color: "white" }} />
               ))}
@@ -91,7 +84,7 @@ const InfluencerCard = ({
             sx: { bgcolor: "rgba(20, 3, 41, 0.9)", color: "white" }
           }}
         >
-          <MenuItem onClick={() => onOcultar(id)}>Ocultar perfil</MenuItem>
+          <MenuItem onClick={() => onOcultar(_id)}>Ocultar perfil</MenuItem>
         </Menu>
       </Box>
 
@@ -106,7 +99,7 @@ const InfluencerCard = ({
     {/* Métricas */}
     <Box display="flex" justifyContent="space-between" mt={2}>
       <Box display="flex" alignItems="center" gap={0.5}>
-        <Favorite sx={{ fontSize: 18 }} /> <Typography>{seguidores}M</Typography>
+        <Favorite sx={{ fontSize: 18 }} /> <Typography>{followersCount}M</Typography>
       </Box>
       <Box display="flex" alignItems="center" gap={0.5}>
         <Visibility sx={{ fontSize: 18 }} /> <Typography>{views}M</Typography>
@@ -114,12 +107,12 @@ const InfluencerCard = ({
       <Box display="flex" alignItems="center" gap={0.5}>
         <Groups sx={{ fontSize: 18 }} /> <Typography>{inscritos}M</Typography>
       </Box>
-      <Typography color="lightgreen" fontWeight="bold">{engajamento}%</Typography>
+      <Typography color="lightgreen" fontWeight="bold">{engagementRate}%</Typography>
     </Box>
 
     {/* Descrição */}
     <Typography variant="body2" fontStyle="italic" mt={2} textAlign="center" color="white">
-      “{descricao}”
+      “{description}”
     </Typography>
 
     {/* Tags */}
@@ -134,7 +127,7 @@ const InfluencerCard = ({
       <Button
         fullWidth
         component={Link}
-        to={`/influenciador/${id}`}
+          to={`/influenciador/${_id}`} 
         variant="outlined"
         sx={{
           width: "70%",

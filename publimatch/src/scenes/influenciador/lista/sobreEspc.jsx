@@ -21,6 +21,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  CircularProgress,
   Snackbar,
   Alert,
   TextField, // Importado para o campo de senha
@@ -120,14 +121,12 @@ const Sobrespec = () => {
   }, [id]);
   // ✅ 7. ADICIONAR TRATAMENTO DE ESTADO DE CARREGAMENTO E ERRO
   if (isLoading) {
-    // Você pode usar um componente de <CircularProgress /> do Material-UI aqui
-    return <Typography>Carregando...</Typography>;
-  }
-
-  if (error) {
-    // Esta mensagem de erro agora virá da sua API
-    return <Typography color="error">{error}</Typography>;
-  }
+     return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><CircularProgress /></Box>;
+   }
+ 
+   if (error) {
+     return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><Typography color="error">{error}</Typography></Box>;
+   }
 
   if (!influencer) {
     // Fallback caso a API não retorne nem dado nem erro
@@ -268,7 +267,14 @@ const Sobrespec = () => {
         return <AvaliacoesEspc />;
 
       case "Campanhas":
-        return <CampanhasInfluSpec />;
+        return    <CampanhasInfluSpec 
+      // Passando o estado e as funções como props
+      openSections={openSections}
+      handleToggleSection={handleToggleSection}
+      handleRejectClick={handleRejectClick}
+      handleAcceptClick={handleAcceptClick}
+      handleOpenFinalizeDialog={handleOpenFinalizeDialog}
+    /> ;
 
       case "Estatísticas":
         return <Estatisticas />;

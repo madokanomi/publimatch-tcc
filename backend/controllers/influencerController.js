@@ -236,3 +236,28 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
 
   res.status(200).json(updatedInfluencer);
 });
+
+export const getAllInfluencers = asyncHandler(async (req, res) => {
+    // .find({}) busca todos os documentos na coleção
+    const influencers = await Influencer.find({}); 
+    
+     if (influencers && influencers.length > 0) {
+        res.status(200).json(influencers);
+    } else {
+        res.status(404).json({ message: 'Nenhum influenciador encontrado na plataforma.' });
+        // It's often better to send a JSON response for errors too
+    }
+});
+
+export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
+  // A lógica é muito mais simples: apenas busca e retorna.
+  const influencer = await Influencer.findById(req.params.id)
+    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl'); // Seleciona apenas os campos públicos
+
+  if (influencer) {
+    res.json(influencer);
+  } else {
+    res.status(404);
+    throw new Error('Perfil de influenciador não encontrado.');
+  }
+});
