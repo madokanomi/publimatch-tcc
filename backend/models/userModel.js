@@ -1,6 +1,6 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto'); // Importe o módulo crypto do Node.js
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto'; // Importe o módulo crypto do Node.js
 
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
@@ -66,4 +66,4 @@ userSchema.methods.getPasswordSetupToken = function() {
 };
 
 const User = mongoose.model('User', userSchema);
-module.exports = User;
+export default User;

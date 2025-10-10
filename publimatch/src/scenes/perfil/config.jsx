@@ -1,5 +1,5 @@
 import React, { useState, forwardRef } from "react";
-import { Box, Typography, Paper, Divider, Button, List, ListItemButton, ListItemIcon, ListItemText, Avatar, IconButton, ListItem, ListItemAvatar, TextField, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
+import { Box, Typography, Snackbar, Paper, Divider, Button, List, ListItemButton, ListItemIcon, ListItemText, Alert, CircularProgress, Avatar, IconButton, ListItem, ListItemAvatar, TextField, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle } from "@mui/material";
 import Header from "../../components/Header";
 import { styled } from "@mui/material/styles";
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -29,30 +29,102 @@ const listContainerVariants = { visible: { transition: { staggerChildren: 0.1 } 
 const listItemVariants = { visible: { opacity: 1, x: 0 }, hidden: { opacity: 0, x: -20 }, exit: { opacity: 0, x: 50, transition: { duration: 0.3 } }, };
 const dialogStepVariants = { hidden: { opacity: 0, scale: 0.95 }, visible: { opacity: 1, scale: 1, transition: { duration: 0.3 } }, exit: { opacity: 0, scale: 0.95, transition: { duration: 0.15 } }, };
 
+export const ROLES = {
+    AD_AGENT: 'AD_AGENT',
+    INFLUENCER_AGENT: 'INFLUENCER_AGENT',
+    INFLUENCER: 'INFLUENCER',
+    ADMIN: 'ADMIN',
+};
+
+
 // ======================================================================
 
-const SegurancaComponent = () => {
-  // ALTERAÇÃO 2: Acessar os dados do usuário logado
-  const { user } = useAuth();
+const SegurancaComponent = ({ showSnackbar }) => {
+ const { user, token } = useAuth();
 
   const [formValues, setFormValues] = useState({ novaSenha: '', confirmarSenha: '' });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogStep, setDialogStep] = useState(1);
   const [senhaAntiga, setSenhaAntiga] = useState('');
-  const [codigoVerificacao, setCodigoVerificacao] = useState('');
+
+  // Estados para feedback da API
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleInputChange = (e) => setFormValues({ ...formValues, [e.target.name]: e.target.value });
-  const handleSaveChanges = () => {
-    if (formValues.novaSenha && formValues.novaSenha === formValues.confirmarSenha) {
-      setDialogOpen(true);
-      setDialogStep(1);
-    } else {
-      alert("As senhas não coincidem ou estão em branco!");
+  
+   const handleSaveChanges = () => {
+        setError(null);
+        if (!formValues.novaSenha || formValues.novaSenha !== formValues.confirmarSenha) {
+            // alert("As senhas não coincidem ou estão em branco!");
+            showSnackbar("As senhas não coincidem ou estão em branco!", "warning"); // <-- MUDANÇA
+            return;
+        }
+        if (formValues.novaSenha.length < 6) {
+            // alert("A nova senha deve ter pelo menos 6 caracteres.");
+            showSnackbar("A nova senha deve ter pelo menos 6 caracteres.", "warning"); // <-- MUDANÇA
+            return;
+        }
+        setDialogOpen(true);
+        setDialogStep(1);
+    };
+
+  const handleCloseDialog = () => { 
+    setDialogOpen(false); 
+    setTimeout(() => { 
+      setDialogStep(1); 
+      setSenhaAntiga('');
+      setFormValues({ novaSenha: '', confirmarSenha: '' });
+      setIsSubmitting(false);
+      setError(null);
+    }, 300); 
+  };
+
+  // ALTERADO: Função principal que coordena as chamadas à API
+  const handleConfirmAndUpdatePassword = async () => {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      // ETAPA 1: Verificar a senha antiga com o seu endpoint
+      const verifyRes = await fetch('/api/users/verify-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: senhaAntiga }),
+      });
+      
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) {
+        throw new Error(verifyData.message || 'A senha atual está incorreta.');
+      }
+
+      // ETAPA 2: Se a verificação passou, atualizar para a nova senha
+      const updateRes = await fetch('/api/users/update-password', {
+        method: 'PATCH', // Usamos PATCH para atualizar parcialmente um recurso
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ newPassword: formValues.novaSenha }),
+      });
+      
+      const updateData = await updateRes.json();
+      if (!updateRes.ok) {
+        throw new Error(updateData.message || 'Não foi possível atualizar a senha.');
+      }
+
+      // SUCESSO: Se ambas as chamadas funcionaram, avançar para a tela de sucesso
+      setDialogStep(2);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
-  const handleCloseDialog = () => { setDialogOpen(false); setTimeout(() => { setDialogStep(1); setSenhaAntiga(''); setCodigoVerificacao(''); }, 300); };
-  const handleConfirmOldPassword = () => setDialogStep(2);
-  const handleConfirmVerificationCode = () => setDialogStep(3);
 
   return (
     <Box component={motion.div} key="seguranca" variants={contentVariants} initial="hidden" animate="visible" exit="exit" p={4}>
@@ -69,24 +141,32 @@ const SegurancaComponent = () => {
           Salvar Alterações
         </Button>
       </Box>
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} PaperProps={{ sx: { borderRadius: "20px", backgroundColor: "#ffffff55", backdropFilter: "blur(10px)", border: "1px solid rgba(255, 255, 255, 0.2)", color: "#fff", minWidth: '400px' }}}>
+    <Dialog open={dialogOpen} onClose={handleCloseDialog} PaperProps={{ sx: { borderRadius: "20px", backgroundColor: "#ffffff55", backdropFilter: "blur(10px)", border: "1px solid rgba(255, 255, 255, 0.2)", color: "#fff", minWidth: '400px' }}}>
         <IconButton onClick={handleCloseDialog} sx={{ position: 'absolute', right: 8, top: 8, color: 'rgba(255,255,255,0.7)' }}><CloseIcon /></IconButton>
         <AnimatePresence mode="wait">
-            {/* ... (lógica do diálogo passo 1) ... */}
-            {dialogStep === 1 && ( <motion.div key="step1" variants={dialogStepVariants} initial="hidden" animate="visible" exit="exit"> <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold' }}>Confirmar Alteração</DialogTitle> <DialogContent sx={{ textAlign: 'center' }}> <DialogContentText color="rgba(255,255,255,0.7)" mb={2}>Para sua segurança, por favor, insira sua senha atual.</DialogContentText> <CustomTextField autoFocus margin="dense" label="Senha Atual" type="password" fullWidth variant="outlined" value={senhaAntiga} onChange={(e) => setSenhaAntiga(e.target.value)} InputProps={{ startAdornment: <PasswordIcon sx={{ mr: 1, color: 'rgba(255,255,255,0.5)' }} /> }} /> </DialogContent> <DialogActions sx={{ p: 2, justifyContent: 'center' }}><Button onClick={handleCloseDialog} sx={{color: 'white'}}>Cancelar</Button><Button onClick={handleConfirmOldPassword} variant="contained" sx={{backgroundColor:"#480044ff"}}>Confirmar</Button></DialogActions> </motion.div> )}
-            {dialogStep === 2 && (
-                 <motion.div key="step2" variants={dialogStepVariants} initial="hidden" animate="visible" exit="exit">
-                    <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold' }}>Verificação de Segurança</DialogTitle>
-                    <DialogContent sx={{ textAlign: 'center' }}>
-                        {/* ALTERAÇÃO 4: Usar o e-mail do usuário dinamicamente aqui também */}
-                        <DialogContentText color="rgba(255,255,255,0.7)" mb={2}>Enviamos um código de verificação para <strong>{user?.email}</strong>. Por favor, insira o código abaixo.</DialogContentText>
-                        <CustomTextField autoFocus margin="dense" label="Código de Verificação" type="text" fullWidth variant="outlined" value={codigoVerificacao} onChange={(e) => setCodigoVerificacao(e.target.value)} InputProps={{ startAdornment: <PinIcon sx={{ mr: 1, color: 'rgba(255,255,255,0.5)' }} /> }}/>
-                    </DialogContent>
-                    <DialogActions sx={{ p: 2, justifyContent: 'center' }}><Button onClick={handleCloseDialog} sx={{color: 'white'}}>Cancelar</Button><Button onClick={handleConfirmVerificationCode} variant="contained" sx={{backgroundColor:"#480044ff"}}>Verificar e Salvar</Button></DialogActions>
-                </motion.div>
-            )}
-            {/* ... (lógica do diálogo passo 3) ... */}
-             {dialogStep === 3 && ( <motion.div key="step3" variants={dialogStepVariants} initial="hidden" animate="visible" exit="exit"> <DialogTitle sx={{ textAlign: 'center' }}><CheckCircleIcon sx={{ fontSize: 60, mb: 1, color: '#4caf50' }} /><Typography variant="h5" fontWeight="bold">Sucesso!</Typography></DialogTitle> <DialogContent sx={{ textAlign: 'center' }}><DialogContentText color="rgba(255,255,255,0.9)">Sua senha foi alterada com sucesso.</DialogContentText></DialogContent> <DialogActions sx={{ p: 2, justifyContent: 'center' }}><Button onClick={handleCloseDialog} variant="contained" sx={{backgroundColor:"#51004dff"}}>Fechar</Button></DialogActions> </motion.div> )}
+          {dialogStep === 1 && ( 
+            <motion.div key="step1" variants={dialogStepVariants} initial="hidden" animate="visible" exit="exit"> 
+              <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold' }}>Confirmar Alteração</DialogTitle> 
+              <DialogContent sx={{ textAlign: 'center' }}> 
+                <DialogContentText color="rgba(255,255,255,0.7)" mb={2}>Para sua segurança, por favor, insira sua senha atual.</DialogContentText> 
+                <CustomTextField autoFocus margin="dense" label="Senha Atual" type="password" fullWidth variant="outlined" value={senhaAntiga} onChange={(e) => setSenhaAntiga(e.target.value)} InputProps={{ startAdornment: <PasswordIcon sx={{ mr: 1, color: 'rgba(255,255,255,0.5)' }} /> }} /> 
+                {error && <Alert severity="error" sx={{ mt: 2, backgroundColor: 'rgba(255, 82, 82, 0.2)', color: '#fff' }}>{error}</Alert>}
+              </DialogContent> 
+              <DialogActions sx={{ p: 2, justifyContent: 'center' }}>
+                <Button onClick={handleCloseDialog} sx={{color: 'white'}} disabled={isSubmitting}>Cancelar</Button>
+                <Button onClick={handleConfirmAndUpdatePassword} variant="contained" sx={{backgroundColor:"#480044ff"}} disabled={isSubmitting}>
+                  {isSubmitting ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'Confirmar e Salvar'}
+                </Button>
+              </DialogActions> 
+            </motion.div> 
+          )}
+          {dialogStep === 2 && ( 
+            <motion.div key="step2" variants={dialogStepVariants} initial="hidden" animate="visible" exit="exit"> 
+              <DialogTitle sx={{ textAlign: 'center' }}><CheckCircleIcon sx={{ fontSize: 60, mb: 1, color: '#4caf50' }} /><Typography variant="h5" fontWeight="bold">Sucesso!</Typography></DialogTitle> 
+              <DialogContent sx={{ textAlign: 'center' }}><DialogContentText color="rgba(255,255,255,0.9)">Sua senha foi alterada com sucesso.</DialogContentText></DialogContent> 
+              <DialogActions sx={{ p: 2, justifyContent: 'center' }}><Button onClick={handleCloseDialog} variant="contained" sx={{backgroundColor:"#51004dff"}}>Fechar</Button></DialogActions> 
+            </motion.div> 
+          )}
         </AnimatePresence>
       </Dialog>
     </Box>
@@ -145,14 +225,45 @@ const Configuracoes = () => {
 
     const [selectedItem, setSelectedItem] = useState("Segurança");
 
-    const renderContent = () => {
+     const renderContent = () => {
         switch (selectedItem) {
-        case "Segurança": return <SegurancaComponent />;
-        case "Perfis Ocultos": return <PerfisOcultosComponent />;
-        case "Sair": return <SairDaContaComponent />;
-        default: return <SegurancaComponent />;
+            case "Segurança":
+                return <SegurancaComponent showSnackbar={showSnackbar} />;
+            case "Perfis Ocultos":
+                return <PerfisOcultosComponent />;
+            case "Sair":
+                return <SairDaContaComponent />;
+            default:
+                return <SegurancaComponent showSnackbar={showSnackbar} />;
         }
     };
+
+       const roleDisplayNames = {
+          [ROLES.AD_AGENT]: 'Agente de Publicidade',
+          [ROLES.INFLUENCER_AGENT]: 'Agente do Influenciador',
+          [ROLES.INFLUENCER]: 'Influenciador',
+           [ROLES.ADMIN]: 'Administrador',
+        };
+
+            const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'info', // pode ser 'error', 'warning', 'info', ou 'success'
+    });
+
+    // NOVO: Função para ABRIR o Snackbar
+    const showSnackbar = (message, severity = 'info') => {
+        setSnackbar({ open: true, message, severity });
+    };
+
+    // NOVO: Função para FECHAR o Snackbar
+    const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setSnackbar({ ...snackbar, open: false });
+    };
+
 
     return (
         <Box m="20px">
@@ -160,10 +271,11 @@ const Configuracoes = () => {
         <Box component={motion.div} variants={listContainerVariants} initial="hidden" animate="visible" display="grid" gridTemplateColumns={{ xs: "1fr", md: "280px 1fr" }} gap="20px">
             <MenuPaper component={motion.div} variants={listItemVariants}>
                 <Box p={2} textAlign="center">
-                    <Avatar src={userPhoto} sx={{ width: 100, height: 100, margin: '10px auto' }} />
-                    {/* ALTERAÇÃO 8: Usar o nome e o cargo do usuário do contexto */}
-                    <Typography variant="h4" fontWeight="bold" mt={1}>{user?.username || 'Usuário'}</Typography>
-                    <Typography variant="body2" color="rgba(255,255,255,0.7)">{user?.role || 'Cargo não definido'}</Typography>
+ <Avatar src={userPhoto} sx={{ width: 100, height: 100, margin: '10px auto' }} />
+                    {/* NO SEU SCHEMA O CAMPO É `name` E NÃO `username` */}
+                     <Typography variant="h4" fontWeight="bold" mt={0}>{user?.name || 'Usuário'}</Typography>
+                     <Typography variant="body2" color="rgba(255,255,255,0.7)"> {roleDisplayNames[user.role]}</Typography>
+
                 </Box>
                 <Divider sx={{ backgroundColor: "rgba(255,255,255,0.2)", mx: 2 }} />
                 <List component="nav" sx={{ p: 0, mt: 1 }}>
@@ -181,6 +293,17 @@ const Configuracoes = () => {
                 </AnimatePresence>
             </ContentPaper>
         </Box>
+          <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={handleCloseSnackbar}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                {/* Usamos o Alert dentro para um visual mais rico */}
+                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

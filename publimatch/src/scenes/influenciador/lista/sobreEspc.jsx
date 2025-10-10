@@ -61,6 +61,7 @@ import CampanhasInfluSpec from "../../../components/CampanhasInfluEspc.jsx";
 import AvaliacoesEspc from "../../../components/AvaliacoesEspc.jsx";
 import { SiTwitch } from "react-icons/si";
 import TiptapContent from "../../../components/TiptapContent.jsx";
+import { motion, AnimatePresence } from 'framer-motion';
 const Sobrespec = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -224,12 +225,43 @@ const Sobrespec = () => {
     { name: "Estatísticas", icon: BarChart },
   ];
 
+   const staggerContainer = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+      },
+    },
+  };
+
+  const staggerItem = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: { type: 'spring', stiffness: 120 },
+    },
+  };
+  
+  const tabContentVariant = {
+      hidden: { opacity: 0, y: 10 },
+      visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+      exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } }
+  };
+
   
   const renderTabContent = () => {
     switch (activeTab) {
        case "Sobre":
         return (
-          <Box
+      <Box
+            component={motion.div}
+            key="sobre"
+            variants={tabContentVariant}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             display="flex"
             gap={4}
             pl={5}
@@ -264,20 +296,47 @@ const Sobrespec = () => {
 
 
       case "Avaliações":
-        return <AvaliacoesEspc />;
+       return (
+            <motion.div
+                key="avaliacoes"
+                variants={tabContentVariant}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+            >
+                <AvaliacoesEspc />
+            </motion.div>
+        );
 
       case "Campanhas":
-        return    <CampanhasInfluSpec 
-      // Passando o estado e as funções como props
-      openSections={openSections}
-      handleToggleSection={handleToggleSection}
-      handleRejectClick={handleRejectClick}
-      handleAcceptClick={handleAcceptClick}
-      handleOpenFinalizeDialog={handleOpenFinalizeDialog}
-    /> ;
-
+        return  (        <motion.div
+                key="campanhas"
+                variants={tabContentVariant}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+            >
+                <CampanhasInfluSpec 
+                    openSections={openSections}
+                    handleToggleSection={handleToggleSection}
+                    handleRejectClick={handleRejectClick}
+                    handleAcceptClick={handleAcceptClick}
+                    handleOpenFinalizeDialog={handleOpenFinalizeDialog}
+                />
+            </motion.div>
+        );
       case "Estatísticas":
-        return <Estatisticas />;
+        return (
+            <motion.div
+                key="estatisticas"
+                variants={tabContentVariant}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+            >
+                <Estatisticas />
+            </motion.div>
+        );
       default:
         return null;
     }

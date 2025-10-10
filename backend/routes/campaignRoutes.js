@@ -12,11 +12,15 @@ import {
     updateCampaignState, // --- E updateCampaignState foi adicionado ---
     searchCampaigns,
     updateCampaignStatus,
-    cancelCampaignWithPassword
+    cancelCampaignWithPassword,
+     getMyCampaigns 
 } from '../controllers/campaignControllers.js';
 
 const router = express.Router();
 
+    router.route('/my-campaigns')
+    .get(protect, authorize('AD_AGENT'), getMyCampaigns);
+    
 router.route('/search')
     .get(protect, authorize('INFLUENCER', 'INFLUENCER_AGENT'), searchCampaigns);
 
@@ -38,5 +42,7 @@ router.route('/:id')
 
 router.route('/:id/status')
     .patch(protect, authorize('AD_AGENT'), updateCampaignStatus);
+
+
 
 export default router;

@@ -25,6 +25,7 @@
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "formik": "^2.4.6",
@@ -39,6 +40,8 @@
     "react-router-dom": "^7.9.3",
     "react-scripts": "^5.0.1",
     "recharts": "^3.2.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "tiptap": "^1.32.2",
     "web-vitals": "^2.1.4",
     "yup": "^1.7.1"

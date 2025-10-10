@@ -23,9 +23,18 @@ import TiptapContent from "../../../components/TiptapContent.jsx";
 // 1. IMPORTS DE ANIMAÇÃO
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import axiosInstance from '../../../auth/axios.jsx';
 // Importar o hook de autenticação e as ROLES
 import { useAuth } from '../../../auth/AuthContext'; // Ajuste o caminho se necessário
-import { ROLES } from '../../../data/mockUsers'; // Ajuste o caminho se necessário
+
+import { SiTwitch } from 'react-icons/si';
+
+export const ROLES = {
+    AD_AGENT: 'AD_AGENT',
+    INFLUENCER_AGENT: 'INFLUENCER_AGENT',
+    INFLUENCER: 'INFLUENCER',
+    ADMIN: 'ADMIN',
+};
 
 const InfluencerProfile = () => {
   // Acessar os dados do usuário logado
@@ -35,6 +44,8 @@ const InfluencerProfile = () => {
 
     const [influencer, setInfluencer] = useState(null); // Começa como nulo
   const [loading, setLoading] = useState(true); // Começa carregando
+  const [userCampaigns, setUserCampaigns] = useState([]);
+  const [dialogLoading, setDialogLoading] = useState(false);
 
   const [activeTab, setActiveTab] = useState("Sobre");
   const [openHireDialog, setOpenHireDialog] = useState(false);
@@ -113,15 +124,101 @@ useEffect(() => {
     return <Typography>Influenciador não encontrado.</Typography>;
   }
 
-  const handleOpenHireDialog = () => setOpenHireDialog(true);
-  const handleCloseHireDialog = () => {
+const handleOpenHireDialog = async () => {
+    // 1. Abre o diálogo e ativa o estado de loading
+    setOpenHireDialog(true);
+    setDialogLoading(true);
+
+    try {
+        // 2. Pega o token do usuário logado (assumindo que está no objeto 'user')
+        const token = user?.token; 
+        if (!token) {
+            console.error("Usuário não autenticado para buscar campanhas.");
+            // Opcional: Adicionar um feedback de erro para o usuário
+            setDialogLoading(false);
+            return;
+        }
+
+        // 3. Configura o header de autorização para a requisição
+        const config = {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        };
+
+        // 4. Faz a chamada à API para buscar as campanhas do usuário logado
+        //    (Ajuste a URL se necessário para corresponder à sua rota no backend)
+        const { data } = await axios.get('http://localhost:5001/api/campaigns/my-campaigns', config);
+        
+        // 5. Atualiza o estado com as campanhas recebidas
+        setUserCampaigns(data);
+
+    } catch (err) {
+        console.error("Erro ao buscar as campanhas do usuário:", err);
+        // Limpa as campanhas em caso de erro e informa o usuário
+        setUserCampaigns([]); 
+        // Você pode também usar o estado de 'error' para mostrar uma mensagem no Snackbar
+        setError("Não foi possível carregar suas campanhas. Tente novamente.");
+    } finally {
+        // 6. Desativa o estado de loading, independentemente do resultado
+        setDialogLoading(false);
+    }
+};
+
+
+const handleCloseHireDialog = () => {
     setOpenHireDialog(false);
     setSelectedCampaign('');
-  };
-  const handleConfirmHire = () => {
-    handleCloseHireDialog();
-    setShowConfirmation(true);
-  };
+    // Limpa a lista para buscar novamente da próxima vez
+    setUserCampaigns([]); 
+};
+
+const handleConfirmHire = async () => {
+    // Verifica se uma campanha foi selecionada
+    if (!selectedCampaign) {
+        setError("Por favor, selecione uma campanha antes de enviar o convite.");
+        return;
+    }
+
+       console.log('FRONTEND: Enviando convite para o Influencer ID:', id);
+
+       
+    try {
+        // Pega o token para autenticação
+        const token = user?.token;
+        if (!token) {
+            throw new Error("Usuário não autenticado.");
+        }
+
+        // Prepara os dados para enviar à API
+        const inviteData = {
+            campaignId: selectedCampaign, // ID da campanha selecionada
+            influencerId: id,             // ID do influenciador (da URL)
+        };
+
+        // Configura o header da requisição
+        const config = {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        };
+
+        // Rota da API para criar um convite (que gera a notificação)
+        // Certifique-se de que essa rota exista no seu backend
+        await axios.post('http://localhost:5001/api/invites', inviteData, config);
+
+        // Se a requisição for bem-sucedida:
+        handleCloseHireDialog();
+        setShowConfirmation(true); // Mostra o Snackbar de sucesso
+
+    } catch (err) {
+        console.error("Erro ao enviar convite:", err);
+        // Mostra uma mensagem de erro para o usuário
+        setError(err.response?.data?.message || "Não foi possível enviar o convite. Tente novamente.");
+        // Você pode usar um Snackbar de erro aqui também
+    }
+};
+
   const handleCloseConfirmation = (event, reason) => {
     if (reason === 'clickaway') return;
     setShowConfirmation(false);
@@ -497,7 +594,8 @@ const {
     avaliacao = 4.5,
     // Adicionamos os outros campos aqui também
     views = 150,
-    seguidores = 80
+    seguidores = 80,
+    curtidas = 40,
 } = influencer || {};
 
   return (
@@ -549,7 +647,9 @@ const {
                 <Box>
                   <Typography variant="body2" sx={{ fontStyle: "italic", opacity: 0.9, mb: 0.2, fontSize: "14px" }}>"{descricao}"</Typography>
                   <Typography variant="h3" fontWeight="bold" mb={0}>{nome}</Typography>
-                  <Typography variant="h6" mb={0.5} sx={{ opacity: 0.9 }}><PersonOutlinedIcon sx={{paddingTop:"5px"}}/>  {nomeReal}, 25 anos</Typography>
+                    <Typography variant="h6" mb={0.5} sx={{ opacity: 0.9 }}>
+                    <PersonOutlinedIcon sx={{paddingTop:"5px"}}/>  {nomeReal}, {idade} anos
+                  </Typography>
                   <Box display="flex" alignItems="center" gap={0.5} mb={1}>
                     {[...Array(5)].map((_, i) => ( <StarIcon key={i} sx={{ color: i < Math.floor(avaliacao) ? "gold" : "gray", fontSize: 20, }} /> ))}
                     <Typography fontWeight="bold">{avaliacao.toFixed(1)}</Typography>
@@ -557,8 +657,59 @@ const {
                   <Box display="flex" gap={1} mb={1.5}>
                     {categorias.map((cat, i) => ( <Chip key={i} label={cat} size="small" sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: "bold", backdropFilter: "blur(10px)", }} /> ))}
                   </Box>
-                  <Box display="flex" gap={1}>
-                    {[YouTubeIcon, InstagramIcon, SportsEsportsIcon, MusicNoteIcon].map((Icon, i) => ( <Box key={i} sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", }}><Icon sx={{ fontSize: 16 }} /></Box> ))}
+                 <Box display="flex" gap={1}>
+                    {social.youtube && (
+                      <Box
+                        sx={{
+                          width: 32, height: 32, borderRadius: "50%",
+                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
+                          alignItems: "center", justifyContent: "center", cursor: "pointer",
+                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
+                        }}
+                        onClick={() => window.open(social.youtube, '_blank')}
+                      >
+                        <YouTubeIcon sx={{ fontSize: 16 }} />
+                      </Box>
+                    )}
+                    {social.instagram && (
+                      <Box
+                        sx={{
+                          width: 32, height: 32, borderRadius: "50%",
+                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
+                          alignItems: "center", justifyContent: "center", cursor: "pointer",
+                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
+                        }}
+                        onClick={() => window.open(social.instagram, '_blank')}
+                      >
+                        <InstagramIcon sx={{ fontSize: 16 }} />
+                      </Box>
+                    )}
+                    {social.twitch && (
+                      <Box
+                        sx={{
+                          width: 32, height: 32, borderRadius: "50%",
+                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
+                          alignItems: "center", justifyContent: "center", cursor: "pointer",
+                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
+                        }}
+                        onClick={() => window.open(social.twitch, '_blank')}
+                      >
+                        <SiTwitch size={14} />
+                      </Box>
+                    )}
+                    {social.tiktok && (
+                      <Box
+                        sx={{
+                          width: 32, height: 32, borderRadius: "50%",
+                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
+                          alignItems: "center", justifyContent: "center", cursor: "pointer",
+                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
+                        }}
+                        onClick={() => window.open(social.tiktok, '_blank')}
+                      >
+                        <MusicNoteIcon sx={{ fontSize: 16 }} />
+                      </Box>
+                    )}
                   </Box>
                   {/* Renderização condicional do botão */}
                   {canHire && (
@@ -578,9 +729,9 @@ const {
                 component={motion.div} variants={staggerItem}
                 display="flex" flexDirection="column" gap={3} mt={3} alignItems="center" sx={{ minWidth: "300px" }}
               >
-                <Box display="flex" alignItems="center" gap={1} textAlign="center">
+              <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <Favorite sx={{ fontSize: 24, color: "#ff1493" }} />
-                  <Box><Typography variant="h4" fontWeight="bold">{seguidores}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Curtidas</Typography></Box>
+                  <Box><Typography variant="h4" fontWeight="bold">{curtidas}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Curtidas</Typography></Box>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <Visibility sx={{ fontSize: 24, color: "#2196f3" }} />
@@ -588,7 +739,7 @@ const {
                 </Box>
                 <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <Groups sx={{ fontSize: 24, color: "#9c27b0" }} />
-                  <Box><Typography variant="h4" fontWeight="bold">{inscritos}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Seguidores</Typography></Box>
+                  <Box><Typography variant="h4" fontWeight="bold">{seguidores}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Seguidores</Typography></Box>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <TrendingUp sx={{ fontSize: 24, color: "#4caf50" }} />
@@ -637,14 +788,34 @@ const {
                 <DialogContentText id="hire-dialog-description" sx={{ color: "rgba(255, 255, 255, 0.8)" }}>
                     Selecione a campanha para a qual você deseja convidar <strong>{influencer.nome}</strong>.
                 </DialogContentText>
-                <FormControl fullWidth variant="filled" sx={{ mt: 3, '& .MuiFilledInput-root': { backgroundColor: 'rgba(255, 255, 255, 0.1)', borderRadius: '10px', '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.15)', } }, '& .MuiInputLabel-root': { color: 'rgba(255, 255, 255, 0.7)' }, '& .MuiSelect-icon': { color: 'rgba(255, 255, 255, 0.7)' } }}>
-                    <InputLabel id="campaign-select-label">Campanha</InputLabel>
-                    <Select
-                        labelId="campaign-select-label" id="campaign-select" value={selectedCampaign} onChange={(e) => setSelectedCampaign(e.target.value)} label="Campanha" sx={{color: 'white'}}
-                    >
-                        {availableCampaigns.map((campaign) => ( <MenuItem key={campaign.id} value={campaign.id}>{campaign.name}</MenuItem> ))}
-                    </Select>
-                </FormControl>
+                {dialogLoading ? (
+            <Box display="flex" justifyContent="center" alignItems="center" height={80}>
+                <CircularProgress color="inherit" />
+            </Box>
+        ) : (
+            <FormControl fullWidth variant="filled" sx={{ mt: 3, /* ...outros sx */ }}>
+                <InputLabel id="campaign-select-label">Campanha</InputLabel>
+                <Select
+                    labelId="campaign-select-label"
+                    id="campaign-select"
+                    value={selectedCampaign}
+                    onChange={(e) => setSelectedCampaign(e.target.value)}
+                    label="Campanha"
+                    sx={{ color: 'white' }}
+                >
+                    {userCampaigns.length > 0 ? (
+                        userCampaigns.map((campaign) => (
+                            // Agora o value é o ID da campanha
+                            <MenuItem key={campaign._id} value={campaign._id}> 
+                                {campaign.title}
+                            </MenuItem>
+                        ))
+                    ) : (
+                        <MenuItem disabled>Nenhuma campanha criada por você foi encontrada.</MenuItem>
+                    )}
+                </Select>
+            </FormControl>
+        )}
             </DialogContent>
             <DialogActions sx={{ p: '0 24px 16px' }}>
                 <Button onClick={handleCloseHireDialog} sx={{ color: "rgba(255, 255, 255, 0.7)", textTransform:'none', fontSize: '15px' }}>Cancelar</Button>

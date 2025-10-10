@@ -1,5 +1,5 @@
 import {Box, IconButton, useTheme, Popover, Typography, Avatar, List, ListItem, ListItemAvatar, ListItemText, Badge, Divider, Menu, MenuItem} from "@mui/material";
-import {useContext, useState} from "react";
+import {useContext, useState, useEffect} from "react";
 import { ColorModeContext, tokens } from "../../theme";
 import InputBase from "@mui/material/InputBase";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
@@ -12,9 +12,21 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import NotificationsOffIcon from '@mui/icons-material/NotificationsOff';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import { useNavigate } from "react-router-dom";
-
-
+import axios from 'axios'; // Importe o axios
+import io from 'socket.io-client';
+// Uma função para formatar o tempo (opcional, mas recomendado)
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { useAuth } from "../../auth/AuthContext";
 const Topbar = () => {
+     const { user } = useAuth(); // Pega o usuário logado
+
+ 
+
+    
+    // 1. Substitua os dados estáticos por um estado
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(true);
     const theme = useTheme();
     const colors = tokens(theme.palette.mode);
     const colorMode = useContext(ColorModeContext);
@@ -34,7 +46,7 @@ const Topbar = () => {
     const [ignoredBadge, setIgnoredBadge] = useState(false); // só para ocultar badge
 
     // Dados das notificações
-    const notifications = [
+    const amigo = [
         {
             id: 1,
             title: "Contrato Aprovado - Lançamento IPhone 17",
@@ -96,6 +108,74 @@ const Topbar = () => {
         handleClose();
     };
 
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            if (!user?.token) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const config = {
+                    headers: {
+                        Authorization: `Bearer ${user.token}`
+                    }
+                };
+                // Rota para buscar as notificações do usuário logado
+                const { data } = await axios.get('http://localhost:5001/api/notifications', config);
+                
+                // Formata os dados para o formato que o componente espera
+                const formattedData = data.map(notif => ({
+                    id: notif._id,
+                    title: notif.title,
+                    subtitle: notif.message,
+                    // O backend deve fornecer o avatar do remetente
+                    avatar: notif.senderAvatar || 'default_avatar_url', 
+                    // Formata o tempo para "há 5 minutos", "há 2 horas", etc.
+                    time: formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: ptBR })
+                }));
+
+                setNotifications(formattedData);
+
+            } catch (error) {
+                console.error("Falha ao buscar notificações:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchNotifications();
+
+            // Conecta ao servidor WebSocket
+    const socket = io('http://localhost:5001'); // URL do seu backend
+
+    // Entra em uma "sala" específica do usuário para receber notificações privadas
+    if (user?._id) {
+        socket.emit('join', user._id);
+    }
+
+    // Ouve por novas notificações
+    socket.on('new_notification', (newNotification) => {
+        // Formata a notificação recebida
+         const formattedNotification = {
+            id: newNotification._id,
+            title: newNotification.title,
+            subtitle: newNotification.message,
+            avatar: newNotification.senderAvatar,
+            time: formatDistanceToNow(new Date(newNotification.createdAt), { addSuffix: true, locale: ptBR })
+        };
+        // Adiciona a nova notificação no topo da lista
+        setNotifications((prevNotifications) => [formattedNotification, ...prevNotifications]);
+    });
+
+    // Limpa a conexão quando o componente for desmontado
+    return () => {
+        socket.disconnect();
+    };
+    }, [user]);
+     // Roda o efeito quando o usuário muda (login/logout)
+
+
     const handleReactivateNotifications = () => {
         setNotificationsIgnored(false);
         setSilencedUntil(null);
@@ -108,10 +188,11 @@ const Topbar = () => {
         return false;
     };
 
-    const getBadgeContent = () => {
+      const getBadgeContent = () => {
         if (ignoredBadge) return 0;
         if (silencedUntil && new Date() < silencedUntil) return 0;
-        return notifications.length;
+        // Agora conta o tamanho do array de estado
+        return notifications.filter(n => !n.isRead).length; // Mostra apenas as não lidas
     };
 
     const getSilenceTimeRemaining = () => {

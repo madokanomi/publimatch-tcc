@@ -3,7 +3,7 @@
 import express from 'express';
 // ✅ Mudei o nome do import para ser mais claro
 import { protect, isCompanyAdmin } from '../middleware/authMiddleware.js'; 
-import { getMembrosDaEquipe, convidarMembro, verifyUserPassword } from '../controllers/userController.js';
+import { getMembrosDaEquipe, convidarMembro, verifyUserPassword,   updateUserPassword} from '../controllers/userController.js';
 
 const router = express.Router();
 
@@ -18,5 +18,6 @@ router.post('/convidar', protect, isCompanyAdmin, convidarMembro);
 
 // Esta rota precisa apenas que o usuário esteja logado (seja ele admin ou não)
 router.post('/verify-password', protect, verifyUserPassword);
+router.patch('/update-password', protect, updateUserPassword);
 
 export default router;

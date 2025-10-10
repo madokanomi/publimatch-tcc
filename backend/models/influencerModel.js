@@ -4,8 +4,8 @@ const influencerSchema = new mongoose.Schema({
     // --- CAMPOS QUE JÁ ESTAVAM CORRETOS ---
     name: { type: String, required: true },
     niches: [{ type: String }],
+agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     userAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
-    agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
     // --- CAMPOS ADICIONADOS PARA COMPATIBILIDADE ---
     realName: { type: String, required: true },
@@ -25,8 +25,7 @@ const influencerSchema = new mongoose.Schema({
     profileImageUrl: { type: String, default: '' },
     backgroundImageUrl: { type: String, default: '' },
     
-    agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    userAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
+    
     
     // Campos que você pode usar no futuro
     followersCount: { type: Number, default: 0 },

@@ -115,10 +115,17 @@ const Influenciadores = () => {
             const followersInMillions = (inf.followersCount || 0) / 1000000;
             const engagement = parseFloat(inf.engagementRate || 0);
             
-            // Simulações (idealmente viriam do backend)
-              const simulatedViews = parseFloat((Math.random() * 5).toFixed(1));
-    const simulatedInscritos = parseFloat((followersInMillions * 0.8).toFixed(1));
-
+    
+               const randomFollowers = parseFloat((Math.random() * (50 - 0.1) + 0.1).toFixed(1));
+            const randomEngagement = parseFloat((Math.random() * (100 - 0.5) + 0.5).toFixed(1));
+            const randomAvaliacao = parseFloat((Math.random() * (5 - 3.5) + 3.5).toFixed(1));
+            
+   
+            const randomViews = parseFloat((randomFollowers * (Math.random() * 3 + 0.5)).toFixed(1));
+            const randomInscritos = parseFloat((randomFollowers * (Math.random() * 0.9 + 0.2)).toFixed(1));
+    
+            const randomLikes = parseFloat((randomFollowers * (Math.random() * 0.7 + 0.1)).toFixed(1));
+          
             return {
               // --- Dados diretos do Backend ---
               id: inf._id,
@@ -133,18 +140,18 @@ const Influenciadores = () => {
               description: inf.description || '',
 
               // --- Métricas como NÚMEROS ---
-              followersCount: followersInMillions, // Agora é um número (ex: 5.2)
-              engagementRate: engagement,         // Agora é um número (ex: 4.8)
-             avaliacao: Number(engagement > 0 ? (engagement / 2).toFixed(1) : 4.5),
+              followersCount: randomFollowers,
+              engagementRate: randomEngagement,
+              avaliacao: randomAvaliacao,
 
               // --- Propriedades para o Card e Comparação (também como NÚMEROS) ---
               nome: inf.name,
               imagem: inf.profileImageUrl || '/default-avatar.png',
               redes: Object.keys(inf.social || {}).filter(k => inf.social[k]),
-              seguidores: followersInMillions, // Número
-              engajamento: engagement,        // Número
-              views: simulatedViews,          // Número (simulado)
-              inscritos: simulatedInscritos,  // Número (simulado)
+                   seguidores: randomLikes, // Usado para Curtidas
+              engajamento: randomEngagement,
+              views: randomViews,
+              inscritos: randomInscritos,
           };
         });
 

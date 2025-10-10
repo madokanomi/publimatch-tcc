@@ -288,3 +288,27 @@ export const cancelCampaignWithPassword = async (req, res) => {
         res.status(500).json({ message: 'Erro no servidor ao cancelar campanha.' });
     }
 };
+
+export const getMyCampaigns = async (req, res) => {
+  try {
+    console.log("USUÁRIO QUE FEZ A REQUISIÇÃO:", req.user);
+    
+    // Validação se o usuário existe
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: 'Não autorizado' });
+    }
+
+    // ❌ ERRO: estava usando req.user.id
+    // ✅ CORREÇÃO: usar req.user._id (que é o padrão do MongoDB/Mongoose)
+    const campaigns = await Campaign.find({ createdBy: req.user._id })
+      .select('title _id') // Adicione _id também para o frontend usar
+      .sort({ createdAt: -1 });
+
+    console.log(`Encontradas ${campaigns.length} campanhas para o usuário ${req.user._id}`);
+    
+    res.status(200).json(campaigns);
+  } catch (error) {
+    console.error("Erro ao buscar campanhas do usuário:", error);
+    res.status(500).json({ message: "Erro no servidor ao buscar campanhas.", error: error.message });
+  }
+};

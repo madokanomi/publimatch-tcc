@@ -1,9 +1,9 @@
 // /controllers/authController.js
 
-const User = require('../models/userModel');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto'); // Módulo nativo do Node.js para criptografia
-const { sendPasswordResetCodeEmail } = require('../config/email'); // Supondo que você tenha um utilitário de e-mail
+import User from '../models/userModel.js';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto'; // Módulo nativo do Node.js para criptografia
+import sendPasswordResetCodeEmail from '../config/email.js' // Supondo que você tenha um utilitário de e-mail
 
 // Função auxiliar para gerar o token
 const generateToken = (id) => {
@@ -15,7 +15,7 @@ const generateToken = (id) => {
 // @desc    Registrar um novo usuário
 // @route   POST /api/auth/register
 // @access  Público
-exports.register = async (req, res) => {
+export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
@@ -56,7 +56,7 @@ exports.register = async (req, res) => {
 }; // <-- A função register TERMINA AQUI.
 
 // A função login começa AQUI, do lado de fora.
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
     try {
         console.log("--- INÍCIO DA REQUISIÇÃO DE LOGIN ---");
         const { email, password } = req.body;
@@ -104,7 +104,7 @@ exports.login = async (req, res) => {
 };
 // @desc    Gerar CÓDIGO de reset de senha e enviar por e-mail
 // @route   POST /api/auth/forgot-password
-exports.forgotPassword = async (req, res) => {
+export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
         const user = await User.findOne({ email });
@@ -134,7 +134,7 @@ exports.forgotPassword = async (req, res) => {
 
 // @desc    Redefinir a senha usando o CÓDIGO
 // @route   PUT /api/auth/reset-password
-exports.resetPassword = async (req, res) => {
+export const resetPassword = async (req, res) => {
     try {
         const { email, code, password } = req.body;
 
@@ -163,7 +163,7 @@ exports.resetPassword = async (req, res) => {
     }
 };
 
-exports.verifyResetCode = async (req, res) => {
+export const verifyResetCode = async (req, res) => {
     try {
         const { email, code } = req.body;
 
