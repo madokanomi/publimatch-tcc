@@ -6,4 +6,5 @@ const router = express.Router();
 // Agora a importação de 'createInvite' funcionará corretamente
 router.post('/', protect, createInvite);
 
+
 export default router;

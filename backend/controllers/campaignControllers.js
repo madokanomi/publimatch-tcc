@@ -312,3 +312,35 @@ export const getMyCampaigns = async (req, res) => {
     res.status(500).json({ message: "Erro no servidor ao buscar campanhas.", error: error.message });
   }
 };
+
+export const applyToCampaign = async (req, res) => {
+    try {
+        const campaignId = req.params.id; // Pega o ID da campanha pela URL
+        const userId = req.user._id;      // Pega o ID do usuário logado (influenciador)
+
+        // Encontra a campanha pelo ID
+        const campaign = await Campaign.findById(campaignId);
+
+        if (!campaign) {
+            return res.status(404).json({ message: 'Campanha não encontrada.' });
+        }
+
+        // Verifica se o influenciador já não está participando
+        if (campaign.participatingInfluencers.includes(userId)) {
+             return res.status(400).json({ message: 'Você já está participando desta campanha.' });
+        }
+
+        // Adiciona o ID do influenciador ao array e salva
+        campaign.participatingInfluencers.push(userId);
+        await campaign.save();
+
+        res.status(200).json({ 
+            message: 'Inscrição na campanha realizada com sucesso!', 
+            campaign 
+        });
+
+    } catch (error) {
+        console.error("ERRO AO APLICAR PARA CAMPANHA:", error);
+        res.status(500).json({ message: 'Erro no servidor ao se inscrever na campanha.' });
+    }
+};

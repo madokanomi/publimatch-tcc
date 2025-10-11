@@ -40,12 +40,29 @@ export const createInvite = async (req, res) => {
             title: 'Novo Convite de Campanha!',
             message: `${req.user.name} convidou ${influencerProfile.name} para a campanha "${campaign.title}".`,
             type: 'CAMPAIGN_INVITE',
-            entityId: newInvite._id
+            entityId: newInvite._id,
+             link: `/campaigns/${campaignId}` 
         });
-        await notification.save();
+       await notification.save();
         
-        const notificationToSend = await Notification.findById(notification._id).populate('sender', 'name profileImageUrl');
-        req.io.to(recipientId.toString()).emit('new_notification', notificationToSend);
+        // --- INÍCIO DA CORREÇÃO ---
+
+        // 1. Busque a notificação e popule os dados do remetente
+        const populatedNotification = await Notification.findById(notification._id)
+            .populate('sender', 'name profileImageUrl')
+            .lean(); // Usar .lean() é mais performático para enviar dados
+
+        // 2. Crie o objeto final no formato exato que o frontend espera
+        const notificationForFrontend = {
+            ...populatedNotification,
+            // Crie a propriedade 'senderAvatar' que o frontend usa
+            senderAvatar: populatedNotification.sender?.profileImageUrl || 'default_avatar_url'
+        };
+        
+        // 3. Emita o objeto já formatado para o frontend
+        req.io.to(recipientId.toString()).emit('new_notification', notificationForFrontend);
+
+        // --- FIM DA CORREÇÃO ---
 
         res.status(201).json({ message: 'Convite enviado com sucesso!' });
 

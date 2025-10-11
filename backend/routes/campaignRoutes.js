@@ -13,7 +13,8 @@ import {
     searchCampaigns,
     updateCampaignStatus,
     cancelCampaignWithPassword,
-     getMyCampaigns 
+     getMyCampaigns,
+      applyToCampaign 
 } from '../controllers/campaignControllers.js';
 
 const router = express.Router();
@@ -43,6 +44,8 @@ router.route('/:id')
 router.route('/:id/status')
     .patch(protect, authorize('AD_AGENT'), updateCampaignStatus);
 
+    
+router.route('/:id/apply').post(protect, applyToCampaign)
 
 
 export default router;

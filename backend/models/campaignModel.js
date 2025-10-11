@@ -6,7 +6,7 @@ const campaignSchema = new mongoose.Schema({
     title: { type: String, required: true },
     description: { type: Object, required: true },
     privacy: { type: String, enum: ['Pública', 'Privada'], default: 'Pública' },
-    logo: { type: String, required: true },
+    logo: { type: String},
     categories: [{ type: String }],
     minFollowers: { type: Number, default: 0 },
     minViews: { type: Number, default: 0 },

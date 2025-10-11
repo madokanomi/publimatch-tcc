@@ -1,5 +1,5 @@
 import {Box, IconButton, useTheme, Popover, Typography, Avatar, List, ListItem, ListItemAvatar, ListItemText, Badge, Divider, Menu, MenuItem} from "@mui/material";
-import {useContext, useState, useEffect} from "react";
+import {useContext, useState, useEffect, useCallback} from "react";
 import { ColorModeContext, tokens } from "../../theme";
 import InputBase from "@mui/material/InputBase";
 import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
@@ -14,78 +14,81 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import { useNavigate } from "react-router-dom";
 import axios from 'axios'; // Importe o axios
 import io from 'socket.io-client';
+import { useNotificationModal } from './NotificationContext'; // 👈 1. Importe nosso hook
+
 // Uma função para formatar o tempo (opcional, mas recomendado)
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from "../../auth/AuthContext";
+
+
 const Topbar = () => {
-     const { user } = useAuth(); // Pega o usuário logado
-
- 
-
-    
-    // 1. Substitua os dados estáticos por um estado
-    const [notifications, setNotifications] = useState([]);
-    const [loading, setLoading] = useState(true);
     const theme = useTheme();
     const colors = tokens(theme.palette.mode);
     const colorMode = useContext(ColorModeContext);
-       const navigate = useNavigate(); 
-    // Estados
-    const [anchorEl, setAnchorEl] = useState(null);
-    const open = Boolean(anchorEl);
+    const navigate = useNavigate();
+    const { user } = useAuth();
 
+    // CORRIGIDO: O estado agora é totalmente controlado pelo Context.
+    // Isso garante que o estado seja a única fonte da verdade.
+    const { notifications, setNotifications, openModalWithCampaign } = useNotificationModal();
+
+    // Estados para controle de UI
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [anchorEl, setAnchorEl] = useState(null);
     const [configAnchorEl, setConfigAnchorEl] = useState(null);
-    const configOpen = Boolean(configAnchorEl);
- const handleSettingsClick = () => {
-        navigate('/configuracoes');
-    };
+    const [visibleCount, setVisibleCount] = useState(5);
     const [notificationsIgnored, setNotificationsIgnored] = useState(false);
     const [silencedUntil, setSilencedUntil] = useState(null);
 
-    const [ignoredBadge, setIgnoredBadge] = useState(false); // só para ocultar badge
+    const open = Boolean(anchorEl);
+    const configOpen = Boolean(configAnchorEl);
+    const NOTIFICATIONS_INITIAL_LIMIT = 4;
 
-    // Dados das notificações
-    const amigo = [
-        {
-            id: 1,
-            title: "Contrato Aprovado - Lançamento IPhone 17",
-            subtitle: "Enaldinho realizou a confirmação do contrato para a campanha Lançamento...",
-            avatar: "https://i.pinimg.com/736x/cd/76/67/cd7667a2bc222e1f0a3ab694247ddd6e.jpg",
-            time: "5 min"
-        },
-        {
-            id: 2,
-            title: "Contrato Aprovado - Komonew: Criando o Novo",
-            subtitle: "Mussa realizou a confirmação do contrato para a campanha Komonew: Criando...",
-            avatar: "https://yt3.googleusercontent.com/OLTr1-kMrPQOFmS-7Z3bdapRwP46rP36VgAzv7vhoLXmUEjb4xqqEf5Ej70K6QTT1xXyws7IsXE=s900-c-k-c0x00ffffff-no-rj",
-            time: "15 min"
-        },
-        {
-            id: 3,
-            title: "Influenciador em Alta - Tecnologia e Inovação",
-            subtitle: "Conheça Dormiman, este novo influenciador está em alta na categoria de Tecnologia...",
-            avatar: "https://down-br.img.susercontent.com/file/5da8ee70df39b96e7979ba644bf96668",
-            time: "1h"
-        }
-    ];
-
-    // Funções
-    const handleNotificationClick = (event) => setAnchorEl(event.currentTarget);
-    const handleClose = () => setAnchorEl(null);
-
-    const handleConfigClick = (event) => {
+    // OTIMIZADO: Funções envolvidas em useCallback para evitar recriações.
+    const handleNotificationClick = useCallback((event) => setAnchorEl(event.currentTarget), []);
+    const handleClose = useCallback(() => setAnchorEl(null), []);
+    const handleConfigClick = useCallback((event) => {
         event.stopPropagation();
         setConfigAnchorEl(event.currentTarget);
-    };
+    }, []);
+    const handleConfigClose = useCallback(() => setConfigAnchorEl(null), []);
+    const handleSettingsClick = useCallback(() => navigate('/configuracoes'), [navigate]);
+    const handleProfileClick = useCallback(() => navigate('/perfil'), [navigate]);
 
-    const handleProfileClick = () => {
-    navigate('/perfil'); // Navega para a rota do perfil do agente
-};
-    const handleConfigClose = () => setConfigAnchorEl(null);
+    // Funções
+
+     useEffect(() => {
+        if (!open) {
+            setTimeout(() => setVisibleCount(NOTIFICATIONS_INITIAL_LIMIT), 200);
+        }
+    }, [open]);
+
+
+const handleNotificationItemClick = useCallback(async (notification) => {
+    // Primeiro, marcamos como lida (a lógica que você já tinha)
+    if (!notification.isRead) {
+        try {
+            setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n));
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            await axios.patch(`http://localhost:5001/api/notifications/${notification.id}/read`, {}, config);
+        } catch (error) {
+            console.error("Falha ao marcar notificação como lida:", error);
+            setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, isRead: false } : n));
+        }
+    }
+    
+    // Agora, abrimos o modal
+   const campaignId = notification.link?.split('/').pop();
+    if (campaignId) {
+        // ✅ MUDANÇA AQUI: Passe o objeto 'notification' inteiro
+        openModalWithCampaign(campaignId, notification);
+    }
+}, [openModalWithCampaign, setNotifications, user?.token]);
 
     const handleIgnoreAll = () => {
-        setIgnoredBadge(true); // apenas remove a badge
+        setNotificationsIgnored(true);
         handleConfigClose();
         handleClose();
     };
@@ -108,72 +111,7 @@ const Topbar = () => {
         handleClose();
     };
 
-    useEffect(() => {
-        const fetchNotifications = async () => {
-            if (!user?.token) {
-                setLoading(false);
-                return;
-            }
 
-            try {
-                const config = {
-                    headers: {
-                        Authorization: `Bearer ${user.token}`
-                    }
-                };
-                // Rota para buscar as notificações do usuário logado
-                const { data } = await axios.get('http://localhost:5001/api/notifications', config);
-                
-                // Formata os dados para o formato que o componente espera
-                const formattedData = data.map(notif => ({
-                    id: notif._id,
-                    title: notif.title,
-                    subtitle: notif.message,
-                    // O backend deve fornecer o avatar do remetente
-                    avatar: notif.senderAvatar || 'default_avatar_url', 
-                    // Formata o tempo para "há 5 minutos", "há 2 horas", etc.
-                    time: formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: ptBR })
-                }));
-
-                setNotifications(formattedData);
-
-            } catch (error) {
-                console.error("Falha ao buscar notificações:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchNotifications();
-
-            // Conecta ao servidor WebSocket
-    const socket = io('http://localhost:5001'); // URL do seu backend
-
-    // Entra em uma "sala" específica do usuário para receber notificações privadas
-    if (user?._id) {
-        socket.emit('join', user._id);
-    }
-
-    // Ouve por novas notificações
-    socket.on('new_notification', (newNotification) => {
-        // Formata a notificação recebida
-         const formattedNotification = {
-            id: newNotification._id,
-            title: newNotification.title,
-            subtitle: newNotification.message,
-            avatar: newNotification.senderAvatar,
-            time: formatDistanceToNow(new Date(newNotification.createdAt), { addSuffix: true, locale: ptBR })
-        };
-        // Adiciona a nova notificação no topo da lista
-        setNotifications((prevNotifications) => [formattedNotification, ...prevNotifications]);
-    });
-
-    // Limpa a conexão quando o componente for desmontado
-    return () => {
-        socket.disconnect();
-    };
-    }, [user]);
-     // Roda o efeito quando o usuário muda (login/logout)
 
 
     const handleReactivateNotifications = () => {
@@ -188,12 +126,12 @@ const Topbar = () => {
         return false;
     };
 
-      const getBadgeContent = () => {
-        if (ignoredBadge) return 0;
-        if (silencedUntil && new Date() < silencedUntil) return 0;
-        // Agora conta o tamanho do array de estado
-        return notifications.filter(n => !n.isRead).length; // Mostra apenas as não lidas
-    };
+   const getBadgeContent = () => {
+    // 👇 Apenas esta linha foi alterada
+    if (notificationsIgnored) return 0; // ✅ Variável correta
+    if (silencedUntil && new Date() < silencedUntil) return 0;
+    return notifications.filter(n => !n.isRead).length;
+};
 
     const getSilenceTimeRemaining = () => {
         if (!silencedUntil) return '';
@@ -289,10 +227,14 @@ const Topbar = () => {
                     )}
 
                     {/* Lista de Notificações */}
-                    <List sx={{ p: 0 }}>
-                        {notifications.map((notification) => (
+           <List sx={{ p: 0 }}>
+   {notifications.length > 0 ? (
+                            notifications.slice(0, visibleCount).map((notification) => {
+                                const campaignId = notification.link?.split('/').pop();
+                                return (
                             <Box key={notification.id}>
                                 <ListItem 
+                                onClick={() => handleNotificationItemClick(notification)}
                                     sx={{ 
                                         backgroundColor: 'rgba(255, 255, 255, 0.1)',
                                         borderRadius: '12px',
@@ -303,8 +245,11 @@ const Topbar = () => {
                                     }}
                                 >
                                     <ListItemAvatar>
-                                        <Avatar sx={{ width: 40, height: 40, bgcolor: 'rgba(255, 255, 255, 0.2)' }} src={notification.avatar}>
-                                            {notification.title.charAt(0)}
+                                       <Avatar 
+                                          sx={{ width: 40, height: 40, bgcolor: 'rgba(255, 255, 255, 0.2)' }} 
+                                          src={notification.logo}
+                                        >
+                                           {notification.subtitle ? notification.subtitle.charAt(0) : ''}
                                         </Avatar>
                                     </ListItemAvatar>
                                     <ListItemText
@@ -316,15 +261,29 @@ const Topbar = () => {
                                     </Typography>
                                 </ListItem>
                             </Box>
-                        ))}
+                          );
+                            })
+                        ) : (
+                            // NOVO: Mensagem para quando não há notificações
+                            <Typography sx={{ color: 'rgba(255, 255, 255, 0.8)', textAlign: 'center', p: 4 }}>
+                                Nenhuma notificação nova.
+                            </Typography>
+                        )}
                     </List>
 
-                    {/* Footer */}
-                    <Box sx={{ textAlign: 'center', mt: 2, pt: 2, borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)', cursor: 'pointer', '&:hover': { color: 'white' } }}>
-                            Ver todas as notificações
-                        </Typography>
-                    </Box>
+                    {/* Footer com lógica condicional */}
+                    {/* ALTERADO: O footer agora tem lógica para mostrar mais */}
+                    {notifications.length > visibleCount && (
+                        <Box sx={{ textAlign: 'center', mt: 2, pt: 2, borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
+                            <Typography
+                                variant="body2"
+                                onClick={() => setVisibleCount(notifications.length)} // Expande a lista
+                                sx={{ color: 'rgba(255, 255, 255, 0.8)', cursor: 'pointer', '&:hover': { color: 'white' } }}
+                            >
+                                Ver todas as {notifications.length} notificações
+                            </Typography>
+                        </Box>
+                    )}
                 </Box>
             </Popover>
 

@@ -7,6 +7,8 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import RoleProtectedRoute from './auth/RoleProtectedRoute';
 import Topbar from "./scenes/global/Topbar.jsx";
 import Sidebar from "./scenes/global/Sidebar.jsx";
+import { NotificationProvider } from './scenes/global/NotificationContext.jsx'; // Importe o Provedor
+import CampaignNotificationModal from './components/CampaignNotificationModal.jsx'; // Importe o Modal
 
 // Cenas (Páginas)
 import Dashboard from "./scenes/dashboard";
@@ -57,6 +59,7 @@ function App() {
     <ColorModeContext.Provider value={colorMode}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+         <NotificationProvider>
         <Routes>
           {/* ROTA PÚBLICA */}
           <Route path="/login" element={<Login />} />
@@ -115,6 +118,8 @@ function App() {
     
           </Route>
         </Routes>
+         <CampaignNotificationModal />
+         </NotificationProvider>
       </ThemeProvider>
     </ColorModeContext.Provider>
   );
