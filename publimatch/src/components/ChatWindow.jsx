@@ -11,6 +11,7 @@ import {
   DialogContentText,
   DialogActions,
   Button,
+    CircularProgress,
 } from "@mui/material";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -18,177 +19,160 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import ChatMessage from "./ChatMessage";
 import ChatInput from "./ChatInput";
 import { useParams, useNavigate } from "react-router-dom";
+import { useConversation } from "../scenes/chat/ConversationContext"; 
+import useGetMessages from "../scenes/chat/useGetMessages";
+import useSendMessage from "../scenes/chat/useSendMessage";
+import axios from "axios";
+import { useAuth } from "../auth/AuthContext";
 
-// Dados de exemplo para todas as conversas
-let allConversations = [
-  {
-    id: 1,
-    user: {
-      name: "Paulo Gostavo",
-      img: "https://streaming-guide.spiegel.de/wp-content/uploads/2025/04/Sonic3.png",
-    },
-    messages: [
-      { text: "Oi, eu tenho interesse de participar dessa campanha.", sender: "other", time: "10:30 PM" },
-      { date: "27/05" },
-      { text: "Olá, Paulo Gostavo, conferimos e o seu cliente se encaixa perfeitamente no perfil que procuramos.", sender: "me", time: "10:35 PM" },
-      { text: "Estamos ansiosos para a campanha do seu cliente. A equipe de criação está desenvolvendo materiais inovadores que capturarão a essência da marca e ressoarão com o público-alvo.", sender: "other", time: "10:40 PM" },
-      { date: "28/05" },
-      { text: "Temos de contactar a sua agencia nos próximos dias para realizar a campanha.", sender: "me", time: "09:00 PM" },
-      { date: "Ontem" },
-      { text: "Quando será a entrega da Publi", sender: "other", time: "09:10 PM" },
-    ],
-  },
-  {
-    id: 2,
-    user: {
-      name: "Adelaide Bonds",
-      img: "https://pt.quizur.com/_image?href=https://img.quizur.com/f/img5dcb5b1b1e39b5.94302652.jpg?lastEdited=1573608227&w=600&h=600&f=webp",
-    },
-    messages: [
-      { text: "Muito Obrigado pela sua participação, foi de grande ajuda para nosso projeto!", sender: "me", time: "10:50 AM" },
-      { text: "Foi um ótimo projeto!", sender: "other", time: "03:25 AM" },
-    ],
-  },
-  {
-    id: 3,
-    user: {
-      name: "Leonardo Bigods",
-      img: "https://media.istockphoto.com/id/490622582/pt/foto/frente-retrato-de-um-jovem-rapaz-com-dobrado-armas.jpg?s=1024x1024&w=is&k=20&c=FdaTxk--KKYHvDfKx6lTjhxGHn6TuZ4lF4HzKWcHIo0=",
-    },
-    messages: [{ date: "Ontem" }, { text: "Podemos Conversar?", sender: "other", time: "11:53 PM" }],
-  },
-  {
-    id: 4,
-    user: {
-      name: "Franklin",
-      img: "https://play-lh.googleusercontent.com/8l75wNoiL143-qvTGelnuBFO0xT_CqIni8Co2ER53Ig1LuPVZiowotP0P9lh840tk2Lr",
-    },
-    messages: [
-      { text: "Hello! I would like to know more about the campaing on KomoNew", sender: "other", time: "07:30 PM" },
-      { date: "23/06" },
-      { text: 'We are making a campaign about the launch of the new app "Publimatch", that is made by Komonew', sender: "me", time: "08:37 PM" },
-      { date: "24/06" },
-      { text: "Aight man, what should i do to participate?", sender: "other", time: "08:30 AM" },
-      { text: "Just make a little ad showing our product and Official page on one of your videos!", sender: "me", time: "08:35 AM" },
-      { date: "Sábado" },
-      { text: "Alright!" },
-    ],
-  },
-];
+const generateConsistentColor = (name) => {
+    if (!name) return '#6366f1'; // Uma cor padrão se o nome não existir
+    const colors = [
+        '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e',
+        '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash % colors.length);
+    return colors[index];
+};
+
 
 const ChatWindow = () => {
-  const { chatId } = useParams();
+ const { chatId } = useParams();
   const navigate = useNavigate();
+    const { user } = useAuth();
 
-  // Encontrar a conversa atual
-  const initialChat = allConversations.find((c) => c.id.toString() === chatId);
+  // ✅ FONTE ÚNICA DA VERDADE: Apenas dados do Contexto e Hooks
+   const {
+        conversations,
+        selectedConversation,
+        setSelectedConversation,
+        messages,
+        loading: conversationsLoading // Renomeado para não conflitar!
+    } = useConversation();
 
-  // Estados
-  const [currentChat, setCurrentChat] = useState(initialChat);
+ const { loading: messagesLoading } = useGetMessages();
+  const { sendMessage, loading: sendingLoading } = useSendMessage();
+
+  // ✅ ESTADO LOCAL: Apenas para controlar elementos da UI
   const [inputText, setInputText] = useState("");
   const [anchorEl, setAnchorEl] = useState(null);
   const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
-
   const isMenuOpen = Boolean(anchorEl);
-
-  // refs para scroll
-  const messagesRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Atualiza a conversa quando o chatId muda
-  useEffect(() => {
-    const newChat = allConversations.find((c) => c.id.toString() === chatId);
-    setCurrentChat(newChat);
-  }, [chatId]);
+  // ✅ EFEITO 1: Seleciona a conversa correta no Contexto quando a URL muda
+ useEffect(() => {
+        // 1. Se a lista de conversas ainda está carregando, espere.
+        // A próxima renderização (quando o loading terminar) reativará este efeito.
+        if (conversationsLoading) {
+            return;
+        }
 
-  // Scroll automático para o final
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
-  }, [currentChat?.messages?.length]);
+        // 2. Se as conversas já carregaram, encontre a que corresponde à URL.
+        const conversationFound = conversations.find((c) => c._id === chatId);
 
+        if (conversationFound) {
+            // 3. Se a conversa foi encontrada e ainda não está selecionada no contexto, selecione-a.
+            if (!selectedConversation || selectedConversation._id !== conversationFound._id) {
+                setSelectedConversation(conversationFound);
+            }
+        } else {
+            // 4. Se o loading terminou e a conversa NÃO foi encontrada, a URL é inválida. Redirecione.
+            console.log("Conversa não encontrada após carregamento. Redirecionando...");
+            navigate("/conversas");
+        }
+    }, [
+        chatId,
+        conversations,
+        conversationsLoading, // A dependência mais importante!
+        selectedConversation,
+        setSelectedConversation,
+        navigate,
+    ]);
+
+    // ✅ EFEITO 2: Scroll automático (agora com a lógica correta)
+    useEffect(() => {
+        // Rola para a mensagem mais recente sempre que a lista de mensagens mudar.
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]); // Este efeito depende APENAS das mensagens.
+
+
+
+  // ✅ FUNÇÃO DE ENVIO: Usa o hook 'useSendMessage'
+ const handleSendMessage = async () => {
+        if (!selectedConversation) return; // Safety check
+        
+        // ANTES:
+        // const otherUser = selectedConversation.participants.find(p => p._id !== authUser?._id);
+        // DEPOIS:
+        const otherUser = selectedConversation.participants.find(p => p._id !== user?._id);
+
+        if (!otherUser) return;
+
+        if (inputText.trim() !== "") {
+            await sendMessage(inputText, otherUser._id);
+            setInputText("");
+        }
+    };
+    
+  
+    // ✅ FUNÇÃO DE DELETAR: Faz a chamada para a API
+  const confirmDelete = async () => {
+    if (!selectedConversation) return;
+    try {
+      // Idealmente, isso também seria um hook (ex: useDeleteConversation)
+     await axios.delete(`/api/chat/${selectedConversation._id}`);
+      setOpenConfirmDialog(false);
+      navigate("/conversas");
+    } catch (error) {
+      console.error("Erro ao deletar conversa:", error);
+    }
+  };
+
+  const handleGoBack = () => {
+    setSelectedConversation(null); // Limpa o estado global ao sair
+    navigate("/conversas");
+  };
+  
+  // Funções de UI que permanecem
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
-
-  const handleGoBack = () => navigate("/conversas");
-
-  // Scroll automático para o final
-const scrollToBottom = () => {
-  messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-};
-
-// Atualiza o scroll sempre que a lista de mensagens muda
-useEffect(() => {
-  if (messagesEndRef.current) {
-    messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-  }
-}, [currentChat?.messages]);
-
-// Alterar handleSendMessage
-const handleSendMessage = () => {
-  if (inputText.trim() !== "") {
-    const now = new Date();
-    const time = `${now.getHours()}:${now.getMinutes() < 10 ? "0" : ""}${now.getMinutes()}`;
-    const newMessage = { text: inputText.trim(), sender: "me", time };
-
-    setCurrentChat((prevChat) => ({
-      ...prevChat,
-      messages: [...prevChat.messages, newMessage],
-    }));
-    setInputText("");
-
-    // Scroll automático considerando o input
-    setTimeout(() => {
-      if (messagesRef.current) {
-        messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
-      }
-    }, 50); // delay pequeno para garantir que a mensagem já foi renderizada
-  }
-};
-
-  // Abrir diálogo de confirmação
   const handleDeleteConversation = () => {
     setOpenConfirmDialog(true);
     handleMenuClose();
   };
-
-  // Confirmar exclusão
-  const confirmDelete = () => {
-    // Remove a conversa do array global
-    allConversations = allConversations.filter((c) => c.id.toString() !== chatId);
-    setOpenConfirmDialog(false);
-
-    // Volta para a lista de conversas
-    navigate("/conversas");
-  };
-
-  // Cancelar exclusão
   const cancelDelete = () => setOpenConfirmDialog(false);
+    if (conversationsLoading) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                <CircularProgress color="inherit" />
+            </Box>
+        );
+    }
+  if (!selectedConversation) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                <Typography sx={{ color: "white", fontWeight: "bold" }}>
+                    Selecione uma conversa para começar
+                </Typography>
+            </Box>
+        );
+    }
 
-  if (!currentChat) {
-    return       <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "50vh",
-        }}
-      >
-        <Typography sx={{ fontWeight: "bold", color: "white", mb: 2 }}>
-          Conversa não encontrada.
-        </Typography>
-        <Button
-        sx={{backgroundColor: "#00000035", fontWeight: "bold", borderRadius: "16px", px: 3, py: 1, "&:hover": {backgroundColor: "#00000055"}}}
-          variant="contained"
-          color="primary"
-          onClick={() => navigate(-1)} // Volta para a página anterior
-        >
-          Voltar
-        </Button>
-      </Box>
-  }
+  // Encontra o outro usuário na conversa para exibir nome e foto
+  const validParticipants = selectedConversation.participants.filter(p => p);
+    // ANTES:
+    // const otherUser = validParticipants.find(p => p._id !== authUser?._id);
+    // DEPOIS:
+    const otherUser = validParticipants.find(p => p._id !== user?._id);
+  const initial = otherUser?.name ? otherUser.name[0].toUpperCase() : '?';
+ const hasValidImage = otherUser?.profileImageUrl && otherUser.profileImageUrl !== "URL_DA_SUA_IMAGEM_PADRAO.png";
 
-  return (
+    return (
     <Box
       sx={{
         flex: 1,
@@ -200,8 +184,7 @@ const handleSendMessage = () => {
         flexDirection: "column",
         overflow: "hidden",
         mr: "40px",
-         ml: "40px",
-    
+        ml: "40px",
       }}
     >
       {/* Header do Chat */}
@@ -219,13 +202,38 @@ const handleSendMessage = () => {
           <IconButton onClick={handleGoBack} sx={{ color: "white" }}>
             <ArrowBackIcon />
           </IconButton>
-          <img
-            src={currentChat.user.img}
-            alt={currentChat.user.name}
-            style={{ width: 50, height: 50, borderRadius: "40%", objectFit: 'cover'}}
-          />
+          {/* ✅ A MUDANÇA PRINCIPAL ESTÁ AQUI */}
+                    {hasValidImage ? (
+                        <img
+                            src={otherUser.profileImageUrl}
+                            alt={otherUser.name}
+                            style={{
+                                width: 50,
+                                height: 50,
+                                borderRadius: "40%",
+                                objectFit: "cover",
+                            }}
+                        />
+                    ) : (
+                        <Box
+                            sx={{
+                                width: 50,
+                                height: 50,
+                                borderRadius: '40%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: generateConsistentColor(otherUser?.name),
+                                color: 'white',
+                                fontSize: '24px',
+                                fontWeight: 'bold',
+                            }}
+                        >
+                            {initial}
+                        </Box>
+                    )}
           <Typography variant="h4" fontWeight="bold" color="white">
-            {currentChat.user.name}
+            {otherUser?.name}
           </Typography>
         </Box>
         <Box>
@@ -252,9 +260,8 @@ const handleSendMessage = () => {
         </Box>
       </Box>
 
-      {/* Mensagens */}
+      {/* Mensagens (BLOCO CORRIGIDO) */}
       <Box
-        ref={messagesRef}
         flexGrow={1}
         p={2}
         sx={{
@@ -270,37 +277,37 @@ const handleSendMessage = () => {
           },
         }}
       >
-        {currentChat.messages && currentChat.messages.length > 0 ? (
-          currentChat.messages.map((item, index) =>
-            item.date ? (
-              <Box key={index} textAlign="center" my={2}>
-                <Typography
-                  fontSize="12px"
-                  color="rgba(255,255,255,0.6)"
-                  sx={{
-                    position: "relative",
-                    "&::before, &::after": {
-                      content: '""',
-                      position: "absolute",
-                      top: "50%",
-                      width: "40%",
-                      height: "1px",
-                      backgroundColor: "rgba(255,255,255,0.3)",
-                    },
-                    "&::before": { left: 0 },
-                    "&::after": { right: 0 },
-                  }}
-                >
-                  {item.date}
-                </Typography>
-              </Box>
-            ) : (
-              <ChatMessage key={index} message={item} />
-            )
-          )
+        {messagesLoading ? (
+          <Box
+            display="flex"
+            justifyContent="center"
+            alignItems="center"
+            height="100%"
+          >
+            {/* Lembre-se de importar o CircularProgress */}
+            <CircularProgress color="inherit" />
+          </Box>
+        ) : messages.length > 0 ? (
+                  messages.map((msg) => (
+                        <ChatMessage
+                            key={msg._id}
+                            message={msg}
+                            // ANTES:
+                            // currentUserId={authUser._id}
+                            // DEPOIS:
+                            currentUserId={user._id}
+                        />
+          ))
         ) : (
-          <Box display="flex" alignItems="center" justifyContent="center" height="100%">
-            <Typography color="rgba(255,255,255,0.6)">Nenhuma mensagem neste chat.</Typography>
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            height="100%"
+          >
+            <Typography color="rgba(255,255,255,0.6)">
+              Nenhuma mensagem neste chat.
+            </Typography>
           </Box>
         )}
         <div ref={messagesEndRef} />
@@ -317,7 +324,11 @@ const handleSendMessage = () => {
           zIndex: 30,
         }}
       >
-        <ChatInput inputText={inputText} setInputText={setInputText} onSendMessage={handleSendMessage} />
+        <ChatInput
+          inputText={inputText}
+          setInputText={setInputText}
+          onSendMessage={handleSendMessage}
+        />
       </Box>
 
       {/* Diálogo de confirmação */}
@@ -326,19 +337,37 @@ const handleSendMessage = () => {
         onClose={cancelDelete}
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
-        sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(255, 255, 255, 0.64)", color: "#610069ff", backdropFilter:"blur(30px)", borderRadius:'20px' } }}
+        sx={{
+          "& .MuiPaper-root": {
+            backgroundColor: "rgba(255, 255, 255, 0.64)",
+            color: "#610069ff",
+            backdropFilter: "blur(30px)",
+            borderRadius: "20px",
+          },
+        }}
       >
-        <DialogTitle id="alert-dialog-title">{"Confirmar exclusão"}</DialogTitle>
+        <DialogTitle id="alert-dialog-title">
+          {"Confirmar exclusão"}
+        </DialogTitle>
         <DialogContent>
-          <DialogContentText id="alert-dialog-description" sx={{color:"#4f4f4fff"}}>
-            Tem certeza de que deseja apagar esta conversa? Essa ação não poderá ser desfeita.
+          <DialogContentText
+            id="alert-dialog-description"
+            sx={{ color: "#4f4f4fff" }}
+          >
+            Tem certeza de que deseja apagar esta conversa? Essa ação não poderá
+            ser desfeita.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={cancelDelete} sx={{color:"#540069ff"}}>
+          <Button onClick={cancelDelete} sx={{ color: "#540069ff" }}>
             Cancelar
           </Button>
-          <Button onClick={confirmDelete} sx={{fontWeight:'bold'}}color="error" autoFocus>
+          <Button
+            onClick={confirmDelete}
+            sx={{ fontWeight: "bold" }}
+            color="error"
+            autoFocus
+          >
             Apagar
           </Button>
         </DialogActions>

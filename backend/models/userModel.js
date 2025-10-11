@@ -5,7 +5,14 @@ import crypto from 'crypto'; // Importe o módulo crypto do Node.js
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
-    password: { type: String, required: true }, // Removido 'select: false' para facilitar o primeiro login
+   password: { 
+    type: String, 
+    required: false // Ou simplesmente remova o 'required: true'
+}, // Removido 'select: false' para facilitar o primeiro login
+      profileImageUrl: {
+        type: String,
+        default: 'URL_DA_SUA_IMAGEM_PADRAO.png' // Coloque uma URL de avatar padrão
+    },
     role: {
         type: String,
         required: true,
@@ -64,6 +71,21 @@ userSchema.methods.getPasswordSetupToken = function() {
     // 4. Retorna o token NÃO criptografado para ser enviado por e-mail
     return setupToken;
 };
+
+
+userSchema.pre('deleteMany', function() {
+  console.log('----------------------------------------------------');
+  console.warn('⚠️ ALERTA: Uma operação "deleteMany" foi acionada para usuários!');
+  console.trace('Stack trace da chamada:'); // Isso nos dirá QUEM chamou
+  console.log('----------------------------------------------------');
+});
+
+userSchema.pre('deleteOne', function() {
+  console.log('----------------------------------------------------');
+  console.warn('⚠️ ALERTA: Uma operação "deleteOne" foi acionada para usuários!');
+  console.trace('Stack trace da chamada:');
+  console.log('----------------------------------------------------');
+});
 
 const User = mongoose.model('User', userSchema);
 export default User;

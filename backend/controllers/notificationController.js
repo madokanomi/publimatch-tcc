@@ -4,36 +4,48 @@ import Notification from '../models/notificationModel.js';
 // @desc    Buscar todas as notificações do usuário logado
 // @route   GET /api/notifications
 // @access  Privado
+// backend/controllers/notificationController.js
 
 export const getNotifications = async (req, res) => {
     try {
-        const notificationsFromDB = await Notification.find({ recipient: req.user._id })
-            .populate('sender', 'name profileImageUrl')
-            // ✅ LINHA ADICIONADA: Busca a campanha e seleciona apenas o campo do logo.
-            .populate({
-                path: 'campaign',     // O nome do campo no seu NotificationModel que referencia a campanha
-                select: 'logoUrl'     // Selecione APENAS o campo que contém a URL do logo
+        const notificationsFromDB = await Notification.find({ recipient: req.user._id })
+            .populate('sender', 'name profileImageUrl')
+            .populate({
+                path: 'campaign',
+                select: 'logo' // Assumindo que o campo no model Campaign é 'logo'
             })
-            .sort({ createdAt: -1 });
-        // Mapeia os resultados para garantir que o formato seja exatamente
-        // o que o frontend espera.
+            // =========================================================================
+            // ✅ CORREÇÃO PRINCIPAL AQUI: Populando o convite e o influenciador
+            .populate({
+                path: 'entityId',   // 1. Popula o campo 'entityId' com os dados do Convite
+                populate: {
+                    path: 'influencer' // 2. Dentro do Convite, popula os dados do Influenciador
+                }
+            })
+            // =========================================================================
+            .sort({ createdAt: -1 });
+
+        // Mapeia os resultados para o frontend
         const formattedNotifications = notificationsFromDB.map(notif => ({
             _id: notif._id,
             title: notif.title,
             message: notif.message,
-            link: notif.link, // ✅ O link agora virá do banco de dados
+            link: notif.link,
             createdAt: notif.createdAt,
             isRead: notif.isRead,
-            // Garante que o campo `senderAvatar` seja criado
             senderAvatar: notif.sender ? notif.sender.profileImageUrl : 'default_avatar_url',
-            logo: notif.campaign ? notif.campaign.logoUrl : null,
+            logo: notif.campaign ? notif.campaign.logo : null,
+
+            // ✅ LINHA ADICIONADA: Garante que o objeto completo do convite
+            //    (com o influenciador populado) seja enviado ao frontend.
+            entityId: notif.entityId 
         }));
 
         res.status(200).json(formattedNotifications);
     } catch (error) {
         console.error("Erro ao buscar notificações:", error);
         res.status(500).json({ message: "Erro no servidor ao buscar notificações." });
-    }   
+    }  
 };
 // Futuramente, você pode adicionar uma função para marcar como lida
 export const markAsRead = async (req, res) => {

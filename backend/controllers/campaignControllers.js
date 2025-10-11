@@ -313,30 +313,38 @@ export const getMyCampaigns = async (req, res) => {
   }
 };
 
+// backend/controllers/campaignController.js
+
 export const applyToCampaign = async (req, res) => {
     try {
-        const campaignId = req.params.id; // Pega o ID da campanha pela URL
-        const userId = req.user._id;      // Pega o ID do usuário logado (influenciador)
+        const campaignId = req.params.id; // ID da campanha pela URL
+        
+        // ✅ 1. Obtenha o ID do influenciador do corpo da requisição
+        const { influencerId } = req.body;
 
-        // Encontra a campanha pelo ID
+        // Validação: Garante que o frontend enviou o ID
+        if (!influencerId) {
+            return res.status(400).json({ message: 'O ID do influenciador é obrigatório.' });
+        }
+
         const campaign = await Campaign.findById(campaignId);
 
         if (!campaign) {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
         }
 
-        // Verifica se o influenciador já não está participando
-        if (campaign.participatingInfluencers.includes(userId)) {
-             return res.status(400).json({ message: 'Você já está participando desta campanha.' });
+        // ✅ 2. Verifica se o ID do *influenciador* já está na lista
+        if (campaign.participatingInfluencers.includes(influencerId)) {
+            return res.status(400).json({ message: 'Este influenciador já está participando da campanha.' });
         }
 
-        // Adiciona o ID do influenciador ao array e salva
-        campaign.participatingInfluencers.push(userId);
+        // ✅ 3. Adiciona o ID do *influenciador* ao array e salva
+        campaign.participatingInfluencers.push(influencerId);
         await campaign.save();
 
-        res.status(200).json({ 
-            message: 'Inscrição na campanha realizada com sucesso!', 
-            campaign 
+        res.status(200).json({
+            message: 'Inscrição na campanha realizada com sucesso!',
+            campaign
         });
 
     } catch (error) {

@@ -74,7 +74,7 @@ export const convidarMembro = asyncHandler(async (req, res) => {
     const setupToken = newUser.getPasswordSetupToken();
 
     // Agora salva o usuário no banco de dados com os campos do token já definidos
-    await newUser.save({ validateBeforeSave: false }); // Usamos validateBeforeSave: false para pular a validação da senha que ainda não existe
+  await newUser.save(); // Usamos validateBeforeSave: false para pular a validação da senha que ainda não existe
 
     // Envia o e-mail de boas-vindas com o link para criar a senha
     const setupLink = `${process.env.FRONTEND_URL}/criar-senha/${setupToken}`; // É uma boa prática usar variáveis de ambiente para a URL do frontend

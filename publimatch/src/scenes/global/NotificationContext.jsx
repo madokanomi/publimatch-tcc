@@ -64,7 +64,8 @@ export const NotificationProvider = ({ children }) => {
                     avatar: notif.senderAvatar || 'default_avatar_url',
                     time: formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: ptBR }),
                     link: notif.link,
-                     logo: notif.logo // ✅ Use "logo"
+                     logo: notif.logo, // ✅ Use "logo"
+                       entityId: notif.entityId,
                 }));
                 setNotifications(formattedData);
             } catch (error) {
@@ -92,6 +93,7 @@ export const NotificationProvider = ({ children }) => {
         link: newNotification.link,
         isRead: newNotification.isRead || false,
           logo: newNotification.campaignLogo || null,
+               entityId: newNotification.entityId,
     };
 
     setNotifications((prevNotifications) => [formattedNotification, ...prevNotifications]);

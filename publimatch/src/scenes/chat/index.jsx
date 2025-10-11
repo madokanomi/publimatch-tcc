@@ -1,10 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Pin, PinOff } from "lucide-react";
 import Header from "../../components/Header";
 import { useNavigate } from "react-router-dom";
 // 1. IMPORTAR COMPONENTES DO FRAMER MOTION
 import { motion, AnimatePresence } from "framer-motion";
-
+import { useConversation } from "./ConversationContext"; // Ajuste o caminho se necessário
+import { useAuth } from "../../auth/AuthContext"; // Para obter o ID do usuário logado
+import { Box, CircularProgress, Typography } from "@mui/material";
+// ✅ BÔNUS: Função para formatar a data de forma mais amigável
+import { formatDistanceToNowStrict } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 // Mock das conversas (sem alteração)
 const initialConversas = [
   { id: 1, nome: "Paulo Gostavo", msg: "Quando será a entrega da publi?", hora: "09:10 PM", img: "https://streaming-guide.spiegel.de/wp-content/uploads/2025/04/Sonic3.png", pinned: false },
@@ -36,7 +41,33 @@ const itemVariants = {
 };
 
 
+const generateConsistentColor = (name) => {
+    if (!name) return '#6366f1'; // Uma cor padrão
+
+    const colors = [
+        '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', 
+        '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'
+    ];
+    
+    // Gera um número a partir do nome
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    // Usa o número para escolher uma cor da lista
+    const index = Math.abs(hash % colors.length);
+    return colors[index];
+};
+
 const ConversationCard = ({ id, nome, msg, hora, img, pinned, onPin, onClick }) => {
+  const navigate = useNavigate();
+
+   const initial = nome ? nome[0].toUpperCase() : '?';
+
+  const handleCardClick = () => {
+    navigate(`/conversa/${id}`);
+  };
   // O estado 'isHovered' não é mais necessário, Framer Motion cuidará disso
   
   const handlePinClick = (e) => {
@@ -82,17 +113,25 @@ const ConversationCard = ({ id, nome, msg, hora, img, pinned, onPin, onClick }) 
       
       <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
         <div style={{ position: 'relative' }}>
-      <img 
-  src={img} 
-  alt={nome} 
-  style={{ 
-    width: '52px', 
-    height: '52px', 
-    borderRadius: '50%', 
-    border: '2px solid rgba(255,255,255,0.1)', 
-    objectFit: 'cover'  // <-- garante que não vai esticar
-  }} 
-/>
+      {img ? (
+                        <img 
+                            src={img}  
+                            style={{ 
+                                width: '52px', height: '52px', borderRadius: '50%',
+                                border: '2px solid rgba(255,255,255,0.1)', objectFit: 'cover'
+                            }} 
+                        />
+                    ) : (
+                        <div style={{
+                            width: '52px', height: '52px', borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            backgroundColor: generateConsistentColor(nome),
+                            color: 'white', fontSize: '22px', fontWeight: 'bold',
+                            border: '2px solid rgba(255,255,255,0.1)',
+                        }}>
+                            {initial}
+                        </div>
+                    )}
           <div style={{ position: 'absolute', bottom: '2px', right: '2px', width: '12px', height: '12px', backgroundColor: '#10b981', borderRadius: '50%', border: '2px solid #1a1a2e' }} />
         </div>
         
@@ -165,17 +204,53 @@ const ConversationList = ({ conversas, onPin, onConversationClick }) => {
 };
 
 
+
 const Conversations = () => {
-  const [conversas, setConversas] = useState(initialConversas);
-  const navigate = useNavigate();
+    const navigate = useNavigate();
+    const { conversations, loading } = useConversation();
+    
+    // ✅ CORREÇÃO 1: O hook retorna 'user', não 'authUser'.
+    // Mude de 'authUser' para 'user'.
+    const { user } = useAuth(); 
+    
+    const [pinnedIds, setPinnedIds] = useState([]);
 
-  const handlePin = (id) => {
-    setConversas(prev => prev.map(c => c.id === id ? { ...c, pinned: !c.pinned } : c));
-  };
+    const handlePin = (conversationId) => {
+        setPinnedIds(prev => 
+            prev.includes(conversationId) 
+                ? prev.filter(id => id !== conversationId) 
+                : [...prev, conversationId]
+        );
+    };
 
-  const handleConversationClick = (id) => {
-    navigate(`/conversa/${id}`);
-  };
+    const handleConversationClick = (conversationId) => {
+        navigate(`/conversa/${conversationId}`);
+    };
+    
+    const formattedConversations = conversations.map(convo => {
+        // ✅ CORREÇÃO 2: Use a variável 'user' na comparação.
+        const otherParticipant = convo.participants.find(
+            (p) => p?._id?.toString() !== user?._id?.toString()
+        );
+        // Proteção para o caso de não haver outro participante (ex: dados corrompidos)
+        if (!otherParticipant) return null; 
+
+        const lastMessageText = convo.lastMessage?.text || "Inicie uma conversa...";
+        const lastMessageTime = convo.lastMessage?.createdAt || convo.updatedAt;
+  const imageUrl = otherParticipant.profileImageUrl;
+    // Consideramos a imagem válida apenas se a URL existir E não for a string do placeholder.
+    const isValidImage = imageUrl && imageUrl !== "URL_DA_SUA_IMAGEM_PADRAO.png";
+    // --- FIM DA MUDANÇA ---
+        return {
+            id: convo._id, // O ID para navegação é o ID da CONVERSA!
+            nome: otherParticipant.name,
+          img: isValidImage ? imageUrl : undefined, 
+            msg: lastMessageText,
+            hora: formatDistanceToNowStrict(new Date(lastMessageTime), { addSuffix: true, locale: ptBR }),
+            pinned: pinnedIds.includes(convo._id), // Verifica se o ID está no nosso estado local
+        };
+    }).filter(Boolean); // .filter(Boolean) remove quaisquer resultados nulos do map
+
 
   const containerStyle = {
     padding: '24px', borderRadius: '24px', backgroundColor: 'rgba(0,0,0,0.3)',
@@ -201,13 +276,26 @@ const Conversations = () => {
         <Header title="Conversas" subtitle="Sua caixa de mensagens" />
 
         <div style={containerStyle}>
-          <div style={listWrapperStyle} className="conversation-scroll">
-            <ConversationList 
-              conversas={conversas} 
-              onPin={handlePin} 
-              onConversationClick={handleConversationClick} 
-            />
-          </div>
+     <div style={listWrapperStyle} className="conversation-scroll">
+                        {/* ✅ 6. RENDERIZAÇÃO CONDICIONAL BASEADA NO ESTADO DO CONTEXTO */}
+                        {loading ? (
+                            <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                                <CircularProgress color="inherit" />
+                            </Box>
+                        ) : formattedConversations.length > 0 ? (
+                            <ConversationList 
+                                conversas={formattedConversations} 
+                                onPin={handlePin} 
+                                onConversationClick={handleConversationClick} 
+                            />
+                        ) : (
+                            <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                                <Typography sx={{ color: "rgba(255,255,255,0.7)" }}>
+                                    Nenhuma conversa encontrada.
+                                </Typography>
+                            </Box>
+                        )}
+                    </div>
         </div>
       </div>
     </div>

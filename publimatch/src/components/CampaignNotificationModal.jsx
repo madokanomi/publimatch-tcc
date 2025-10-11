@@ -27,11 +27,66 @@ import CampaignIcon from '@mui/icons-material/Campaign';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
-
+import { useNavigate } from 'react-router-dom';
+import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
+// No topo de CampaignNotificationModal.jsx
+import { useConversation } from '../scenes/chat/ConversationContext'; // ✅ Importe o hook
 const MotionBox = motion(Box);
+
+
+const ConfirmationContent = ({ onConfirm, onClose, colors }) => {
+    // << MUDANÇA 2: Removemos as propriedades de posicionamento absoluto. O Modal pai vai centralizar.
+    const confirmationModalStyle = {
+        width: '100%',
+        maxWidth: 400,
+        color: "white",
+        background: "linear-gradient(145deg, rgba(30, 10, 55, 0.95), rgba(20, 5, 35, 0.95))",
+        border: "1px solid rgba(255, 255, 255, 0.2)",
+        backdropFilter: "blur(15px)",
+        borderRadius: "20px",
+        p: 4,
+        textAlign: 'center',
+    };
+
+    return (
+        <MotionBox
+            sx={confirmationModalStyle}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1, transition: { type: "spring", stiffness: 300, damping: 20 } }}
+            exit={{ scale: 0.8, opacity: 0 }}
+        >
+            <QuestionAnswerIcon sx={{ fontSize: 50, color:'white', mb: 2 }} />
+            <Typography variant="h4" component="h2" sx={{ mb: 3 }}>
+                Inscrição realizada com sucesso!
+            </Typography>
+            <Typography variant="h5" sx={{ mb: 4, color: colors.grey[300] }}>
+                Deseja enviar uma mensagem para o agente da campanha?
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+                <Button onClick={onClose} sx={{ color: colors.grey[300], textTransform: 'none', borderRadius: '10px' }}>
+                    Não, fechar
+                </Button>
+                <Button
+                    onClick={onConfirm}
+                    variant="contained"
+                    sx={{
+                        fontWeight: 'bold', textTransform: 'none', borderRadius: '10px',
+                        background: "#ff00d4" ,
+                    }}
+                >
+                    Sim, enviar mensagem
+                </Button>
+            </Box>
+        </MotionBox>
+    );
+};
+
 
 const CampaignNotificationModal = () => {
     const { user } = useAuth(); 
+       const { setSelectedConversation, setConversations, conversations } = useConversation();
+
+     const navigate = useNavigate();
     const { 
         isModalOpen, closeModal, campaignDetails, isLoading,
         removeNotification, 
@@ -39,21 +94,71 @@ const CampaignNotificationModal = () => {
     } = useNotificationModal();
     
      console.log("Objeto da Campanha recebido:", campaignDetails);
+const handleConfirmSendMessage = async () => {
+        const adAgentId = campaignDetails?.createdBy?._id;
 
+        if (!adAgentId) {
+            console.error("ID do Agente de Publicidade não encontrado. Impossível iniciar chat.");
+            // Adicione um feedback para o usuário aqui, se desejar
+            return;
+        }
+
+        try {
+            // ✅ 3. VÁ ATÉ A "RECEPÇÃO" (BACKEND) PEDIR A CHAVE
+            // Esta rota vai encontrar a conversa existente ou criar uma nova.
+            const config = {
+                headers: { Authorization: `Bearer ${user.token}` },
+            };
+            const { data: conversationData } = await axios.post(
+                `http://localhost:5001/api/chat/ensure`, 
+                { userId: adAgentId },
+                config
+            );
+
+            // ✅ 4. GUARDE A CHAVE NO SEU "BOLSO GLOBAL" (O CONTEXTO)
+                   
+        // 1. Adiciona a nova conversa à lista principal, evitando duplicatas.
+        // Isso garante que a lista `conversations` esteja sempre atualizada.
+                // Verifica se a conversa já não está na lista para evitar duplicatas
+            const conversationExists = conversations.some(c => c._id === conversationData._id);
+
+            if (!conversationExists) {
+                // Adiciona a nova conversa no topo da lista
+                setConversations(prevConvos => [conversationData, ...prevConvos]);
+            }
+
+            // 4. Defina a conversa recém-criada/encontrada como a selecionada
+            setSelectedConversation(conversationData);
+
+            // ✅ FIM DA CORREÇÃO
+
+            closeModal();
+            navigate(`/conversa/${conversationData._id}`);
+
+        } catch (error) {
+            console.error("Erro ao garantir ou criar a conversa:", error);
+            // Mostre um erro para o usuário aqui
+        }
+    };
+
+
+    
     const theme = useTheme();
     const colors = tokens(theme.palette.mode);
     const [status, setStatus] = useState('idle'); // 'idle', 'loading', 'success', 'error'
     const [message, setMessage] = useState('');
+const [showSendMessageModal, setShowSendMessageModal] = useState(false);
 
- useEffect(() => {
-        if (status === 'success' || status === 'error') {
+
+  useEffect(() => {
+        if ((status === 'success' && !showSendMessageModal) || status === 'error') {
             const timer = setTimeout(() => {
                 closeModal();
-            }, 2500); // Fecha após 2.5 segundos
-
+            }, 2500);
             return () => clearTimeout(timer);
         }
-    }, [status, closeModal]);
+    }, [status, showSendMessageModal, closeModal]);
+
 
     // Efeito para resetar o estado quando o modal é fechado
     useEffect(() => {
@@ -67,14 +172,29 @@ const CampaignNotificationModal = () => {
     }, [isModalOpen]);
 
     const handleApply = async () => {
-        if (!campaignDetails?._id) {
-            setMessage("Erro: ID da campanha não encontrado.");
-            setStatus('error');
-            return;
-        }
+     if (!campaignDetails?._id) {
+        setMessage("Erro: ID da campanha não encontrado.");
+        setStatus('error');
+        return;
+    }
 
-        setStatus('loading'); // ✅ FEEDBACK IMEDIATO PARA O USUÁRIO
 
+      console.log("INSPECIONANDO currentNotification:", currentNotification);
+    // 1. Obtenha o ID do influenciador a partir do objeto da notificação.
+    //    O nome da propriedade pode ser `userId`, `influencerId`, `targetId`, etc.
+    //    Verifique a estrutura do seu objeto 'currentNotification' para ter certeza.
+    //    Vou usar 'targetUserId' como um exemplo.
+    const influencerId = currentNotification?.entityId?.influencer;
+
+
+    // 2. Adicione uma verificação de segurança
+    if (!influencerId) {
+        setMessage("Erro crítico: ID do influenciador não encontrado na notificação.");
+        setStatus('error');
+        return;
+    }
+
+    setStatus('loading');
         try {
             const config = {
                 headers: {
@@ -82,25 +202,31 @@ const CampaignNotificationModal = () => {
                 },
             };
 
-            const { data } = await axios.post(
-                `http://localhost:5001/api/campaigns/${campaignDetails._id}/apply`,
-                {}, 
-                config
-            );
+                const { data } = await axios.post(
+            `http://localhost:5001/api/campaigns/${campaignDetails._id}/apply`,
+            { influencerId: influencerId }, // ✅ MUDANÇA PRINCIPAL AQUI
+            config
+        );
 
-             if (currentNotification) { // ✅ MUDANÇA 2: Use o ID do objeto
+        if (currentNotification) {
             removeNotification(currentNotification.id);
         }
-            
-            setMessage(data.message);
-            setStatus('success');
+        
+        setShowSendMessageModal(true);
 
-        } catch (error) {
-            const errorMessage = error.response?.data?.message || "Ocorreu um erro ao aplicar para a campanha.";
-            setMessage(errorMessage);
-            setStatus('error');
-        }
+    } catch (error) {
+        const errorMessage = error.response?.data?.message || "Ocorreu um erro ao aplicar para a campanha.";
+        setMessage(errorMessage);
+        setStatus('error');
+    }
+};
+       const handleCloseConfirmation = () => {
+        setShowSendMessageModal(false);
+        setMessage("Sua inscrição foi confirmada!");
+        setStatus('success'); // Agora sim ativamos a tela de sucesso final.
     };
+
+    
 
      const handleDecline = () => {
         setStatus('loading');
@@ -127,62 +253,70 @@ const CampaignNotificationModal = () => {
            
     };
 
+
     return (
-        <AnimatePresence>
-            {isModalOpen && (
-                <Modal
-                    open={isModalOpen}
-                    onClose={closeModal}
-                    closeAfterTransition
-                    slots={{ backdrop: Backdrop }}
-                    slotProps={{
-                        backdrop: {
-                            timeout: 500,
-                            sx: {
-                                backdropFilter: 'blur(5px)',
-                                backgroundColor: 'rgba(0, 0, 0, 0.5)'
-                            }
-                        },
-                    }}
-                    // 👇 MUDANÇA PRINCIPAL AQUI: Centralizando o Modal com Flexbox
-                    sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                     
-                    }}
-                >
-                    <MotionBox
-                        sx={modalStyle}
-                        initial={{ y: 30, opacity: 0 }}
-                        animate={{
-                            y: 0,
-                            opacity: 1,
-                            boxShadow: "0px 10px 80px rgba(255, 0, 212, 0.3)",
-                            transition: { type: "spring", damping: 25, stiffness: 200 }
-                        }}
-                        exit={{ y: 30, opacity: 0, transition: { duration: 0.2 } }}
-                    >
-                        {status === 'loading' || isLoading ? (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 450 }}>
-                                <CircularProgress sx={{ color: '#ff00d4' }} />
-                            </Box>
-                        ) : status === 'success' ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 450, p: 3, textAlign: 'center' }}>
-                                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 10 }}>
-                                    <CheckCircleOutlineIcon sx={{ fontSize: 80, color: colors.greenAccent[500] }} />
-                                </motion.div>
-                                <Typography variant="h4" sx={{ mt: 3 }}>{message}</Typography>
-                            </Box>
-                        ) : status === 'error' ? (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 450, p: 3, textAlign: 'center' }}>
-                                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 10 }}>
-                                    <ErrorOutlineIcon sx={{ fontSize: 80, color: colors.redAccent[500] }} />
-                                </motion.div>
-                                <Typography variant="h4" sx={{ mt: 3 }}>{message}</Typography>
-                            </Box>
-                        ) : campaignDetails && (
-                            <Card sx={{ background: 'transparent', boxShadow: 'none', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        
+          <Modal
+        open={isModalOpen}
+        onClose={closeModal}
+        closeAfterTransition
+        slots={{ backdrop: Backdrop }}
+        slotProps={{
+            backdrop: {
+                timeout: 500,
+                sx: {
+                    backdropFilter: 'blur(5px)',
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)'
+                }
+            },
+        }}
+        sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        }}
+    >
+        {/* AnimatePresence is now INSIDE the Modal to handle content switching */}
+        <AnimatePresence mode="wait">
+            {showSendMessageModal ? (
+                <ConfirmationContent
+                    key="confirmation" // Key is crucial for AnimatePresence
+                    onClose={handleCloseConfirmation}
+                    onConfirm={handleConfirmSendMessage}
+                    colors={colors}
+                />
+            ) : (
+                        <MotionBox
+                            sx={modalStyle}
+                            initial={{ y: 30, opacity: 0 }}
+                            animate={{
+                                y: 0,
+                                opacity: 1,
+                                boxShadow: "0px 10px 80px rgba(255, 0, 212, 0.3)",
+                                transition: { type: "spring", damping: 25, stiffness: 200 }
+                            }}
+                            exit={{ y: 30, opacity: 0, transition: { duration: 0.2 } }}
+                        >
+                            {status === 'loading' || isLoading ? (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 450 }}>
+                                    <CircularProgress sx={{ color: '#ff00d4' }} />
+                                </Box>
+                            ) : status === 'success' ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 450, p: 3, textAlign: 'center' }}>
+                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 10 }}>
+                                        <CheckCircleOutlineIcon sx={{ fontSize: 80, color: colors.greenAccent[500] }} />
+                                    </motion.div>
+                                    <Typography variant="h4" sx={{ mt: 3 }}>{message}</Typography>
+                                </Box>
+                            ) : status === 'error' ? (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 450, p: 3, textAlign: 'center' }}>
+                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 10 }}>
+                                        <ErrorOutlineIcon sx={{ fontSize: 80, color: colors.redAccent[500] }} />
+                                    </motion.div>
+                                    <Typography variant="h4" sx={{ mt: 3 }}>{message}</Typography>
+                                </Box>
+                            ) : campaignDetails ? (
+                                <Card sx={{ background: 'transparent', boxShadow: 'none', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
 
                                 {/* CABEÇALHO PERSONALIZADO */}
                                 <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -278,12 +412,13 @@ const CampaignNotificationModal = () => {
                                         Aceitar Convite
                                     </Button>
                                 </CardActions>
-                            </Card>
-                        )}
-                    </MotionBox>
-                </Modal>
+                                    </Card>
+                                          ) : null
+                    }
+                </MotionBox>
             )}
         </AnimatePresence>
+    </Modal>
     );
 };
 

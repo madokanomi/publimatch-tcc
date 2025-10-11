@@ -21,8 +21,9 @@ const notificationSchema = new mongoose.Schema({
         required: false // Pode não ser obrigatório para todos os tipos de notificação
     },
     entityId: {
-        type: mongoose.Schema.Types.ObjectId
-    },
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Invite' // <-- ✅ ADICIONE ESTA LINHA CRÍTICA
+    },
     isRead: { type: Boolean, default: false }
 }, { timestamps: true });
 

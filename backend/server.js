@@ -1,91 +1,66 @@
-        import express from 'express';
-        import dotenv from 'dotenv';
-        import cors from 'cors';
-        import connectDB from './config/db.js';
-        import userRoutes from './routes/userRoutes.js';
-        import http from 'http';
-        import { Server } from 'socket.io';
-        // Importar todas as suas rotas
-        import authRoutes from './routes/authRoutes.js';
-        import campaignRoutes from './routes/campaignRoutes.js';
-        import applicationRoutes from './routes/applicationRoutes.js';
-        import dashboardRoutes from './routes/dashboardRoutes.js';
-        import solicitacaoRoutes from './routes/solicitacaoRoutes.js';
-        import influencerRoutes from './routes/influencerRoutes.js';
-        import inviteRoutes from './routes/inviteRoutes.js';
-        import notificationRoutes from './routes/notificationRoutes.js';
-        // Carregar variáveis de ambiente
-        dotenv.config();
+import dotenv from 'dotenv';
+import cors from 'cors';
+import express from 'express'; // Apenas para referência, o 'app' importado já o utiliza.
+import connectDB from './config/db.js';
 
-        // Conectar ao banco de dados
-        connectDB();
+// ✅ 1. IMPORTE AS VARIÁVEIS PRINCIPAIS DO SEU NOVO ARQUIVO socket.js
+//    'app', 'server' e 'io' são as instâncias já criadas e configuradas.
+import { app, server, io, getReceiverSocketId } from './socket.js';
 
-        const app = express();
-        // NOVO: Criar o servidor HTTP a partir do app Express
-        const server = http.createServer(app);
+// ✅ 2. IMPORTE TODAS AS SUAS ROTAS NORMALMENTE
+import userRoutes from './routes/userRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import campaignRoutes from './routes/campaignRoutes.js';
+import applicationRoutes from './routes/applicationRoutes.js';
+import dashboardRoutes from './routes/dashboardRoutes.js';
+import solicitacaoRoutes from './routes/solicitacaoRoutes.js';
+import influencerRoutes from './routes/influencerRoutes.js';
+import inviteRoutes from './routes/inviteRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
 
+// --- CONFIGURAÇÃO INICIAL ---
+dotenv.config();
+connectDB();
 
-        // --- CONFIGURAÇÃO DO CORS ---
-        // Lista de endereços que terão permissão para acessar sua API
-        const allowedOrigins = [
-        'http://localhost:3000',      // Para seu app React
-        'http://127.0.0.1:5500',  
-            // Para o Live Server do VS Code
-        // 'https://www.seusite.com', // Adicione a URL do seu site em produção aqui
-        ];
+// --- MIDDLEWARES (DECLARADOS APENAS UMA VEZ) ---
 
-        const corsOptions = {
-          origin: function (origin, callback) {
-            if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-              callback(null, true);
-            } else {
-              callback(new Error('Não permitido pela política de CORS'));
-            }
-          },
-          // ✅ ADICIONE ESTA LINHA:
-          methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-        };
+// ✅ 3. CONFIGURE O CORS PARA AS ROTAS HTTP.
+//    A configuração para o Socket.IO já está dentro de socket.js
+const corsOptions = {
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+};
+app.use(cors(corsOptions));
 
-        const io = new Server(server, {
-            cors: corsOptions
-        });
+// Middleware para o Express entender o formato JSON
+app.use(express.json());
 
-        app.use((req, res, next) => {
-            req.io = io;
-            next();
-        });
+// ✅ 4. MIDDLEWARE PERSONALIZADO PARA INJETAR 'io' E 'getReceiverSocketId' NAS REQUISIÇÕES
+//    Isso permite que seus controllers (como o chatController) usem a lógica do socket.
+app.use((req, res, next) => {
+    req.io = io;
+    req.getReceiverSocketId = getReceiverSocketId;
+    next();
+});
 
-        io.on('connection', (socket) => {
-            console.log('✅ Um usuário conectou via WebSocket:', socket.id);
+// ❌ A LINHA ABAIXO FOI REMOVIDA
+// const server = http.createServer(app); // Erro! 'server' já foi importado de socket.js
 
-            // Ouve pelo evento 'join' para colocar o usuário em uma sala privada
-            socket.on('join', (userId) => {
-                socket.join(userId);
-                console.log(`Usuário ${userId} entrou na sua sala privada.`);
-            });
+// --- DEFINIÇÃO DAS ROTAS DA API ---
+app.use('/api/users', userRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/solicitacoes', solicitacaoRoutes);
+app.use('/api/influencers', influencerRoutes);
+app.use('/api/invites', inviteRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat', chatRoutes);
 
-            socket.on('disconnect', () => {
-                console.log('❌ Usuário desconectou:', socket.id);
-            });
-        });
+// --- INICIALIZAÇÃO DO SERVIDOR ---
+const PORT = process.env.PORT || 5001;
 
-        // --- MIDDLEWARES ---
-        app.use(cors(corsOptions)); // ✅ GARANTA QUE VOCÊ ESTÁ PASSANDO 'corsOptions' AQUI
-        app.use(express.json());   // Permite que o servidor entenda o formato JSON
-        // server.js
-
-        app.use('/api/users', userRoutes);
-        // --- DEFINIÇÃO DAS ROTAS DA API ---z
-        app.use('/api/auth', authRoutes);
-        app.use('/api/campaigns', campaignRoutes);
-        app.use('/api/applications', applicationRoutes);
-        app.use('/api/dashboard', dashboardRoutes);
-        app.use('/api/solicitacoes', solicitacaoRoutes);
-        app.use('/api/influencers', influencerRoutes); 
-        app.use('/api/invites', inviteRoutes);
-        app.use('/api/notifications', notificationRoutes);
-
-        const PORT = process.env.PORT || 5001;
-
-        // CORRETO: Inicia o servidor http que contém o Express e o Socket.IO.
-        server.listen(PORT, () => console.log(`🚀 Servidor e WebSocket rodando na porta ${PORT}`));
+// ✅ 5. INICIE O 'server' IMPORTADO, QUE JÁ CONTÉM O EXPRESS E O SOCKET.IO
+server.listen(PORT, () => console.log(`🚀 Servidor e WebSocket rodando na porta ${PORT}`));
