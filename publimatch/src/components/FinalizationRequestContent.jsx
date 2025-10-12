@@ -13,7 +13,7 @@ import { motion } from 'framer-motion';
 // Para usar a animação no Box do MUI
 const MotionBox = motion(Box);
 
-const FinalizationRequestContent = ({ notification, onConfirm, onDecline, colors, isSubmitting }) => {
+const FinalizationRequestContent = ({ notification, onConfirm, onDecline, colors, isSubmitting, influencerName }) => {
     
     // ✅ Estilo unificado, igual ao do ConfirmationContent
     const cardStyle = {
@@ -41,6 +41,12 @@ const FinalizationRequestContent = ({ notification, onConfirm, onDecline, colors
             <Typography variant="h4" component="h2" sx={{ mb: 1, fontWeight: 'bold' }}>
                 Solicitação para Finalizar Campanha
             </Typography>
+             {/* ✅ ALTERAÇÃO 2: Exibimos o nome do influenciador se ele existir */}
+            {influencerName && (
+                <Typography variant="h6" sx={{ mb: 2, color: colors.grey[400], fontStyle: 'italic' }}>
+                    por {influencerName}
+                </Typography>
+            )}
             <Typography variant="h5" sx={{ mb: 4, color: colors.grey[300] }}>
                 {notification?.subtitle || "O participante solicita a finalização do contrato."}
             </Typography>
@@ -83,6 +89,7 @@ FinalizationRequestContent.propTypes = {
     onDecline: PropTypes.func.isRequired,
     colors: PropTypes.object.isRequired,
     isSubmitting: PropTypes.bool,
+        influencerName: PropTypes.string,
 };
 
 export default FinalizationRequestContent;

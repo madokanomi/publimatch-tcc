@@ -147,23 +147,33 @@ export const deleteInfluencer = asyncHandler(async (req, res) => {
 });
 
 export const getInfluencerById = asyncHandler(async (req, res) => {
-    const influencer = await Influencer.findById(req.params.id);
+    // ✅ ESSENCIAL: Mantenha o .populate() para buscar os dados do agente.
+    const influencer = await Influencer.findById(req.params.id).populate('agent', 'name');
 
-    if (!influencer) {
-        res.status(404);
-        throw new Error('Influenciador não encontrado');
-    }
+    if (!influencer) {
+        res.status(404);
+        throw new Error('Influenciador não encontrado');
+    }
 
-    const isAdmin = req.user.role === 'ADMIN';
-    const isOwnerAgent = influencer.agent.toString() === req.user._id.toString();
-    const isTheInfluencer = influencer.userAccount ? influencer.userAccount.toString() === req.user._id.toString() : false;
-    
-    if (isAdmin || isOwnerAgent || isTheInfluencer) {
-        res.json(influencer);
-    } else {
-        res.status(403);
-        throw new Error('Você não tem permissão para acessar este perfil.');
-    }
+    // --- LÓGICA DE PERMISSÃO ---
+
+    // Verifica as permissões de "proprietário" do perfil
+    const isAdmin = req.user.role === 'ADMIN';
+    // Como usamos .populate(), 'influencer.agent' é um objeto. Acessamos o _id dentro dele.
+    const isOwnerAgent = influencer.agent._id.toString() === req.user._id.toString();
+    const isTheInfluencer = influencer.userAccount ? influencer.userAccount.toString() === req.user._id.toString() : false;
+    
+    // Adiciona a verificação para o Agente de Publicidade
+    const isAdAgent = req.user.role === 'AD_AGENT';
+
+    // A condição final que permite o acesso
+    if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
+        res.json(influencer);
+    } else {
+        // Se nenhuma das condições for atendida, o acesso é negado
+        res.status(403);
+        throw new Error('Você não tem permissão para acessar este perfil.');
+    }
 });
 
 export const updateInfluencer = asyncHandler(async (req, res) => {
@@ -224,15 +234,18 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
 });
 
 export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
-  const influencer = await Influencer.findById(req.params.id)
-    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl');
+  const influencer = await Influencer.findById(req.params.id)
+    // ✅ Adicione 'agent' à lista de campos selecionados
+    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl agent')
+    // ✅ Popule o campo 'agent' para obter o nome
+    .populate('agent', 'name');
 
-  if (influencer) {
-    res.json(influencer);
-  } else {
-    res.status(404);
-    throw new Error('Perfil de influenciador não encontrado.');
-  }
+  if (influencer) {
+    res.json(influencer);
+  } else {
+    res.status(404);
+    throw new Error('Perfil de influenciador não encontrado.');
+  }
 });
 
 export const getInfluencerCampaigns = asyncHandler(async (req, res) => {

@@ -444,9 +444,9 @@ const seguidores = 80; // likesCount não existe no model
             <Typography variant="caption" sx={{ color: "#6a1b9a" }}>
               {" "}
               Agenciado por{" "}
-              <Typography component="span" variant="caption" fontWeight="bold">
-                MediaList.BR
-              </Typography>{" "}
+            <Typography component="span" variant="caption" fontWeight="bold">
+    {influencer?.agent?.name || 'Agente não informado'}
+</Typography>
             </Typography>
           </Box>
           <Box p={4}>

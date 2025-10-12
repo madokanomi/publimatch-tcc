@@ -634,9 +634,11 @@ const {
             sx={{ position: 'absolute', top: 16, right: 16, display: 'flex', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '20px', px: 2, py: 0.5, backdropFilter: 'blur(5px)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}
           >
             <Business sx={{ fontSize: 16, color: '#6a1b9a', mr: 1 }} />
-            <Typography variant="caption" sx={{ color: '#6a1b9a' }}>
-              Agenciado por <Typography component="span" variant="caption" fontWeight="bold">MediaList.BR</Typography>
-            </Typography>
+           <Typography variant="caption" sx={{ color: '#6a1b9a' }}>
+    Agenciado por <Typography component="span" variant="caption" fontWeight="bold">
+        {influencer?.agent?.name || 'Agente não informado'}
+    </Typography>
+</Typography>
           </Box>
 
           <Box p={4}>
