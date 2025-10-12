@@ -3,7 +3,7 @@ import Notification from '../models/notificationModel.js';
 import User from '../models/userModel.js';
 import Campaign from '../models/campaignModel.js';
 import Influencer from '../models/influencerModel.js'
-
+import asyncHandler from 'express-async-handler';
 export const createInvite = async (req, res) => {
     const { campaignId, influencerId } = req.body;
     const adAgentId = req.user._id;
@@ -77,3 +77,38 @@ req.io.to(recipientId.toString()).emit('new_notification', notificationForFronte
         res.status(500).json({ message: 'Erro interno no servidor.' });
     }
 };
+
+
+// @desc    Atualiza o status de um convite (aceito/rejeitado)
+// @route   PATCH /api/invites/:id/status
+// @access  Private
+export const updateInviteStatus = asyncHandler(async (req, res) => {
+  const { status } = req.body;
+  const { id: inviteId } = req.params;
+
+  if (!status || !['ACCEPTED', 'REJECTED'].includes(status)) {
+    res.status(400);
+    throw new Error("Status inválido. Deve ser 'ACCEPTED' ou 'REJECTED'.");
+  }
+
+  const invite = await Invite.findById(inviteId).populate('influencer').populate('campaign');
+
+  if (!invite) {
+    res.status(404);
+    throw new Error('Convite não encontrado.');
+  }
+  
+  // Opcional: Adicionar verificação de segurança aqui
+
+  invite.status = status;
+  await invite.save();
+
+  if (status === 'ACCEPTED') {
+    await Campaign.findByIdAndUpdate(
+      invite.campaign._id,
+      { $addToSet: { participatingInfluencers: invite.influencer._id } }
+    );
+  }
+
+  res.status(200).json({ message: 'Status do convite atualizado com sucesso!', invite });
+});

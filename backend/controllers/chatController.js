@@ -5,58 +5,68 @@ import Message from '../models/messageModel.js';
 // import { getReceiverSocketId, io } from '../socket/socket.js';
 
 // Enviar uma mensagem
+
 export const sendMessage = async (req, res) => {
-    try {
-        const { io, getReceiverSocketId } = req;
-        const { text } = req.body;
-        const { receiverId } = req.params;
-        const senderId = req.user._id;
+    try {
+        // ✅ 1. PEGUE 'io' DO OBJETO 'req' (injetado pelo middleware)
+        const { io } = req;
+        const { text } = req.body;
+        const { receiverId } = req.params;
+        const sender = req.user; // O objeto do usuário logado já contém nome, ID, etc.
+        const senderId = sender._id;
 
+        // ... (sua lógica para encontrar ou criar a conversa continua a mesma)
         let conversation = await Conversation.findOne({
-            participants: { $all: [senderId, receiverId] },
-        });
-
+            participants: { $all: [senderId, receiverId] },
+        });
         if (!conversation) {
-            conversation = await Conversation.create({
-                participants: [senderId, receiverId],
-                // Não precisa de messages ou lastMessage aqui, serão adicionados abaixo
-            });
-        }
+            conversation = await Conversation.create({
+                participants: [senderId, receiverId],
+            });
+        }
+        // ... (fim da lógica de conversa)
 
-        const newMessage = new Message({
-            senderId,
-            receiverId,
-            text,
-        });
+        const newMessage = new Message({
+            senderId,
+            receiverId,
+            text,
+        });
 
+        // Salva a mensagem e atualiza a conversa
         if (newMessage) {
-            // ✅ PASSO 1: Atualize o objeto da conversa na memória primeiro
             conversation.messages.push(newMessage._id);
-            conversation.lastMessage = newMessage._id; // Atribua a última mensagem aqui
-
-            // ✅ PASSO 2: Salve a conversa atualizada e a nova mensagem simultaneamente
-            // O Promise.all garante que ambas as operações aconteçam antes de prosseguir.
+            conversation.lastMessage = newMessage._id;
             await Promise.all([conversation.save(), newMessage.save()]);
-        } else {
-            // Adicionado para um tratamento de erro mais robusto
-            return res.status(400).json({ error: "Não foi possível criar a mensagem." });
         }
         
-        const messagePayload = newMessage.toObject();
-        messagePayload.conversationId = conversation._id;
+        // ✅ 2. LÓGICA DO SOCKET.IO CORRIGIDA
+        // O 'receiverId' é o nome da "sala" do destinatário.
+        // Nós emitimos para essa sala. Simples assim.
+        
+        // ✅ 3. CRIE UM PAYLOAD COMPLETO PARA O TOAST
+        // O frontend precisa de mais do que apenas a mensagem.
+        const toastPayload = {
+            senderName: sender.name,
+            message: newMessage.text,
+            avatar: sender.profileImageUrl,
+            senderId: sender._id, // Importante para o frontend não notificar a si mesmo
+            conversationId: conversation._id, // Útil para navegação
+        };
 
-        // LÓGICA DO SOCKET.IO
-        const receiverSocketId = getReceiverSocketId(receiverId);
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage", messagePayload);
-        }
+        // Emitimos o evento 'new_message' para a sala do destinatário
+        io.to(receiverId).emit("new_message", toastPayload);
+        
+        // Bônus: também emitimos a mensagem completa para a sala do remetente,
+        // para que a UI dele possa ser atualizada em tempo real se ele estiver com 2 abas abertas.
+        io.to(senderId).emit("new_message", toastPayload);
 
-        res.status(201).json(messagePayload);
 
-    } catch (error) {
-        console.error("Erro em sendMessage: ", error.message);
-        res.status(500).json({ error: "Erro interno do servidor" });
-    }
+        res.status(201).json(newMessage);
+
+    } catch (error) {
+        console.error("Erro em sendMessage: ", error.message);
+        res.status(500).json({ error: "Erro interno do servidor" });
+    }
 };
 
 // Obter mensagens de uma conversa (não precisa de alteração)

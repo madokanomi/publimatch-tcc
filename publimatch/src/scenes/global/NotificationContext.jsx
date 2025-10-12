@@ -6,12 +6,12 @@ import io from 'socket.io-client'; // Mova os imports para cá
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '../../auth/AuthContext';
-
+import { useSocket } from '../../data/SocketContext';
 const NotificationContext = createContext();
 
 export const NotificationProvider = ({ children }) => {
     const { user } = useAuth();
-    
+      const socket = useSocket(); 
     // Estados do Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [campaignDetails, setCampaignDetails] = useState(null);
@@ -47,9 +47,9 @@ export const NotificationProvider = ({ children }) => {
         }
     }, [user]); // Depende do 'user' para pegar o token
     // Lógica para buscar notificações e conectar ao socket
-    useEffect(() => {
-        // Função interna para buscar os dados
+       useEffect(() => {
         const fetchNotifications = async () => {
+            // Se não houver usuário logado, limpa as notificações e para
             if (!user?.token) {
                 setNotifications([]);
                 return;
@@ -57,6 +57,8 @@ export const NotificationProvider = ({ children }) => {
             try {
                 const config = { headers: { Authorization: `Bearer ${user.token}` } };
                 const { data } = await axios.get('http://localhost:5001/api/notifications', config);
+                
+                // Formata os dados recebidos da API
                 const formattedData = data.map(notif => ({
                     id: notif._id,
                     title: notif.title,
@@ -64,8 +66,9 @@ export const NotificationProvider = ({ children }) => {
                     avatar: notif.senderAvatar || 'default_avatar_url',
                     time: formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: ptBR }),
                     link: notif.link,
-                     logo: notif.logo, // ✅ Use "logo"
-                       entityId: notif.entityId,
+                    logo: notif.logo,
+                    entityId: notif.entityId,
+                    type: notif.type,
                 }));
                 setNotifications(formattedData);
             } catch (error) {
@@ -74,33 +77,44 @@ export const NotificationProvider = ({ children }) => {
         };
 
         fetchNotifications();
+    }, [user]); // Roda apenas quando o 'user' muda (login/logout)
 
-        const socket = io('http://localhost:5001');
-        if (user?._id) {
-            socket.emit('join', user._id);
-        }
-     socket.on('new_notification', (newNotification) => {
-    // ✅ CORREÇÃO: Formate o objeto recebido via socket
-    // da mesma forma que você formata os dados da API.
-    console.log("Nova notificação recebida via WebSocket:", newNotification); // Opcional: para depurar
 
-    const formattedNotification = {
-        id: newNotification._id,
-        title: newNotification.title,
-        subtitle: newNotification.message,
-        avatar: newNotification.senderAvatar || 'default_avatar_url',
-        time: formatDistanceToNow(new Date(newNotification.createdAt), { addSuffix: true, locale: ptBR }),
-        link: newNotification.link,
-        isRead: newNotification.isRead || false,
-          logo: newNotification.campaignLogo || null,
-               entityId: newNotification.entityId,
-    };
+    // EFEITO 2: Para ouvir as notificações em tempo real via WebSocket
+    useEffect(() => {
+        // Se a conexão do socket ainda não estiver pronta, não faz nada
+        if (!socket) return;
 
-    setNotifications((prevNotifications) => [formattedNotification, ...prevNotifications]);
-});
+        const handleNewNotification = (newNotification) => {
+            console.log("Nova notificação recebida via WebSocket:", newNotification);
 
-        return () => socket.disconnect();
-    }, [user]);
+            // Formata a nova notificação da mesma forma que as outras
+            const formattedNotification = {
+                id: newNotification._id,
+                title: newNotification.title,
+                subtitle: newNotification.message,
+                avatar: newNotification.senderAvatar || 'default_avatar_url',
+                time: formatDistanceToNow(new Date(newNotification.createdAt), { addSuffix: true, locale: ptBR }),
+                link: newNotification.link,
+                logo: newNotification.campaignLogo || null,
+                entityId: newNotification.entityId,
+                type: newNotification.type,
+            };
+
+            // Adiciona a nova notificação no início da lista existente
+            setNotifications((prevNotifications) => [formattedNotification, ...prevNotifications]);
+        };
+
+        // Começa a ouvir pelo evento 'new_notification'
+        socket.on('new_notification', handleNewNotification);
+
+        // Função de limpeza: para de ouvir o evento quando o componente desmontar
+        // Isso evita adicionar múltiplos listeners e causar bugs.
+        return () => {
+            socket.off('new_notification', handleNewNotification);
+        };
+
+    }, [socket]);
 
 
     // 4. ATUALIZE a função openModal para receber também o ID da notificação

@@ -33,6 +33,7 @@ export const getNotifications = async (req, res) => {
             link: notif.link,
             createdAt: notif.createdAt,
             isRead: notif.isRead,
+              type: notif.type,
             senderAvatar: notif.sender ? notif.sender.profileImageUrl : 'default_avatar_url',
             logo: notif.campaign ? notif.campaign.logo : null,
 

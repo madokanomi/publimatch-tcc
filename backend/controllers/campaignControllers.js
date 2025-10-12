@@ -1,9 +1,9 @@
 // backend/controllers/campaignController.js
-
+import Notification from '../models/notificationModel.js'; // <-- ADD THIS LINE
 import Campaign from '../models/campaignModel.js';
 import User from '../models/userModel.js';
 import cloudinary from '../config/cloudinaryConfig.js';
-
+import asyncHandler from 'express-async-handler';
 // --- FUNÇÃO AUXILIAR PARA UPLOAD (sem alterações) ---
 const uploadToCloudinary = (file) => {
     return new Promise((resolve, reject) => {
@@ -317,12 +317,11 @@ export const getMyCampaigns = async (req, res) => {
 
 export const applyToCampaign = async (req, res) => {
     try {
-        const campaignId = req.params.id; // ID da campanha pela URL
+        const campaignId = req.params.id;
         
-        // ✅ 1. Obtenha o ID do influenciador do corpo da requisição
-        const { influencerId } = req.body;
+        // ✅ 2. Receba tanto o influencerId quanto o inviteId do corpo da requisição
+        const { influencerId, inviteId } = req.body;
 
-        // Validação: Garante que o frontend enviou o ID
         if (!influencerId) {
             return res.status(400).json({ message: 'O ID do influenciador é obrigatório.' });
         }
@@ -333,14 +332,17 @@ export const applyToCampaign = async (req, res) => {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
         }
 
-        // ✅ 2. Verifica se o ID do *influenciador* já está na lista
         if (campaign.participatingInfluencers.includes(influencerId)) {
             return res.status(400).json({ message: 'Este influenciador já está participando da campanha.' });
         }
 
-        // ✅ 3. Adiciona o ID do *influenciador* ao array e salva
         campaign.participatingInfluencers.push(influencerId);
         await campaign.save();
+
+        // ✅ 3. LÓGICA ADICIONAL: Se um inviteId foi passado, atualize o convite
+        if (inviteId) {
+            await Invite.findByIdAndUpdate(inviteId, { status: 'ACCEPTED' });
+        }
 
         res.status(200).json({
             message: 'Inscrição na campanha realizada com sucesso!',
@@ -352,3 +354,66 @@ export const applyToCampaign = async (req, res) => {
         res.status(500).json({ message: 'Erro no servidor ao se inscrever na campanha.' });
     }
 };
+
+export const requestCampaignFinalization = asyncHandler(async (req, res) => {
+    const { id: campaignId } = req.params;
+    const influencerUser = req.user; // Usuário logado que está fazendo a solicitação
+
+    // ❌ LÓGICA DE SENHA REMOVIDA ❌
+    // Não há mais validação de senha aqui.
+
+    // 1. Encontrar a campanha e seu criador
+    const campaign = await Campaign.findById(campaignId);
+    if (!campaign) {
+        res.status(404);
+        throw new Error('Campanha não encontrada.');
+    }
+
+    // 2. Criar e salvar a notificação para o dono da campanha
+    const recipientId = campaign.createdBy;
+    const notification = new Notification({
+        recipient: recipientId,
+        sender: influencerUser._id,
+        title: 'Solicitação de Finalização de Contrato',
+        message: `O influenciador ${influencerUser.name} solicitou a finalização da campanha "${campaign.title}".`,
+        type: 'FINALIZE_REQUEST',
+        campaign: campaignId,
+        link: `/dashboard/campaigns/${campaignId}`
+    });
+    await notification.save();
+
+    // 3. Emitir notificação via Socket.IO
+    const populatedNotification = await Notification.findById(notification._id)
+        .populate('sender', 'name profileImageUrl')
+        .populate('campaign', 'logo')
+        .lean();
+    
+    req.io.to(recipientId.toString()).emit('new_notification', populatedNotification);
+
+    res.status(200).json({ message: 'Solicitação de finalização enviada com sucesso!' });
+});
+
+
+export const finalizeCampaign = asyncHandler(async (req, res) => {
+    // 1. Encontra a campanha pelo ID
+    const campaign = await Campaign.findById(req.params.id);
+
+    if (!campaign) {
+        res.status(404);
+        throw new Error('Campanha não encontrada.');
+    }
+
+    // 2. Segurança: Verifica se o usuário logado é o dono da campanha
+    if (campaign.createdBy.toString() !== req.user._id.toString()) {
+        res.status(401);
+        throw new Error('Não autorizado a finalizar esta campanha.');
+    }
+
+    // 3. Atualiza o status e salva
+    campaign.status = 'Concluída'; // Ou o status que você usa para finalizada
+    await campaign.save();
+
+    // 4. Envia a resposta de sucesso
+    res.status(200).json({ message: 'Campanha finalizada com sucesso!', campaign });
+});
+

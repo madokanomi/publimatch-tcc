@@ -4,6 +4,9 @@ import asyncHandler from 'express-async-handler';
 import crypto from 'crypto';
 import { sendWelcomeEmail } from '../config/email.js';
 import cloudinary from '../config/cloudinaryConfig.js';
+import Invite from '../models/inviteModel.js';
+import Campaign from '../models/campaignModel.js';
+
 
 // --- FUNÇÃO AUXILIAR PARA UPLOAD ---
 // Esta função recebe um ficheiro da requisição e faz o upload para o Cloudinary
@@ -260,4 +263,43 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
     res.status(404);
     throw new Error('Perfil de influenciador não encontrado.');
   }
+});
+
+
+export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
+  const { id: influencerId } = req.params;
+
+  if (!influencerId) {
+    res.status(400);
+    throw new Error('O ID do influenciador é necessário.');
+  }
+
+  const [invites, participating, history] = await Promise.all([
+    // 1. Busca convites pendentes (esta parte está correta)
+    Invite.find({ influencer: influencerId, status: 'PENDING' })
+      .populate({
+        path: 'campaign',
+        select: 'title logo endDate createdBy',
+      })
+      .populate('adAgent', 'name'),
+
+    // 2. Busca campanhas onde ele está participando
+    Campaign.find({
+      participatingInfluencers: influencerId,
+      // ❌ LÓGICA ANTIGA E RESTRITIVA
+      // status: 'Ativa', 
+
+      // ✅ LÓGICA CORRIGIDA E ABRANGENTE
+      // Agora busca por campanhas em qualquer um destes status
+      status: { $in: ['Aberta', 'Planejamento', 'Ativa'] },
+    }),
+
+    // 3. Busca campanhas concluídas (esta parte está correta)
+    Campaign.find({
+      participatingInfluencers: influencerId,
+      status: 'Concluída',
+    }),
+  ]);
+
+  res.status(200).json({ invites, participating, history });
 });

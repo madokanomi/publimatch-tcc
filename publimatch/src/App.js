@@ -10,6 +10,7 @@ import Sidebar from "./scenes/global/Sidebar.jsx";
 import { NotificationProvider } from './scenes/global/NotificationContext.jsx'; // Importe o Provedor
 import CampaignNotificationModal from './components/CampaignNotificationModal.jsx'; // Importe o Modal
 import { ConversationProvider } from './scenes/chat/ConversationContext.jsx';
+import { SocketProvider } from './data/SocketContext.js';
 // Cenas (Páginas)
 import Dashboard from "./scenes/dashboard";
 import Login from './scenes/login/login.jsx';
@@ -59,6 +60,7 @@ function App() {
     <ColorModeContext.Provider value={colorMode}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+          <SocketProvider>
          <NotificationProvider>
             <ConversationProvider>
         <Routes>
@@ -124,6 +126,7 @@ function App() {
        
          
          </NotificationProvider>
+         </SocketProvider>
       </ThemeProvider>
     </ColorModeContext.Provider>
   );

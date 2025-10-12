@@ -29,9 +29,53 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import { useNavigate } from 'react-router-dom';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
+import FinalizationRequestContent from './FinalizationRequestContent';
 // No topo de CampaignNotificationModal.jsx
 import { useConversation } from '../scenes/chat/ConversationContext'; // ✅ Importe o hook
 const MotionBox = motion(Box);
+
+
+
+const StatusDisplay = ({ status, message, colors }) => {
+    const style = {
+        width: '100%',
+        maxWidth: 450,
+        color: "white",
+        background: "linear-gradient(145deg, rgba(24, 6, 49, 0.9), rgba(15, 2, 31, 0.9))",
+        border: "1px solid rgba(255, 255, 255, 0.2)",
+        backdropFilter: "blur(12px)",
+        borderRadius: "24px",
+        p: 4,
+        textAlign: 'center',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 300, // Garante uma altura mínima
+    };
+
+    const isSuccess = status === 'success';
+
+    return (
+        <MotionBox
+            sx={style}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+        >
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 10 }}>
+                {isSuccess ? (
+                    <CheckCircleOutlineIcon sx={{ fontSize: 80, color: colors.greenAccent[500] }} />
+                ) : (
+                    <ErrorOutlineIcon sx={{ fontSize: 80, color: colors.redAccent[500] }} />
+                )}
+            </motion.div>
+            <Typography variant="h4" sx={{ mt: 3 }}>
+                {message}
+            </Typography>
+        </MotionBox>
+    );
+};
 
 
 const ConfirmationContent = ({ onConfirm, onClose, colors }) => {
@@ -141,6 +185,40 @@ const handleConfirmSendMessage = async () => {
         }
     };
 
+const handleRejectFinalization = () => {
+    setStatus('loading');
+    // A única ação é remover a notificação
+    if (currentNotification) {
+        removeNotification(currentNotification.id);
+    }
+    // E mostrar uma mensagem clara para o usuário
+    setMessage("A solicitação de finalização foi rejeitada.");
+    setStatus('success'); 
+};
+
+const handleConfirmFinalize = async () => {
+        if (!campaignDetails?._id) {
+            setMessage("Erro: ID da campanha não encontrado.");
+            setStatus('error');
+            return;
+        }
+        setStatus('loading');
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            await axios.put(`http://localhost:5001/api/campaigns/${campaignDetails._id}/finalize`, {}, config);
+            
+            setMessage("Campanha finalizada com sucesso!");
+            setStatus('success');
+
+            if (currentNotification) {
+                removeNotification(currentNotification.id);
+            }
+        } catch (error) {
+            const errorMessage = error.response?.data?.message || "Ocorreu um erro ao finalizar a campanha.";
+            setMessage(errorMessage);
+            setStatus('error');
+        }
+    };
 
     
     const theme = useTheme();
@@ -171,55 +249,58 @@ const [showSendMessageModal, setShowSendMessageModal] = useState(false);
         }
     }, [isModalOpen]);
 
-    const handleApply = async () => {
-     if (!campaignDetails?._id) {
-        setMessage("Erro: ID da campanha não encontrado.");
+ const handleApply = async () => {
+    // Verificação de segurança inicial
+    if (!currentNotification || !currentNotification.entityId) {
+        setMessage("Erro: Notificação ou entidade relacionada inválida.");
         setStatus('error');
         return;
     }
 
+    // ✅ A CORREÇÃO PRINCIPAL ESTÁ AQUI
+    // Extrai o ID de forma segura, não importa se entityId é um objeto ou uma string.
+    const inviteId = typeof currentNotification.entityId === 'object' 
+                   ? currentNotification.entityId._id 
+                   : currentNotification.entityId;
 
-      console.log("INSPECIONANDO currentNotification:", currentNotification);
-    // 1. Obtenha o ID do influenciador a partir do objeto da notificação.
-    //    O nome da propriedade pode ser `userId`, `influencerId`, `targetId`, etc.
-    //    Verifique a estrutura do seu objeto 'currentNotification' para ter certeza.
-    //    Vou usar 'targetUserId' como um exemplo.
-    const influencerId = currentNotification?.entityId?.influencer;
-
-
-    // 2. Adicione uma verificação de segurança
-    if (!influencerId) {
-        setMessage("Erro crítico: ID do influenciador não encontrado na notificação.");
+    if (!inviteId) {
+        setMessage("Erro crítico: ID do convite não pôde ser extraído da notificação.");
         setStatus('error');
         return;
     }
 
     setStatus('loading');
-        try {
-            const config = {
-                headers: {
-                    Authorization: `Bearer ${user.token}`,
-                },
-            };
+    try {
+        const config = {
+            headers: {
+                Authorization: `Bearer ${user.token}`,
+            },
+        };
 
-                const { data } = await axios.post(
-            `http://localhost:5001/api/campaigns/${campaignDetails._id}/apply`,
-            { influencerId: influencerId }, // ✅ MUDANÇA PRINCIPAL AQUI
+        await axios.patch(
+            `http://localhost:5001/api/invites/${inviteId}/status`,
+            { status: 'ACCEPTED' },
             config
         );
+
+        window.dispatchEvent(new CustomEvent('campaignsUpdated'));
 
         if (currentNotification) {
             removeNotification(currentNotification.id);
         }
         
+        setStatus('idle');
         setShowSendMessageModal(true);
 
     } catch (error) {
-        const errorMessage = error.response?.data?.message || "Ocorreu um erro ao aplicar para a campanha.";
+        console.error("Erro detalhado ao aceitar o convite:", error); // Adicione um log mais detalhado
+        const errorMessage = error.response?.data?.message || "Ocorreu um erro ao aceitar o convite.";
         setMessage(errorMessage);
         setStatus('error');
     }
 };
+
+
        const handleCloseConfirmation = () => {
         setShowSendMessageModal(false);
         setMessage("Sua inscrição foi confirmada!");
@@ -252,6 +333,7 @@ const [showSendMessageModal, setShowSendMessageModal] = useState(false);
         flexDirection: 'column',
            
     };
+ console.log("🕵️‍♀️ DEBUG - Notificação Atual:", currentNotification);
 
 
     return (
@@ -276,46 +358,47 @@ const [showSendMessageModal, setShowSendMessageModal] = useState(false);
             justifyContent: 'center',
         }}
     >
-        {/* AnimatePresence is now INSIDE the Modal to handle content switching */}
-        <AnimatePresence mode="wait">
-            {showSendMessageModal ? (
-                <ConfirmationContent
-                    key="confirmation" // Key is crucial for AnimatePresence
-                    onClose={handleCloseConfirmation}
-                    onConfirm={handleConfirmSendMessage}
+              <AnimatePresence mode="wait">
+                
+                {/* ETAPA 1: Lidar com os estados de feedback primeiro. Isso está perfeito. */}
+                {isLoading || status === 'loading' ? (
+                    <Box key="loading"><CircularProgress sx={{ color: '#ff00d4' }} /></Box>
+               ) : status === 'success' || status === 'error' ? (
+                <StatusDisplay
+                    key="status"
+                    status={status}
+                    message={message}
                     colors={colors}
                 />
-            ) : (
-                        <MotionBox
-                            sx={modalStyle}
-                            initial={{ y: 30, opacity: 0 }}
-                            animate={{
-                                y: 0,
-                                opacity: 1,
-                                boxShadow: "0px 10px 80px rgba(255, 0, 212, 0.3)",
-                                transition: { type: "spring", damping: 25, stiffness: 200 }
-                            }}
-                            exit={{ y: 30, opacity: 0, transition: { duration: 0.2 } }}
-                        >
-                            {status === 'loading' || isLoading ? (
-                                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 450 }}>
-                                    <CircularProgress sx={{ color: '#ff00d4' }} />
-                                </Box>
-                            ) : status === 'success' ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 450, p: 3, textAlign: 'center' }}>
-                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 10 }}>
-                                        <CheckCircleOutlineIcon sx={{ fontSize: 80, color: colors.greenAccent[500] }} />
-                                    </motion.div>
-                                    <Typography variant="h4" sx={{ mt: 3 }}>{message}</Typography>
-                                </Box>
-                            ) : status === 'error' ? (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: 450, p: 3, textAlign: 'center' }}>
-                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 10 }}>
-                                        <ErrorOutlineIcon sx={{ fontSize: 80, color: colors.redAccent[500] }} />
-                                    </motion.div>
-                                    <Typography variant="h4" sx={{ mt: 3 }}>{message}</Typography>
-                                </Box>
-                            ) : campaignDetails ? (
+                ) : showSendMessageModal ? (
+                    <ConfirmationContent key="confirmation" onConfirm={handleConfirmSendMessage} onClose={handleCloseConfirmation} colors={colors} />
+                
+                // ETAPA 2: Decidir qual conteúdo principal mostrar
+            ) : currentNotification?.type === 'FINALIZE_REQUEST' ? (
+    <FinalizationRequestContent
+        key="finalize"
+        notification={currentNotification}
+        onConfirm={handleConfirmFinalize}
+        
+        // ✅ A CORREÇÃO PRINCIPAL ESTÁ AQUI
+        // Trocamos handleDecline por handleRejectFinalization
+        onDecline={handleRejectFinalization}
+        
+        colors={colors}
+        isSubmitting={status === 'loading'}
+    />
+) : (
+                    // ETAPA 3: Mostrar o convite como padrão
+                    <MotionBox
+                        key="invitation"
+                        sx={modalStyle}
+                        initial={{ y: 30, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1, boxShadow: "0px 10px 80px rgba(255, 0, 212, 0.3)", transition: { type: "spring", damping: 25, stiffness: 200 } }}
+                        exit={{ y: 30, opacity: 0, transition: { duration: 0.2 } }}
+                    >
+                        {/* ✅ CORREÇÃO PRINCIPAL: As verificações de status duplicadas foram REMOVIDAS daqui.
+                            Este bloco agora só se preocupa em mostrar os detalhes da campanha. */}
+                        {campaignDetails ? (
                                 <Card sx={{ background: 'transparent', boxShadow: 'none', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
 
                                 {/* CABEÇALHO PERSONALIZADO */}

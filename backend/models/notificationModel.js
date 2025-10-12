@@ -12,7 +12,7 @@ const notificationSchema = new mongoose.Schema({
     
     type: {
         type: String,
-        enum: ['CAMPAIGN_INVITE', 'CONTRACT_ACCEPTED', 'NEW_MESSAGE'],
+        enum: ['CAMPAIGN_INVITE', 'CONTRACT_ACCEPTED', 'NEW_MESSAGE',  'FINALIZE_REQUEST' ],
         required: true
     },
       campaign: {

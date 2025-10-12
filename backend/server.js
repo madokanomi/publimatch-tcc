@@ -5,7 +5,7 @@ import connectDB from './config/db.js';
 
 // ✅ 1. IMPORTE AS VARIÁVEIS PRINCIPAIS DO SEU NOVO ARQUIVO socket.js
 //    'app', 'server' e 'io' são as instâncias já criadas e configuradas.
-import { app, server, io, getReceiverSocketId } from './socket.js';
+import { app, server, io } from './socket.js';
 
 // ✅ 2. IMPORTE TODAS AS SUAS ROTAS NORMALMENTE
 import userRoutes from './routes/userRoutes.js';
@@ -39,9 +39,8 @@ app.use(express.json());
 // ✅ 4. MIDDLEWARE PERSONALIZADO PARA INJETAR 'io' E 'getReceiverSocketId' NAS REQUISIÇÕES
 //    Isso permite que seus controllers (como o chatController) usem a lógica do socket.
 app.use((req, res, next) => {
-    req.io = io;
-    req.getReceiverSocketId = getReceiverSocketId;
-    next();
+    req.io = io; // A única linha que você precisa
+    next();
 });
 
 // ❌ A LINHA ABAIXO FOI REMOVIDA

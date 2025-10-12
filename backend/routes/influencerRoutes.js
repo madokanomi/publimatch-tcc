@@ -8,13 +8,17 @@ import {
     getInfluencerById,
     updateInfluencer, // ✅ 1. IMPORTAR A NOVA FUNÇÃO DE UPDATE
        getPublicInfluencerProfile,
-      getAllInfluencers
+      getAllInfluencers,
+       getInfluencerCampaigns
 } from '../controllers/influencerController.js';
 
 const router = express.Router();
 
 router.route('/all') // ✅ 2. CRIAR A ROTA ESPECÍFICA
     .get(getAllInfluencers); 
+
+    router.route('/:id/campaigns')
+    .get(protect, getInfluencerCampaigns);
 
 // Rota para criar (POST) e buscar (GET) os influenciadores do agente logado
 router.route('/')
@@ -44,6 +48,11 @@ router.route('/:id')
         updateInfluencer
     );
 
+    router.route('/:id')
+    .get(protect, authorize('INFLUENCER_AGENT', 'INFLUENCER', 'ADMIN'), getInfluencerById)
+    // ... (restante da rota)
+
+    
     router.route('/public/:id').get(getPublicInfluencerProfile);
     
 export default router;

@@ -14,7 +14,9 @@ import {
     updateCampaignStatus,
     cancelCampaignWithPassword,
      getMyCampaigns,
-      applyToCampaign 
+      applyToCampaign,
+          requestCampaignFinalization,
+           finalizeCampaign,
 } from '../controllers/campaignControllers.js';
 
 const router = express.Router();
@@ -46,6 +48,8 @@ router.route('/:id/status')
 
     
 router.route('/:id/apply').post(protect, applyToCampaign)
+router.route('/:id/request-finalization').post(protect, requestCampaignFinalization);
+router.route('/:id/finalize').put(protect, finalizeCampaign);
 
 
 export default router;
