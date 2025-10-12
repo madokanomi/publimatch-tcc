@@ -326,7 +326,7 @@ export const requestCampaignFinalization = asyncHandler(async (req, res) => {
         recipient: recipientId,
         sender: influencerUser._id,
         title: 'Solicitação de Finalização de Contrato',
-        message: `O influenciador ${influencerUser.name} solicitou a finalização da campanha "${campaign.title}".`,
+        message: `${influencerUser.name} solicitou a finalização da campanha "${campaign.title}".`,
         type: 'FINALIZE_REQUEST',
         campaign: campaignId,
         link: `/dashboard/campaigns/${campaignId}`
