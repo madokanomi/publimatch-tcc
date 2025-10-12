@@ -277,7 +277,7 @@ const clearFilters = () => {
           </TextField>
 
           <Typography variant="body2" fontWeight="500" mb={1}>
-            Faixa de Seguidores (milhões)
+            Mínimo de seguidores (milhões)
           </Typography>
           <Box sx={{ width: "calc(100% - 20px)", ml: "10px" }}>
             <Slider
@@ -300,7 +300,7 @@ const clearFilters = () => {
           </Box>
 
           <Typography variant="body2" fontWeight="500" mb={1}>
-  Faixa de Visualizações (milhares)
+  Mínimo de Visualizações (milhares)
 </Typography>
 <Box sx={{ width: "calc(100% - 20px)", ml: "10px" }}>
   <Slider

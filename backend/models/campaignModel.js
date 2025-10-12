@@ -1,5 +1,3 @@
-// backend/models/campaignModel.js
-
 import mongoose from 'mongoose';
 
 const campaignSchema = new mongoose.Schema({
@@ -33,14 +31,13 @@ const campaignSchema = new mongoose.Schema({
         enum: ['Planejamento', 'Ativa', 'Concluída', 'Cancelada', 'Aberta'],
         default: 'Aberta'
     },
-    // --- NOVO CAMPO ADICIONADO ---
     state: {
         type: String,
         enum: ['Open', 'Hidden'],
         default: 'Open'
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    participatingInfluencers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+    participatingInfluencers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Influencer' }]
 }, { timestamps: true });
 
 const Campaign = mongoose.model('Campaign', campaignSchema);

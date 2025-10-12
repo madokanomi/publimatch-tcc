@@ -64,7 +64,7 @@ const CampaignProfile = () => {
 
     const renderTabContent = () => {
         switch (activeTab) {
-            case "Detalhes": return <motion.div key="detalhes" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit"><CampaignAbout campaign={campaign} /></motion.div>;
+            case "Detalhes": return <motion.div key="detalhes" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit"><CampaignAbout campaign={campaign} isAboutOnlyView={isAboutOnlyView} /></motion.div>;
             case "Candidatos": return <motion.div key="candidatos" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit"><CampaignCandidates campaign={campaign} /></motion.div>;
             case "Influenciadores": return <motion.div key="influenciadores" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit"><CampaignInfluencers campaign={campaign} /></motion.div>;
             case "Estatísticas": return <motion.div key="estatisticas" variants={tabContentVariants} initial="hidden" animate="visible" exit="exit"><CampaignStats campaign={campaign} /></motion.div>;

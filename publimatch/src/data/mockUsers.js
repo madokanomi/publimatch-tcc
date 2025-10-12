@@ -3,7 +3,7 @@ import userPhoto from "../assets/user.png";
 
 export const ROLES = {
   AD_AGENT: 'AGENTE_PUBLICIDADE',
-  INFLUENCER_AGENT: 'AGENTE_INFLUENCIADOR',
+  INFLUENCER_AGENT: 'INFLUENCER_AGENT',
   INFLUENCER: 'INFLUENCIADOR',
 };
 

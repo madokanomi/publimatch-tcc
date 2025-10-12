@@ -1,84 +1,114 @@
-const Application = require('../models/applicationModel.js');
-const Campaign = require('../models/campaignModel.js'); // Usando o nome do seu arquivo
-const User = require('../models/userModel.js');
+import asyncHandler from 'express-async-handler';
+import Application from '../models/applicationModel.js';
+import Campaign from '../models/campaignModel.js';
+import Influencer from '../models/influencerModel.js';
 
-// @desc    Cria uma nova candidatura para uma campanha
-// @route   POST /api/applications
-exports.createApplication = async (req, res) => {
-    try {
-        const { campaignId, influencerId } = req.body; // O frontend enviará o ID da campanha e do influenciador
+export const applyToCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+    const { influencerId } = req.body;
+    const userMakingRequest = req.user;
 
-        // O ID do usuário que está enviando a candidatura vem do token
-        const submittedById = req.user._id; 
-        
-        let finalInfluencerId = influencerId;
+    const campaign = await Campaign.findById(campaignId);
+    if (!campaign) {
+        res.status(404);
+        throw new Error('Campanha não encontrada.');
+    }
+    if (campaign.status !== 'Aberta') {
+        res.status(400);
+        throw new Error('Esta campanha não está mais aceitando candidaturas.');
+    }
 
-        // Se o próprio influenciador está se candidatando, o ID dele é o do usuário logado
-        if (req.user.role === 'INFLUENCER') {
-            finalInfluencerId = req.user._id;
-        } else if (req.user.role === 'INFLUENCER_AGENT' && !influencerId) {
-            return res.status(400).json({ message: 'Agentes devem selecionar um influenciador.' });
+    let finalInfluencerProfileId;
+
+    if (userMakingRequest.role === 'INFLUENCER_AGENT') {
+        if (!influencerId) {
+            res.status(400);
+            throw new Error('Agentes devem selecionar um influenciador para candidatar.');
         }
-        
-        // Cria a candidatura no banco de dados
-        const application = await Application.create({
-            campaign: campaignId,
-            influencer: finalInfluencerId,
-            submittedBy: submittedById
+        finalInfluencerProfileId = influencerId;
+    } else {
+        const influencerProfile = await Influencer.findOne({ userAccount: userMakingRequest._id });
+        if (!influencerProfile) {
+            res.status(404);
+            throw new Error('Perfil de influenciador associado a esta conta não foi encontrado.');
+        }
+        finalInfluencerProfileId = influencerProfile._id;
+    }
+    
+    const existingApplication = await Application.findOne({
+        campaign: campaignId,
+        influencer: finalInfluencerProfileId
+    });
+
+    if (existingApplication) {
+        res.status(400);
+        throw new Error('Este influenciador já se candidatou para esta campanha.');
+    }
+
+    const newApplication = await Application.create({
+        campaign: campaignId,
+        influencer: finalInfluencerProfileId,
+        submittedBy: userMakingRequest._id,
+    });
+
+    campaign.applications += 1;
+    await campaign.save();
+    
+    res.status(201).json({
+        message: 'Candidatura enviada com sucesso!',
+        application: newApplication
+    });
+});
+
+export const getApplicationsForCampaign = asyncHandler(async (req, res) => {
+    const { campaignId } = req.params;
+
+    const campaign = await Campaign.findById(campaignId);
+    if (!campaign) {
+        res.status(404);
+        throw new Error('Campanha não encontrada.');
+    }
+
+    if (campaign.createdBy.toString() !== req.user._id.toString()) {
+        res.status(403);
+        throw new Error('Você não tem permissão para ver as candidaturas desta campanha.');
+    }
+    
+    const applications = await Application.find({ campaign: campaignId, status: 'pendente' })
+        .populate('influencer');
+
+    res.status(200).json(applications);
+});
+
+export const updateApplicationStatus = asyncHandler(async (req, res) => {
+    const { applicationId } = req.params;
+    const { status } = req.body;
+
+    if (!['aprovada', 'rejeitada'].includes(status)) {
+        res.status(400);
+        throw new Error('Status inválido. Use "aprovada" ou "rejeitada".');
+    }
+
+    const application = await Application.findById(applicationId).populate('campaign');
+    if (!application) {
+        res.status(404);
+        throw new Error('Candidatura não encontrada.');
+    }
+
+    if (application.campaign.createdBy.toString() !== req.user._id.toString()) {
+        res.status(403);
+        throw new Error('Você não tem permissão para gerenciar esta candidatura.');
+    }
+    
+    application.status = status;
+    await application.save();
+
+    if (status === 'aprovada') {
+        await Campaign.findByIdAndUpdate(application.campaign._id, {
+            $addToSet: { participatingInfluencers: application.influencer },
+            $inc: { influencers: 1 }
         });
-
-        res.status(201).json(application);
-
-    } catch (error) {
-        if (error.code === 11000) {
-            return res.status(400).json({ message: 'Este influenciador já se candidatou para esta campanha.' });
-        }
-        res.status(500).json({ message: 'Erro no servidor', error: error.message });
     }
-};
 
-// @desc    Busca todas as candidaturas de uma campanha
-// @route   GET /api/applications/campaign/:campaignId
-exports.getApplicationsForCampaign = async (req, res) => {
-    try {
-        const applications = await Application.find({ campaign: req.params.campaignId })
-            .populate('influencer', 'name email'); // Puxa nome e email do influenciador
-
-        res.status(200).json(applications);
-    } catch (error) {
-        res.status(500).json({ message: 'Erro no servidor', error: error.message });
-    }
-};
-
-// @desc    Atualiza o status de uma candidatura (Aprovar/Rejeitar)
-// @route   PUT /api/applications/:applicationId
-exports.updateApplicationStatus = async (req, res) => {
-    try {
-        const { status } = req.body; // O frontend enviará "Aprovado" ou "Rejeitado"
-
-        if (!['Aprovado', 'Rejeitado'].includes(status)) {
-            return res.status(400).json({ message: 'Status inválido.' });
-        }
-
-        const application = await Application.findById(req.params.applicationId);
-
-        if (!application) {
-            return res.status(404).json({ message: 'Candidatura não encontrada.' });
-        }
-
-        application.status = status;
-        await application.save();
-
-        // Se o status for "Aprovado", adiciona o influenciador na lista da campanha
-        if (status === 'Aprovado') {
-            await Campaign.findByIdAndUpdate(application.campaign, {
-                $addToSet: { participatingInfluencers: application.influencer }
-                // $addToSet previne que o mesmo influenciador seja adicionado duas vezes
-            });
-        }
-
-        res.status(200).json(application);
-    } catch (error) {
-        res.status(500).json({ message: 'Erro no servidor', error: error.message });
-    }
-};
+    res.status(200).json({ message: `Candidatura ${status} com sucesso.`, application });
+});

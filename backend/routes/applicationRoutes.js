@@ -1,15 +1,35 @@
-const express = require('express');
+import express from 'express';
+import { protect, authorize } from '../middleware/authMiddleware.js';
+import { 
+    applyToCampaign,
+    getApplicationsForCampaign,
+    updateApplicationStatus
+} from '../controllers/applicationController.js';
+
 const router = express.Router();
-const { protect, authorize } = require('../middleware/authMiddleware.js');
-const applicationController = require('../controllers/applicationController.js');
 
-// Rota para um influenciador ou agente se candidatar a uma campanha
-router.post('/', protect, authorize('INFLUENCER', 'INFLUENCER_AGENT'), applicationController.createApplication);
+// Rota para um INFLUENCER ou AGENTE se candidatar
+router.post(
+    '/apply/:campaignId', 
+    protect, 
+    authorize('INFLUENCER', 'INFLUENCER_AGENT'), 
+    applyToCampaign
+);
 
-// Rota para um agente de publicidade ver todas as candidaturas de uma campanha específica
-router.get('/campaign/:campaignId', protect, authorize('AD_AGENT'), applicationController.getApplicationsForCampaign);
+// Rota para um AD_AGENT buscar as candidaturas de uma de suas campanhas
+router.get(
+    '/campaign/:campaignId',
+    protect,
+    authorize('AD_AGENT'),
+    getApplicationsForCampaign
+);
 
-// Rota para um agente de publicidade aprovar ou rejeitar uma candidatura
-router.put('/:applicationId', protect, authorize('AD_AGENT'), applicationController.updateApplicationStatus);
+// Rota para um AD_AGENT aprovar ou rejeitar uma candidatura
+router.put(
+    '/:applicationId/status',
+    protect,
+    authorize('AD_AGENT'),
+    updateApplicationStatus
+);
 
-module.exports = router;
+export default router;
