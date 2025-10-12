@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import io from "socket.io-client";
 import { useAuth } from "../../auth/AuthContext";
+import { useSocket } from "../../data/SocketContext"; // 👈 IMPORTAR AQUI
 
 export const ConversationContext = createContext();
 
@@ -13,10 +14,11 @@ export const ConversationProvider = ({ children }) => {
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [socket, setSocket] = useState(null);
    // ✅ CORRETO: Pega 'user' e renomeia para 'authUser' para não quebrar o resto do código
     // OU, de forma mais limpa, mude em todo o arquivo:
     const { user } = useAuth();
+
+      const socket = useSocket(); 
 
     // ✅ EFEITO 1: BUSCAR TODAS AS CONVERSAS QUANDO O USUÁRIO LOGAR
     useEffect(() => {
@@ -50,24 +52,8 @@ export const ConversationProvider = ({ children }) => {
 
         getConversations();
     }, [user]);  // Este efeito roda sempre que o estado de autenticação mudar
- useEffect(() => {
-        if (user) {
-            const newSocket = io("http://localhost:5001", {
-                query: {
-                  userId: user._id,
-                },
-            });
-            setSocket(newSocket);
 
-            // A função de limpeza desconecta o socket quando o usuário desloga
-            return () => newSocket.close();
-        } else {
-            if (socket) {
-                socket.close();
-                setSocket(null);
-            }
-        }
-    }, [user]);
+    
 
     // ✅ EFEITO 3 (NOVO): GERENCIA OS EVENT LISTENERS DO SOCKET
     // Este efeito escuta por novas mensagens e depende do socket existir.

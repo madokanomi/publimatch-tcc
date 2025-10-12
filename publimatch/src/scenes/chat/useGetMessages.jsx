@@ -1,3 +1,5 @@
+// src/scenes/chat/useGetMessages.jsx
+
 import { useEffect, useState } from "react";
 import { useConversation } from "./ConversationContext";
 import { useAuth } from "../../auth/AuthContext";
@@ -5,29 +7,28 @@ import axios from "axios";
 
 const useGetMessages = () => {
     const [loading, setLoading] = useState(false);
-    const { setMessages, selectedConversation } = useConversation();
-    
-    // ✅ CORREÇÃO 1: Usar 'user' em vez de 'authUser'.
+    // ✅ PASSO 1: Pegue o array de 'messages' também.
+    const { messages, setMessages, selectedConversation } = useConversation();
     const { user } = useAuth();
 
     useEffect(() => {
         const getMessages = async () => {
-            // A verificação de 'selectedConversation' e 'user' já garante que temos tudo para prosseguir.
+            // Não faz nada se já houver mensagens para a conversa selecionada
+            // Isso previne que a lista seja recarregada desnecessariamente
+            if (messages.length > 0 && messages[0].conversationId === selectedConversation?._id) {
+                return;
+            }
+
             setLoading(true);
             try {
-                // A lógica para encontrar o outro usuário agora usa a variável correta.
                 const otherUser = selectedConversation.participants.find(p => p && p._id !== user?._id);
-
                 if (!otherUser) {
-                    console.warn("Não foi possível encontrar o outro participante na conversa.");
                     setMessages([]);
                     return;
                 }
 
-                // ✅ CORREÇÃO 2: Adicionar o header de autorização na requisição GET.
                 const res = await axios.get(
-                    `/api/chat/${otherUser._id}`,
-                    {
+                    `/api/chat/${otherUser._id}`, {
                         headers: {
                             Authorization: `Bearer ${user.token}`
                         }
@@ -44,17 +45,16 @@ const useGetMessages = () => {
             }
         };
 
-        // ✅ CORREÇÃO 3: Condição mais robusta para executar o fetch.
-        //    Só busca as mensagens se tivermos uma conversa selecionada E um usuário logado.
         if (selectedConversation?._id && user) {
             getMessages();
         } else {
-            // Se não houver conversa selecionada, garante que a lista de mensagens esteja vazia.
             setMessages([]);
         }
 
-    // A dependência agora é 'user', não 'authUser'.
-    }, [selectedConversation, setMessages, user]);
+    // ✅ PASSO 2: Simplifique o array de dependências.
+    // O efeito agora SÓ vai rodar quando a conversa selecionada (pelo seu ID) mudar.
+    // Ele não vai mais rodar quando 'setMessages' for chamado por outro hook.
+    }, [selectedConversation?._id, user, setMessages]); // Adicionado setMessages para seguir as regras do linter
 
     return { loading };
 };

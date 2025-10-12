@@ -1,4 +1,5 @@
 // socket/socket.js
+
 import { Server } from 'socket.io';
 import http from 'http';
 import express from 'express';
@@ -13,22 +14,35 @@ const io = new Server(server, {
     }
 });
 
-io.on('connection', (socket) => {
-    console.log('✅ Um usuário conectou via WebSocket:', socket.id);
+const userSocketMap = {}; // {userId: socketId}
 
-    // Ouve pelo evento 'setup' que o frontend vai enviar após o login
-    socket.on('setup', (userId) => {
-        // Coloca este socket em uma sala com o nome do userId
-        socket.join(userId);
-        console.log(`Usuário ${userId} entrou na sua sala privada.`);
-        socket.emit('connected'); // Envia uma confirmação de volta para o cliente
-    });
+// ✅ PASSO 1: CRIE E EXPORTE A FUNÇÃO DE BUSCA
+export const getReceiverSocketId = (receiverId) => {
+    return userSocketMap[receiverId];
+};
+
+io.on('connection', (socket) => {
+    console.log('✅ Um usuário conectou:', socket.id);
+    const userId = socket.handshake.query.userId;
+    if (userId) { // Checagem mais robusta
+        console.log(`Usuário ${userId} associado ao socket ${socket.id}`);
+        userSocketMap[userId] = socket.id;
+    }
+
+    // Envia a lista de usuários online para todos os clientes
+    io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
     socket.on('disconnect', () => {
         console.log('❌ Usuário desconectou:', socket.id);
+        // Encontra o userId associado a este socket.id para remoção
+        const disconnectedUserId = Object.keys(userSocketMap).find(key => userSocketMap[key] === socket.id);
+        if (disconnectedUserId) {
+            delete userSocketMap[disconnectedUserId];
+            // Envia a lista atualizada de usuários online
+            io.emit("getOnlineUsers", Object.keys(userSocketMap));
+        }
     });
 });
 
-// A função getReceiverSocketId não é mais necessária para as notificações
-// se você estiver usando salas. O req.io.to(userId) cuidará disso.
+// A exportação principal permanece a mesma
 export { app, io, server };

@@ -44,7 +44,7 @@ const useSendMessage = () => {
             }
 
             // Esta linha atualiza a tela do remetente com a resposta do servidor. Está perfeita.
-            setMessages([...messages, data]);
+           setMessages((prevMessages) => [...prevMessages, data])
 
         } catch (error) {
             console.error("Erro ao enviar mensagem:", error);
