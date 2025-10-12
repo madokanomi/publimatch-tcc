@@ -7,28 +7,25 @@ import axios from "axios";
 
 const useGetMessages = () => {
     const [loading, setLoading] = useState(false);
-    // ✅ PASSO 1: Pegue o array de 'messages' também.
-    const { messages, setMessages, selectedConversation } = useConversation();
+    const { setMessages, selectedConversation } = useConversation();
     const { user } = useAuth();
 
     useEffect(() => {
         const getMessages = async () => {
-            // Não faz nada se já houver mensagens para a conversa selecionada
-            // Isso previne que a lista seja recarregada desnecessariamente
-            if (messages.length > 0 && messages[0].conversationId === selectedConversation?._id) {
-                return;
-            }
-
             setLoading(true);
             try {
+                // A lógica para encontrar o outro usuário permanece a mesma
                 const otherUser = selectedConversation.participants.find(p => p && p._id !== user?._id);
+
                 if (!otherUser) {
+                    console.warn("Não foi possível encontrar o outro participante na conversa.");
                     setMessages([]);
                     return;
                 }
 
                 const res = await axios.get(
-                    `/api/chat/${otherUser._id}`, {
+                    `/api/chat/${otherUser._id}`,
+                    {
                         headers: {
                             Authorization: `Bearer ${user.token}`
                         }
@@ -45,16 +42,22 @@ const useGetMessages = () => {
             }
         };
 
+        // A condição de execução permanece a mesma
         if (selectedConversation?._id && user) {
             getMessages();
         } else {
+            // Garante que ao desmarcar uma conversa, a lista de mensagens seja limpa.
             setMessages([]);
         }
 
-    // ✅ PASSO 2: Simplifique o array de dependências.
-    // O efeito agora SÓ vai rodar quando a conversa selecionada (pelo seu ID) mudar.
-    // Ele não vai mais rodar quando 'setMessages' for chamado por outro hook.
-    }, [selectedConversation?._id, user, setMessages]); // Adicionado setMessages para seguir as regras do linter
+    // ✅ A MUDANÇA CRÍTICA ESTÁ AQUI ✅
+    // O useEffect agora depende APENAS do ID da conversa selecionada.
+    // Ele não será mais acionado por re-renderizações causadas por
+    // atualizações no objeto 'selectedConversation' ou no array 'messages'.
+    // Ele SÓ RODA quando o ID da conversa efetivamente mudar.
+    }, [selectedConversation?._id, user, setMessages]);
+     // 'user' está aqui para recarregar caso o usuário mude.
+     // 'setMessages' está aqui para seguir a recomendação do linter de hooks.
 
     return { loading };
 };

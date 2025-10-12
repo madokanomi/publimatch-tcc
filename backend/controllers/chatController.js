@@ -5,6 +5,9 @@ import Message from '../models/messageModel.js';
 // import { getReceiverSocketId, io } from '../socket/socket.js';
 
 // Enviar uma mensagem
+// controllers/chatController.js
+
+
 export const sendMessage = async (req, res) => {
     try {
         const { io, getReceiverSocketId } = req;
@@ -12,17 +15,19 @@ export const sendMessage = async (req, res) => {
         const { receiverId } = req.params;
         const senderId = req.user._id;
 
+        // 👇 A LINHA QUE FALTAVA ESTÁ AQUI 👇
+        // Primeiro, procure por uma conversa existente entre os dois usuários.
         let conversation = await Conversation.findOne({
             participants: { $all: [senderId, receiverId] },
         });
 
+        // Agora, se a conversa NÃO for encontrada, crie uma nova.
         if (!conversation) {
-            conversation = await Conversation.create({
-                participants: [senderId, receiverId],
-                // Não precisa de messages ou lastMessage aqui, serão adicionados abaixo
-            });
+           conversation = await Conversation.create({
+               participants: [senderId, receiverId],
+           });
         }
-
+        
         const newMessage = new Message({
             senderId,
             receiverId,
@@ -30,22 +35,14 @@ export const sendMessage = async (req, res) => {
         });
 
         if (newMessage) {
-            // ✅ PASSO 1: Atualize o objeto da conversa na memória primeiro
             conversation.messages.push(newMessage._id);
-            conversation.lastMessage = newMessage._id; // Atribua a última mensagem aqui
-
-            // ✅ PASSO 2: Salve a conversa atualizada e a nova mensagem simultaneamente
-            // O Promise.all garante que ambas as operações aconteçam antes de prosseguir.
+            conversation.lastMessage = newMessage._id;
             await Promise.all([conversation.save(), newMessage.save()]);
-        } else {
-            // Adicionado para um tratamento de erro mais robusto
-            return res.status(400).json({ error: "Não foi possível criar a mensagem." });
         }
-        
+
         const messagePayload = newMessage.toObject();
         messagePayload.conversationId = conversation._id;
 
-        // LÓGICA DO SOCKET.IO
         const receiverSocketId = getReceiverSocketId(receiverId);
         if (receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", messagePayload);

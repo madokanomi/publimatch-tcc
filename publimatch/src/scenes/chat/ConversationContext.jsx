@@ -53,52 +53,54 @@ export const ConversationProvider = ({ children }) => {
         getConversations();
     }, [user]);  // Este efeito roda sempre que o estado de autenticação mudar
 
-    
 
-    // ✅ EFEITO 3 (NOVO): GERENCIA OS EVENT LISTENERS DO SOCKET
-    // Este efeito escuta por novas mensagens e depende do socket existir.
-    useEffect(() => {
-        // Só adiciona o listener se o socket estiver conectado
+ useEffect(() => {
+        // Só adiciona o listener se a conexão do socket já existir
         if (!socket) return;
 
         const handleNewMessage = (newMessage) => {
-            // Atualiza as mensagens se o chat estiver aberto
+            // 1. Se a mensagem recebida pertence à conversa que está aberta na tela,
+            // adiciona ela à lista de mensagens para atualização instantânea.
             if (selectedConversation?._id === newMessage.conversationId) {
-                setMessages((prev) => [...prev, newMessage]);
+                setMessages((prevMessages) => [...prevMessages, newMessage]);
             }
-            
-            // Atualiza a lista de conversas para mostrar a última mensagem e reordenar
-            setConversations(prevConvos => {
-                const updatedConvos = prevConvos.map(convo => {
+
+            // 2. Atualiza a lista de conversas (sidebar) para refletir a nova mensagem,
+            // colocando a conversa mais recente no topo.
+            setConversations((prevConvos) => {
+                const updatedConvos = prevConvos.map((convo) => {
                     if (convo._id === newMessage.conversationId) {
                         return {
                             ...convo,
                             lastMessage: {
-                                text: newMessage.text, // Corrigido de 'message' para 'text'
-                                sender: newMessage.senderId,
-                                createdAt: newMessage.createdAt || new Date().toISOString(),
-                            }
+                                text: newMessage.text,
+                                senderId: newMessage.senderId,
+                                createdAt: newMessage.createdAt,
+                            },
                         };
                     }
                     return convo;
                 });
 
-                // Encontra a conversa atualizada
+                // Reordena para colocar a conversa atualizada no topo da lista
                 const targetConvo = updatedConvos.find(c => c._id === newMessage.conversationId);
-                // Filtra as outras conversas
                 const otherConvos = updatedConvos.filter(c => c._id !== newMessage.conversationId);
-                // Coloca a conversa atualizada no topo e retorna
-                return [targetConvo, ...otherConvos];
+                
+                // Se a conversa já existia na lista, move para o topo. Senão, mantém a ordem.
+                return targetConvo ? [targetConvo, ...otherConvos] : updatedConvos;
             });
         };
 
-        socket.on("newMessage", handleNewMessage);
+        // Registra o listener no socket para o evento 'newMessage'
+     socket.on("newMessage", handleNewMessage);
 
-        // A função de limpeza remove o listener para evitar duplicações
-        return () => socket.off("newMessage", handleNewMessage);
+    return () => {
+        socket.off("newMessage", handleNewMessage);
+    };
 
-    }, [socket, selectedConversation, setConversations]); // Depende do socket e da conversa selecionada
-// Adicionado setConversations para a atualização bônus
+// ✅ CORREÇÃO: Dependa apenas do ID, que é um valor estável.
+}, [socket, selectedConversation?._id]); 
+
 
    return (
         <ConversationContext.Provider value={{
@@ -106,7 +108,6 @@ export const ConversationProvider = ({ children }) => {
             selectedConversation, setSelectedConversation,
             messages, setMessages,
             loading,
-            socket
         }}>
             {children}
         </ConversationContext.Provider>

@@ -81,40 +81,41 @@ export const NotificationProvider = ({ children }) => {
 
 
     // EFEITO 2: Para ouvir as notificações em tempo real via WebSocket
-    useEffect(() => {
-        // Se a conexão do socket ainda não estiver pronta, não faz nada
-        if (!socket) return;
 
-        const handleNewNotification = (newNotification) => {
-            console.log("Nova notificação recebida via WebSocket:", newNotification);
+  const handleNewNotification = useCallback((newNotification) => {
+        console.log("Nova notificação recebida via WebSocket:", newNotification);
 
-            // Formata a nova notificação da mesma forma que as outras
-            const formattedNotification = {
-                id: newNotification._id,
-                title: newNotification.title,
-                subtitle: newNotification.message,
-                avatar: newNotification.senderAvatar || 'default_avatar_url',
-                time: formatDistanceToNow(new Date(newNotification.createdAt), { addSuffix: true, locale: ptBR }),
-                link: newNotification.link,
-                logo: newNotification.campaignLogo || null,
-                entityId: newNotification.entityId,
-                type: newNotification.type,
-            };
-
-            // Adiciona a nova notificação no início da lista existente
-            setNotifications((prevNotifications) => [formattedNotification, ...prevNotifications]);
+        const formattedNotification = {
+            id: newNotification._id,
+            title: newNotification.title,
+            subtitle: newNotification.message,
+            isRead: newNotification.isRead,
+            avatar: newNotification.senderAvatar || 'default_avatar_url',
+            time: formatDistanceToNow(new Date(newNotification.createdAt), { addSuffix: true, locale: ptBR }),
+            link: newNotification.link,
+            logo: newNotification.campaignLogo || newNotification.logo || null,
+            entityId: newNotification.entityId,
+            type: newNotification.type,
         };
 
-        // Começa a ouvir pelo evento 'new_notification'
+        // Adiciona a nova notificação no início da lista existente
+        setNotifications((prevNotifications) => [formattedNotification, ...prevNotifications]);
+    }, []); // Array de dependências vazio, pois 'setNotifications' é uma função estável.
+
+
+    // 2. O useEffect foi atualizado para usar a função estável 'handleNewNotification'.
+    //    Agora ele só será re-executado se a conexão do socket realmente mudar,
+    //    evitando remover e adicionar o listener desnecessariamente.
+      useEffect(() => {
+        if (!socket) return;
+
         socket.on('new_notification', handleNewNotification);
 
-        // Função de limpeza: para de ouvir o evento quando o componente desmontar
-        // Isso evita adicionar múltiplos listeners e causar bugs.
+        // Função de limpeza que remove o listener quando o componente é desmontado.
         return () => {
             socket.off('new_notification', handleNewNotification);
         };
-
-    }, [socket]);
+    }, [socket, handleNewNotification]); // Depende do socket e da função (que é estável)
 
 
     // 4. ATUALIZE a função openModal para receber também o ID da notificação
