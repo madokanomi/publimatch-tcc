@@ -437,7 +437,7 @@ const Sobrespec = () => {
                     >
                         <Business sx={{ fontSize: 16, color: "#6a1b9a", mr: 1 }} />
                         <Typography variant="caption" sx={{ color: "#6a1b9a" }}>
-                            Agenciado por
+                            Agenciado por &nbsp;
                             <Typography component="span" variant="caption" fontWeight="bold">
                                 {influencer?.agent?.name || 'Agente não informado'}
                             </Typography>

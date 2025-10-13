@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Chip, Rating, CircularProgress, Avatar, Tooltip } from "@mui/material";
 import StarIcon from "@mui/icons-material/Star";
 
-const AvaliacoesEspc = ({ reviews = [], isLoading }) => {
+const AvaliacoesEspc = ({ reviews = [], isLoading, canSeeDetailedReviews = false }) => {
+
 
     const stats = useMemo(() => {
         if (!reviews || reviews.length === 0) {
@@ -119,9 +120,16 @@ const AvaliacoesEspc = ({ reviews = [], isLoading }) => {
                                     ))}
                                 </Box>
                             </Box>
-                            <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>
-                                {review.comment || "Nenhum comentário adicional."}
-                            </Typography>
+                         {canSeeDetailedReviews ? (
+                                <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>
+                                    {review.comment || "Nenhum comentário adicional."}
+                                </Typography>
+                            ) : (
+                                <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>
+                                    O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.
+                                </Typography>
+                            )}
+                            
                         </Box>
                     ))}
                 </Box>
