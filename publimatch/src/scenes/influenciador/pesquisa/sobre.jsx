@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
 
   Box, Typography, Avatar, Button, Chip, Divider, IconButton, Card,
   CardContent, Grid, Rating, LinearProgress, Dialog, DialogActions,
   DialogContent, DialogContentText, DialogTitle, FormControl,
-  InputLabel, Select, MenuItem, Snackbar, Alert, CircularProgress
+  InputLabel, Select, MenuItem, Snackbar, Alert, CircularProgress, Tooltip
 } from "@mui/material";
 import { 
   Favorite, Visibility, Groups, Menu as MenuIcon, ArrowBack,
@@ -43,7 +43,9 @@ const InfluencerProfile = () => {
   const navigate = useNavigate();
 
     const [influencer, setInfluencer] = useState(null); // Começa como nulo
+      const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true); // Começa carregando
+    const [reviewsLoading, setReviewsLoading] = useState(true);
   const [userCampaigns, setUserCampaigns] = useState([]);
   const [dialogLoading, setDialogLoading] = useState(false);
 
@@ -60,24 +62,65 @@ const InfluencerProfile = () => {
   // MODIFICAÇÃO 1: Criar nova condição para ver detalhes das avaliações
   const canSeeDetailedReviews = user && user.role === ROLES.AD_AGENT;
 useEffect(() => {
-        const fetchPublicInfluencerData = async () => {
-            try {
-                // A URL agora aponta para a nova rota '/public/'
-                const { data } = await axios.get(`http://localhost:5001/api/influencers/public/${id}`);
-                
-                setInfluencer(data);
-            } catch (err) {
-                console.error("Erro ao buscar perfil público:", err.response);
-                setError(err.response?.data?.message || 'Este perfil não pôde ser carregado.');
-            } finally {
-                setLoading(false);
-            }
-        };
+    const fetchData = async () => {
+        if (!id) return;
 
-        if (id) {
-            fetchPublicInfluencerData();
+        // Prepara a chamada para os dados públicos do influenciador
+        const publicInfluencerPromise = axios.get(`http://localhost:5001/api/influencers/public/${id}`);
+        
+        // Prepara a chamada para as avaliações, mas só se o usuário estiver logado
+        let reviewsPromise;
+        if (user && user.token) {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            reviewsPromise = axios.get(`http://localhost:5001/api/reviews/influencer/${id}`, config);
+        } else {
+            // Se não estiver logado, resolve com um array vazio para não dar erro
+            reviewsPromise = Promise.resolve({ data: [] });
         }
-    }, [id]);
+
+        try {
+            // Executa as duas chamadas em paralelo para ganhar tempo
+            const [influencerResponse, reviewsResponse] = await Promise.all([
+                publicInfluencerPromise,
+                reviewsPromise
+            ]);
+            
+            setInfluencer(influencerResponse.data);
+            setReviews(reviewsResponse.data);
+
+        } catch (err) {
+            console.error("Erro ao buscar dados do perfil:", err.response);
+            setError(err.response?.data?.message || 'Este perfil não pôde ser carregado.');
+        } finally {
+            setLoading(false);
+            setReviewsLoading(false);
+        }
+    };
+
+    fetchData();
+}, [id, user]);
+
+const stats = useMemo(() => {
+    if (!reviews || reviews.length === 0) {
+        return {
+            averageRating: 0,
+            ratingText: "Sem Avaliações",
+            topTags: [],
+        };
+    }
+    const totalRating = reviews.reduce((acc, review) => acc + review.rating, 0);
+    const averageRating = totalRating / reviews.length;
+    let ratingText = "Regular";
+    if (averageRating >= 4.5) ratingText = "Excelente!";
+    else if (averageRating >= 4.0) ratingText = "Muito Bom!";
+    else if (averageRating >= 3.0) ratingText = "Bom";
+    const tagCounts = reviews.flatMap(r => r.tags).reduce((acc, tag) => {
+        acc[tag] = (acc[tag] || 0) + 1;
+        return acc;
+    }, {});
+    const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(item => item[0]);
+    return { averageRating, ratingText, topTags };
+}, [reviews]);
 
   // ALTERADO: Tratamento de loading e erro, igual ao do Sobrespec
   if (loading) {
@@ -277,195 +320,88 @@ const handleConfirmHire = async () => {
         );
 
       case 'Avaliações':
-        return (
-          <Box 
-            component={motion.div}
-            key="avaliacoes"
-            variants={tabContentVariant}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            pl={5} pr={5} sx={{backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}>
-            <Box display="flex" gap={4}>
-              {/* AVALIAÇÃO PRINCIPAL */}
-              <Box flex={1} display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{
-                borderRadius: "20px",
-                p: 4,
-                textAlign: "center"
-              }}>
-                <Typography variant="h1" fontWeight="bold" color="white" sx={{ fontSize: "120px", lineHeight: 1 }}>
-                  4.2
-                </Typography>
-                
-                <Box display="flex" gap={0.5} mb={2}>
-                  {[...Array(5)].map((_, i) => (
-                    <StarIcon
-                      key={i}
-                      sx={{
-                        color: i < 4 ? "#FFD700" : "rgba(255,255,255,0.3)",
-                        fontSize: 32,
-                      }}
-                    />
-                  ))}
+    return (
+        <Box 
+            component={motion.div} 
+            key="avaliacoes" 
+            variants={tabContentVariant} 
+            initial="hidden" 
+            animate="visible" 
+            exit="exit" 
+            pl={5} pr={5} 
+            sx={{backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}
+        >
+            {reviewsLoading ? (
+                 <Box display="flex" justifyContent="center" alignItems="center" height="40vh"><CircularProgress /></Box>
+            ) : reviews.length === 0 ? (
+                <Box textAlign="center">
+                    <Typography variant="h6" color="white">Nenhuma Avaliação Encontrada</Typography>
+                    <Typography variant="body2" color="rgba(255,255,255,0.7)">Este influenciador ainda não recebeu avaliações.</Typography>
                 </Box>
-                
-                <Typography variant="h4" fontWeight="bold" color="white" mb={1}>
-                  Muito Bom!
-                </Typography>
-                
-                <Box display="flex" gap={1} flexWrap="wrap" justifyContent="center">
-                  {["Prestativo", "Criativo", "Agradável", "Atencioso"].map((tag, i) => (
-                    <Chip
-                      key={i}
-                      label={tag}
-                      size="small"
-                      sx={{
-                        bgcolor: "rgba(255,255,255,0.2)",
-                        color: "white",
-                        fontWeight: "bold",
-                        borderRadius: "15px"
-                      }}
-                    />
-                  ))}
-                </Box>
-              </Box>
-
-              {/* AVALIAÇÕES RECENTES */}
-              <Box flex={1.2}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                  <Typography variant="h6" color="white">
-                    Mais Recentes
-                  </Typography>
-                  <Typography variant="body2" color="rgba(255,255,255,0.7)">
-                    ⌄
-                  </Typography>
-                </Box>
-
-                {/* AVALIAÇÃO 1 */}
-                <Box mb={3} p={3} sx={{
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                  borderRadius: "15px",
-                  border: "1px solid rgba(255,255,255,0.1)"
-                }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                    <Box>
-                      <Typography variant="body1" color="white" fontWeight="bold" mb={0.5}>
-                        Entrega criativa e autêntica — superou expectativas!
-                      </Typography>
-                      <Typography variant="caption" color="rgba(255,255,255,0.6)">
-                        18/08/2025
-                      </Typography>
+            ) : (
+                <Box display="flex" gap={4}>
+                    <Box flex={1} display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{ p: 4, textAlign: "center" }}>
+                        <Typography variant="h1" fontWeight="bold" color="white" sx={{ fontSize: "120px", lineHeight: 1 }}>{stats.averageRating.toFixed(1)}</Typography>
+                        <Rating value={stats.averageRating} readOnly precision={0.5} emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} icon={<StarIcon style={{ color: '#FFD700' }} fontSize="inherit" />} sx={{ fontSize: 32, mb: 2 }} />
+                        <Typography variant="h4" fontWeight="bold" color="white" mb={1}>{stats.ratingText}</Typography>
+                        <Box display="flex" gap={1} flexWrap="wrap" justifyContent="center">
+                            {stats.topTags.map((tag, i) => (
+                                <Chip key={i} label={tag} size="small" sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: "bold", borderRadius: "15px" }}/>
+                            ))}
+                        </Box>
                     </Box>
-                    {/* MODIFICAÇÃO 2: Renderização condicional do Chip da campanha */}
-                    {canSeeDetailedReviews && (
-                      <Chip 
-                        label="Campanha Lançamento Iphone 17"
-                        size="small"
-                        sx={{
-                          bgcolor: "rgba(255, 255, 255, 0.89)",
-                          color: "#2d0069ff",
-                          fontWeight: "bold",
-                          fontSize: "11px"
-                        }}
-                      />
-                    )}
-                  </Box>
-
-                  <Box display="flex" gap={0.5} mb={2}>
-                    {[...Array(5)].map((_, i) => (
-                      <StarIcon
-                        key={i}
-                        sx={{
-                          color: "#FFD700",
-                          fontSize: 16,
-                        }}
-                      />
-                    ))}
-                    <Typography variant="body2" color="white" fontWeight="bold" ml={1}>
-                      5.0
-                    </Typography>
-                    <Box ml={2} display="flex" gap={1}>
-                      <Chip label="Proatividade" size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
-                      <Chip label="Profissional" size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
-                      <Chip label="Resultados" size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
+                    <Box flex={1.2}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}><Typography variant="h6" color="white">Mais Recentes</Typography></Box>
+                        {reviews.slice(0, 2).map((review) => (
+                            <Box key={review._id} mb={3} p={3} sx={{ backgroundColor: "rgba(255,255,255,0.08)", borderRadius: "15px", border: "1px solid rgba(255,255,255,0.1)" }}>
+                                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                                    <Box>
+                                        {/* Novo: "Campanha: [Nome da Campanha]" */}
+                                        {review.campaign?.title && (
+                                            <Typography variant="caption" color="rgba(255,255,255,0.7)" fontWeight="medium" mb={0.2} display="block">
+                                                Campanha: {review.campaign.title}
+                                            </Typography>
+                                        )}
+                                        <Typography variant="body1" color="white" fontWeight="bold" mb={0.5}>
+                                            {review.title}
+                                        </Typography>
+                                        <Typography variant="caption" color="rgba(255,255,255,0.6)">
+                                            {new Date(review.createdAt).toLocaleDateString('pt-BR')}
+                                        </Typography>
+                                    </Box>
+                                    {/* Adicionado um Box para envolver o Tooltip/Avatar e controlar o posicionamento */}
+                                    <Box sx={{ mt: review.campaign?.title ? 2.5 : 0 }}> {/* Ajuste de margem top se tiver o título da campanha */}
+                                        <Tooltip title={review.campaign?.title || 'Campanha'}>
+                                            <Avatar 
+                                                src={review.campaign?.logo}
+                                                sx={{ width: 32, height: 32 }}
+                                            >
+                                                {review.campaign?.title ? review.campaign.title.charAt(0).toUpperCase() : 'C'}
+                                            </Avatar>
+                                        </Tooltip>
+                                    </Box>
+                                </Box>
+                                <Box display="flex" alignItems="center" gap={0.5} mb={2}>
+                                    <Rating value={review.rating} readOnly size="small" emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} />
+                                    <Typography variant="body2" color="white" fontWeight="bold" ml={1}>{review.rating.toFixed(1)}</Typography>
+                                    <Box ml={2} display="flex" gap={1}>
+                                        {review.tags.slice(0, 3).map((tag, i) => (
+                                            <Chip key={i} label={tag} size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
+                                        ))}
+                                    </Box>
+                                </Box>
+                                {canSeeDetailedReviews ? (
+                                    <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>{review.comment || "Nenhum comentário adicional."}</Typography>
+                                ) : (
+                                    <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.</Typography>
+                                )}
+                            </Box>
+                        ))}
                     </Box>
-                  </Box>
-
-                  {/* MODIFICAÇÃO 3: Renderização condicional do texto da avaliação */}
-                  {canSeeDetailedReviews ? (
-                      <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>
-                        Trabalhar com o Gemaplys foi uma experiência extremamente positiva. Desde o briefing inicial até a publicação final, ele 
-                        demonstrou profissionalismo, criatividade e comprometimento com a entrega.
-                      </Typography>
-                  ) : (
-                      <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>
-                        O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.
-                      </Typography>
-                  )}
                 </Box>
-
-                {/* AVALIAÇÃO 2 */}
-                <Box p={3} sx={{
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                  borderRadius: "15px",
-                  border: "1px solid rgba(255,255,255,0.1)"
-                }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                    <Box>
-                      <Typography variant="body1" color="white" fontWeight="bold" mb={0.5}>
-                        Bom desempenho, mas com espaço para melhorias
-                      </Typography>
-                      <Typography variant="caption" color="rgba(255,255,255,0.6)">
-                        14/08/2025
-                      </Typography>
-                    </Box>
-                    {/* MODIFICAÇÃO 2: Renderização condicional do Chip da campanha */}
-                    {canSeeDetailedReviews && (
-                      <Chip 
-                        label="Campanha Antigos 2"
-                        size="small"
-                        sx={{
-                          bgcolor: "rgba(255, 152, 0, 0.2)",
-                          color: "#ff9800",
-                          fontSize: "11px"
-                        }}
-                      />
-                    )}
-                  </Box>
-                  <Box display="flex" gap={0.5} mb={2}>
-                    {[...Array(5)].map((_, i) => (
-                      <StarIcon
-                        key={i}
-                        sx={{
-                          color: i < 3 ? "#FFD700" : "rgba(255,255,255,0.3)",
-                          fontSize: 16,
-                        }}
-                      />
-                    ))}
-                    <Typography variant="body2" color="white" fontWeight="bold" ml={1}>
-                      3.5
-                    </Typography>
-                    <Box ml={2} display="flex" gap={1}>
-                      <Chip label="Indefinido" size="small" sx={{bgcolor: "rgba(255, 152, 0, 0.2)", color: "#ff9800", fontSize: "10px"}} />
-                      <Chip label="Carisma" size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
-                      <Chip label="Resultados" size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
-                    </Box>
-                  </Box>
-                  {/* MODIFICAÇÃO 3: Renderização condicional do texto da avaliação */}
-                  {canSeeDetailedReviews ? (
-                    <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>
-                      Gemaplys demonstrou carisma e capacidade de engajamento com seu público, características que agregaram valor à campanha...
-                    </Typography>
-                  ) : (
-                      <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>
-                        O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.
-                      </Typography>
-                  )}
-                </Box>
-              </Box>
-            </Box>
-          </Box>
-        );
+            )}
+        </Box>
+    );
 
 
  case 'Campanhas':
@@ -591,7 +527,7 @@ const {
     backgroundImageUrl: imagemFundo = '',
     social = {},
     // Adicionamos a avaliação aqui com um valor padrão
-    avaliacao = 4.5,
+    avaliacao = stats.averageRating,
     // Adicionamos os outros campos aqui também
     views = 150,
     seguidores = 80,

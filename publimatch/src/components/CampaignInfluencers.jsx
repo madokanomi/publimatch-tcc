@@ -25,10 +25,15 @@ const CampaignInfluencers = ({ campaign }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [reviewingInfluencer, setReviewingInfluencer] = useState(null);
+    
+    // ✨ NOVO: Estado para guardar os IDs dos influenciadores já avaliados.
+    // Usamos um Set para uma verificação de existência mais rápida (O(1)).
+    const [reviewedIds, setReviewedIds] = useState(new Set());
+
     const { user } = useAuth();
 
     useEffect(() => {
-        const fetchParticipants = async () => {
+        const fetchData = async () => {
             if (!campaign?._id || !user?.token) {
                 setLoading(false);
                 return;
@@ -36,13 +41,15 @@ const CampaignInfluencers = ({ campaign }) => {
             try {
                 setLoading(true);
                 const config = { headers: { Authorization: `Bearer ${user.token}` } };
-                const { data } = await axios.get(
-                    `http://localhost:5001/api/campaigns/${campaign._id}/participants`,
-                    config
-                );
+                
+                // ✨ Fazemos duas chamadas em paralelo para otimizar o carregamento ✨
+                const [participantsResponse, reviewedResponse] = await Promise.all([
+                    axios.get(`http://localhost:5001/api/campaigns/${campaign._id}/participants`, config),
+                    axios.get(`http://localhost:5001/api/reviews/campaign/${campaign._id}/my-reviews`, config)
+                ]);
 
-                // Augmenta os dados recebidos com os dados aleatórios necessários para a UI
-                const augmentedData = data.map(influencer => ({
+                // Processa a lista de participantes
+                const augmentedData = participantsResponse.data.map(influencer => ({
                     ...influencer,
                     randomStats: {
                         views: (Math.random() * (campaign.minViews / 100000 || 5) + 1).toFixed(1),
@@ -51,17 +58,20 @@ const CampaignInfluencers = ({ campaign }) => {
                         conversion: Math.floor(Math.random() * 50) + 40,
                     }
                 }));
-
                 setParticipants(augmentedData);
+
+                // ✨ Processa a lista de IDs de avaliados e guarda no estado
+                setReviewedIds(new Set(reviewedResponse.data));
+
             } catch (err) {
-                setError(err.response?.data?.message || "Erro ao buscar participantes.");
+                setError(err.response?.data?.message || "Erro ao buscar dados da campanha.");
                 console.error(err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchParticipants();
+        fetchData();
     }, [campaign, user]);
 
     const gridTemplate = "2.5fr 1.5fr 1.5fr 1fr 1.5fr 1fr";
@@ -74,7 +84,6 @@ const CampaignInfluencers = ({ campaign }) => {
                 influencer={reviewingInfluencer}
                 campaign={campaign}
                 onClose={() => setReviewingInfluencer(null)}
-                allInfluencers={participants} // Passa a lista de participantes para navegação
             />
         );
     }
@@ -89,25 +98,25 @@ const CampaignInfluencers = ({ campaign }) => {
     return (
         <Box
             sx={{
-                backgroundColor: "rgba(20, 1, 19, 0.6)",
-                p: 3, borderRadius: "12px", border: "1px solid rgba(255, 255, 255, 0.1)",
-                height: '100%', overflowY: 'auto',
+                backgroundColor: "rgba(20, 1, 19, 0.6)", p: 3, borderRadius: "12px",
+                border: "1px solid rgba(255, 255, 255, 0.1)", height: '100%', overflowY: 'auto',
                 "&::-webkit-scrollbar": { width: "8px" },
                 "&::-webkit-scrollbar-track": { background: "rgba(0, 0, 0, 0.2)", borderRadius: "10px" },
                 "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
                 "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "rgba(255, 255, 255, 0.5)" }
             }}
         >
+            {/* Cabeçalho da Tabela */}
             <Box
                 sx={{
-                    display: "grid", gridTemplateColumns: gridTemplate, gap: 2,
-                    py: 1.5, px: 2, alignItems: "center", color: "rgba(255,255,255,0.6)",
-                    fontWeight: "bold", textTransform: 'uppercase', fontSize: '0.8rem',
+                    display: "grid", gridTemplateColumns: gridTemplate, gap: 2, py: 1.5, px: 2,
+                    alignItems: "center", color: "rgba(255,255,255,0.6)", fontWeight: "bold",
+                    textTransform: 'uppercase', fontSize: '0.8rem',
                 }}
             >
                 <Typography variant="caption" fontWeight="bold">Nome</Typography>
-                <Typography variant="caption" fontWeight="bold">Visualizações atingidas</Typography>
-                <Typography variant="caption" fontWeight="bold">Publicações realizadas</Typography>
+                <Typography variant="caption" fontWeight="bold">Visualizações</Typography>
+                <Typography variant="caption" fontWeight="bold">Publicações</Typography>
                 <Typography variant="caption" fontWeight="bold">Redes Sociais</Typography>
                 <Typography variant="caption" fontWeight="bold">Realizado em</Typography>
                 <Typography variant="caption" fontWeight="bold">Conversão</Typography>
@@ -129,20 +138,33 @@ const CampaignInfluencers = ({ campaign }) => {
                                     <Avatar src={influencer.profileImageUrl} alt={influencer.name} sx={{ width: 48, height: 48, borderRadius: "12px" }} variant="rounded" />
                                     <Box>
                                         <Typography color="white" fontWeight="bold">{influencer.name}</Typography>
-                                        <Box 
-                                            onClick={() => setReviewingInfluencer(influencer)}
-                                            sx={{
-                                                display: 'inline-flex', alignItems: 'center', gap: 0.5,
-                                                backgroundColor: 'rgba(179, 105, 245, 0.15)', borderRadius: '6px',
-                                                px: 1, py: 0.25, mt: 0.5, cursor: 'pointer',
-                                                transition: 'background-color 0.3s',
-                                                '&:hover': { backgroundColor: 'rgba(179, 105, 245, 0.3)' }
-                                            }}>
-                                            <StarRounded sx={{ fontSize: '16px', color: 'white' }} />
-                                            <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>
-                                                Avaliar influenciador
-                                            </Typography>
-                                        </Box>
+                                        
+                                        {/* ✨ LÓGICA CONDICIONAL PARA O BOTÃO ✨ */}
+                                        {/* O botão só aparece se o ID do influencer NÃO estiver na lista de avaliados */}
+                                        {!reviewedIds.has(influencer._id) ? (
+                                            <Box 
+                                                onClick={() => setReviewingInfluencer(influencer)}
+                                                sx={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: 0.5,
+                                                    backgroundColor: 'rgba(179, 105, 245, 0.15)', borderRadius: '6px',
+                                                    px: 1, py: 0.25, mt: 0.5, cursor: 'pointer',
+                                                    transition: 'background-color 0.3s',
+                                                    '&:hover': { backgroundColor: 'rgba(179, 105, 245, 0.3)' }
+                                                }}>
+                                                <StarRounded sx={{ fontSize: '16px', color: 'white' }} />
+                                                <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>
+                                                    Avaliar influenciador
+                                                </Typography>
+                                            </Box>
+                                        ) : (
+                                            // Opcional: Mostrar um feedback de que já foi avaliado
+                                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25, mt: 0.5 }}>
+                                                <StarRounded sx={{ fontSize: '16px', color: 'rgb(255, 0, 212)' }} />
+                                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+                                                    Avaliado
+                                                </Typography>
+                                            </Box>
+                                        )}
                                     </Box>
                                 </Box>
 
