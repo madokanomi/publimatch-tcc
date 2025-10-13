@@ -1,12 +1,12 @@
 // src/components/CampaignsTable.jsx
 
-import React, { useState, useEffect } from 'react';
-import { 
-    Box, 
-    Typography, 
-    CircularProgress, 
-    Collapse, 
-    IconButton, 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    Box,
+    Typography,
+    CircularProgress,
+    Collapse,
+    IconButton,
     Divider,
     Dialog,
     DialogTitle,
@@ -14,13 +14,21 @@ import {
     DialogContentText,
     DialogActions,
     Button,
-    TextField
+    TextField,
+    TableSortLabel
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import CampaignRow from './CampaignRow';
 import axios from 'axios';
 import { useAuth } from '../auth/AuthContext';
+
+// Helper para obter um valor numérico para ordenação de pagamento
+const getSortablePayment = (campaign) => {
+    if (campaign.paymentType === 'Exato') return campaign.paymentValueExact || 0;
+    if (campaign.paymentType === 'Aberto') return campaign.paymentValueMin || 0;
+    return -1; // Coloca "A Combinar" no início ou fim
+};
 
 const CampaignsTable = () => {
     const [campaigns, setCampaigns] = useState([]);
@@ -29,6 +37,9 @@ const CampaignsTable = () => {
     const { user } = useAuth();
     const [showHidden, setShowHidden] = useState(false);
     
+    // Estado para controlar a ordenação
+    const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
+
     // --- Estados para o popup de OCULTAR ---
     const [hideDialogOpen, setHideDialogOpen] = useState(false);
     const [hideDialogContent, setHideDialogContent] = useState({ title: '', text: '' });
@@ -153,6 +164,40 @@ const CampaignsTable = () => {
         }
     }, [user]);
 
+    // Função para lidar com o clique no cabeçalho
+    const handleSort = (key) => {
+        const isAsc = sortConfig.key === key && sortConfig.direction === 'asc';
+        setSortConfig({ key, direction: isAsc ? 'desc' : 'asc' });
+    };
+
+    // Memoiza a lista de campanhas ordenadas
+    const sortedCampaigns = useMemo(() => {
+        let sortableItems = [...campaigns];
+        if (sortConfig.key !== null) {
+            sortableItems.sort((a, b) => {
+                let aValue, bValue;
+
+                // Atribui valores para comparação com base na chave
+                if (sortConfig.key === 'payment') {
+                    aValue = getSortablePayment(a);
+                    bValue = getSortablePayment(b);
+                } else {
+                    aValue = a[sortConfig.key];
+                    bValue = b[sortConfig.key];
+                }
+
+                // Lógica de comparação para diferentes tipos de dados
+                if (aValue === null || aValue === undefined) return 1;
+                if (bValue === null || bValue === undefined) return -1;
+                
+                if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [campaigns, sortConfig]);
+
     if (loading) {
         return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
     }
@@ -161,25 +206,43 @@ const CampaignsTable = () => {
     }
     
     const gridTemplate = '2fr 1fr 1.5fr 1.5fr 1fr 1fr 1fr';
-    const visibleCampaigns = campaigns.filter(c => c.state !== 'Hidden');
-    const hiddenCampaigns = campaigns.filter(c => c.state === 'Hidden');
+    const visibleCampaigns = sortedCampaigns.filter(c => c.state !== 'Hidden');
+    const hiddenCampaigns = sortedCampaigns.filter(c => c.state === 'Hidden');
+
+    const headers = [
+        { key: 'title', label: 'Campanha', align: 'left' },
+        { key: 'status', label: 'Status', align: 'center' },
+        { key: 'startDate', label: 'Duração', align: 'center' },
+        { key: 'payment', label: 'Pagamento', align: 'center' },
+        { key: 'applications', label: 'Inscrições', align: 'center' },
+        { key: 'privacy', label: 'Privacidade', align: 'center' },
+        { key: 'influencers', label: 'Influencers', align: 'center' }
+    ];
 
     return (
         <React.Fragment>
             <Box
                 sx={{
                     display: 'grid', gridTemplateColumns: gridTemplate, gap: 2, p: 2, pr: '96px',
-                    borderBottom: '1px solid rgba(255,255,255,0.2)', fontWeight: 'bold',
-                    fontSize: '0.9em', textTransform: 'uppercase',
+                    borderBottom: '1px solid rgba(255,255,255,0.2)',
+                    fontWeight: 'bold', fontSize: '0.9em', textTransform: 'uppercase',
                 }}
             >
-                <Typography>Campanha</Typography>
-                <Typography sx={{ textAlign: 'center' }}>Status</Typography>
-                <Typography sx={{ textAlign: 'center' }}>Duração</Typography>
-                <Typography sx={{ textAlign: 'center' }}>Pagamento</Typography>
-                <Typography sx={{ textAlign: 'center' }}>Inscrições</Typography>
-                <Typography sx={{ textAlign: 'center' }}>Privacidade</Typography>
-                <Typography sx={{ textAlign: 'center' }}>Influencers</Typography>
+                {headers.map((header) => (
+                    <TableSortLabel
+                        key={header.key}
+                        active={sortConfig.key === header.key}
+                        direction={sortConfig.key === header.key ? sortConfig.direction : 'asc'}
+                        onClick={() => handleSort(header.key)}
+                        sx={{
+                            color: 'white !important',
+                            '& .MuiTableSortLabel-icon': { color: 'white !important' },
+                            justifyContent: header.align === 'center' ? 'center' : 'flex-start'
+                        }}
+                    >
+                        {header.label}
+                    </TableSortLabel>
+                ))}
             </Box>
 
             <Box sx={{ mt: 2 }}>

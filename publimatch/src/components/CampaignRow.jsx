@@ -4,7 +4,7 @@ import React from 'react';
 import { Box, Typography, IconButton, Card, Tooltip } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import CloseIcon from '@mui/icons-material/Close';
+import FlagIcon from '@mui/icons-material/Flag'; // Ícone de bandeira importado
 import { useNavigate } from 'react-router-dom';
 
 const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState, onCancelCampaign }) => {
@@ -19,8 +19,8 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState, onCan
         switch (status?.toLowerCase()) {
             case "aberta": return "#A8E349";
             case "finalizada": return "#DF3A3A";
-            case "planejamento": return "#4dabf5";
-            case "cancelada": return "#DF3A3A"; // Cor para o status "Cancelada"
+            case "planejamento": return "#f5d44d";
+            case "cancelada": return "#DF3A3A";
             default: return "white";
         }
     };
@@ -45,6 +45,8 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState, onCan
         const date = new Date(dateString);
         return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
     };
+
+    const isTerminalStatus = ['Cancelada', 'Finalizada', 'Concluída'].includes(campaign.status);
 
     return (
         <Card
@@ -105,21 +107,25 @@ const CampaignRow = ({ campaign, gridTemplate, showActions, onToggleState, onCan
                                 onClick={(e) => handleActionClick(e, onCancelCampaign, campaign._id)}
                                 size="small"
                                 sx={{ 
-                                    bgcolor: "rgba(255,0,0,0.1)", 
-                                    color: "#ff6b6b", 
-                                    "&:hover": { bgcolor: "rgba(255,0,0,0.2)" },
+                                    // Cor de fundo igual ao botão de editar
+                                    bgcolor: "rgba(255,255,255,0.1)", 
+                                    // Cor do ícone (bandeira) definida como vermelha
+                                    color: "#DF3A3A", 
+                                    // Cor de fundo no hover igual ao botão de editar
+                                    "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
                                     width: 32,
                                     height: 32
                                 }}
                             >
-                                <CloseIcon fontSize="small" />
+                                {/* Ícone de bandeira substituindo o 'X' */}
+                                <FlagIcon fontSize="small" />
                             </IconButton>
                         </Tooltip>
                     )}
 
-                    {/* Botão de Ocultar para campanhas Canceladas */}
-                    {campaign.status === 'Cancelada' && (
-                         <Tooltip title="Ocultar Campanha">
+                    {/* Botão de Ocultar para campanhas Canceladas, Finalizadas e Concluídas */}
+                    {isTerminalStatus && (
+                        <Tooltip title="Ocultar Campanha">
                             <IconButton
                                 onClick={(e) => handleActionClick(e, onToggleState, campaign._id)}
                                 size="small"
