@@ -12,7 +12,13 @@ import {
   DialogActions,
   Button,
     CircularProgress,
+    List,
+    ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar 
 } from "@mui/material";
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -63,6 +69,9 @@ const ChatWindow = () => {
   const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
   const isMenuOpen = Boolean(anchorEl);
   const messagesEndRef = useRef(null);
+  const [agentModalOpen, setAgentModalOpen] = useState(false);
+  const [agentInfluencers, setAgentInfluencers] = useState([]);
+  const [modalLoading, setModalLoading] = useState(false);
 
   // ✅ EFEITO 1: Seleciona a conversa correta no Contexto quando a URL muda
  useEffect(() => {
@@ -133,6 +142,37 @@ const ChatWindow = () => {
     }
   };
 
+  const handleOpenAgentModal = async () => {
+    // 'otherUser' já está definido mais abaixo no seu código,
+    // mas vamos garantir que ele exista aqui.
+    const otherUser = selectedConversation.participants.find(p => p._id !== user?._id);
+    if (!otherUser) return;
+
+    setAgentModalOpen(true);
+    setModalLoading(true);
+    try {
+        // 1. Pega o token do usuário logado (necessário para a rota 'protect')
+        const userInfo = JSON.parse(sessionStorage.getItem('user'));
+        const token = userInfo ? userInfo.token : null;
+
+        // 2. Chama a NOVA API que criamos
+      const { data } = await axios.get(
+            `/api/influencers/agente/${otherUser._id}`, 
+            { headers: { Authorization: `Bearer ${token}` } }
+        );
+      setAgentInfluencers(data);
+    } catch (error) {
+      console.error("Erro ao buscar influenciadores do agente:", error);
+      setAgentInfluencers([]); // Limpa em caso de erro
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleCloseAgentModal = () => {
+    setAgentModalOpen(false);
+  };
+
   const handleGoBack = () => {
     setSelectedConversation(null); // Limpa o estado global ao sair
     navigate("/conversas");
@@ -171,6 +211,7 @@ const ChatWindow = () => {
     const otherUser = validParticipants.find(p => p._id !== user?._id);
   const initial = otherUser?.name ? otherUser.name[0].toUpperCase() : '?';
  const hasValidImage = otherUser?.profileImageUrl && otherUser.profileImageUrl !== "URL_DA_SUA_IMAGEM_PADRAO.png";
+    const showAgentButton = otherUser?.role !== 'AD_AGENT' && otherUser?.role !== 'INFLUENCER';
 
     return (
     <Box
@@ -235,6 +276,27 @@ const ChatWindow = () => {
           <Typography variant="h4" fontWeight="bold" color="white">
             {otherUser?.name}
           </Typography>
+
+            {showAgentButton && (
+            <IconButton
+              onClick={handleOpenAgentModal}
+              sx={{
+      color: 'white',
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      ml: 1,
+      '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.3)' },
+
+      // ✅ A MÁGICA ESTÁ AQUI:
+      width: '28px',       // Define uma largura fixa
+      height: '28px',      // Define uma altura fixa
+      padding: 0,          // Remove o padding interno
+      borderRadius: '50%'  // Garante a forma de círculo
+    }}
+  >
+    {/* Ajustamos o ícone para caber perfeitamente */}
+    <HelpOutlineIcon sx={{ fontSize: '18px' }} /> 
+  </IconButton>
+          )}
         </Box>
         <Box>
           <IconButton onClick={handleMenuClick} sx={{ color: "white" }}>
@@ -372,6 +434,60 @@ const ChatWindow = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+        {/* ✅ ADICIONE O NOVO MODAL (DIALOG) DO AGENTE */}
+      <Dialog
+        open={agentModalOpen}
+        onClose={handleCloseAgentModal}
+        sx={{ // ✅ 1. ESTILO IDÊNTICO AO DIÁLOGO DE EXCLUSÃO
+    "& .MuiPaper-root": {
+      backgroundColor: "rgba(255, 255, 255, 0.64)", // Corrigido
+      color: "#610069ff",                      // Mantido
+      backdropFilter: "blur(30px)",               // Corrigido
+      borderRadius: "20px",                     // Mantido
+      minWidth: "300px"                         // Mantido
+    },
+  }}
+>
+  <DialogTitle fontWeight="bold">
+    Influenciadores de {otherUser?.name}
+  </DialogTitle>
+  <DialogContent>
+    {modalLoading ? (
+      <Box display="flex" justifyContent="center" my={3}>
+        <CircularProgress color="inherit" />
+      </Box>
+    ) : (
+      <List>
+        {agentInfluencers.length > 0 ? (
+          agentInfluencers.map((influ) => (
+            <ListItem key={influ._id}>
+              <ListItemAvatar>
+                <Avatar src={influ.profileImageUrl} alt={influ.name}>
+                  {influ.name[0]}
+                </Avatar>
+              </ListItemAvatar>
+              {/* ✅ 2. COR DO TEXTO IDÊNTICA */}
+              <ListItemText primary={influ.name} sx={{color: "#4f4f4fff"}}/>
+            </ListItem>
+          ))
+        ) : (
+          /* ✅ 3. COR DO TEXTO IDÊNTICA */
+          <Typography sx={{ color: "#4f4f4fff", textAlign: 'center', p: 2 }}>
+            Este agente não gerencia influenciadores no momento.
+          </Typography>
+        )}
+      </List>
+    )}
+  </DialogContent>
+  <DialogActions>
+    {/* ✅ 4. COR DO BOTÃO IDÊNTICA */}
+    <Button onClick={handleCloseAgentModal} sx={{ color: "#540069ff" }}>
+      Fechar
+    </Button>
+  </DialogActions>
+</Dialog>
+
     </Box>
   );
 };

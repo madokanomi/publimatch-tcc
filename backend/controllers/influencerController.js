@@ -26,81 +26,95 @@ const uploadToCloudinary = (file) => {
 };
 
 export const registerInfluencer = asyncHandler(async (req, res) => {
-    const { 
-        exibitionName, realName, age, description, aboutMe, 
-        categories, social, wantsAccount, email 
-    } = req.body;
+    const { 
+        exibitionName, realName, age, description, aboutMe, 
+        categories, social, wantsAccount, email 
+    } = req.body;
 
-    if (!exibitionName || !realName) {
-        res.status(400);
-        throw new Error('Nome de exibição e nome real são obrigatórios.');
-    }
+    // Validações (como no original)
+    if (!exibitionName || !realName) {
+        res.status(400);
+        throw new Error('Nome de exibição e nome real são obrigatórios.');
+    }
 
-    if (wantsAccount === 'true' && email) {
-        const userExists = await User.findOne({ email });
-        if (userExists) {
-            res.status(409);
-            throw new Error('Este e-mail já está cadastrado na plataforma.');
-        }
-    }
+    // Verificação de email (como no original)
+    if (wantsAccount === 'true' && email) {
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            res.status(409);
+            throw new Error('Este e-mail já está cadastrado na plataforma.');
+        }
+    }
 
-    let profileImageUrl = '';
-    let backgroundImageUrl = '';
+    // Lógica de upload de imagens (como no original)
+    let profileImageUrl = '';
+    let backgroundImageUrl = '';
 
-    if (req.files) {
-      if (req.files.profileImage) {
-        const result = await uploadToCloudinary(req.files.profileImage[0]);
-        profileImageUrl = result.secure_url;
-      }
-      if (req.files.backgroundImage) {
-        const result = await uploadToCloudinary(req.files.backgroundImage[0]);
-        backgroundImageUrl = result.secure_url;
-      }
-    }
-    
-    const influencer = await Influencer.create({
-        name: exibitionName,
-        realName,
-        age,
-        description,
-        aboutMe,
-        niches: typeof categories === 'string' ? categories.split(',') : categories,
-        social: typeof social === 'string' ? JSON.parse(social) : social, 
-        agent: req.user._id,
-        profileImageUrl,
-        backgroundImageUrl,
-    });
+    if (req.files) {
+      if (req.files.profileImage) {
+        const result = await uploadToCloudinary(req.files.profileImage[0]);
+        profileImageUrl = result.secure_url;
+      }
+      if (req.files.backgroundImage) {
+        const result = await uploadToCloudinary(req.files.backgroundImage[0]);
+        backgroundImageUrl = result.secure_url;
+      }
+    }
+    
+    // Criação do perfil do influenciador (como no original)
+    const influencer = await Influencer.create({
+        name: exibitionName,
+        realName,
+        age,
+        description,
+        aboutMe,
+        niches: typeof categories === 'string' ? categories.split(',') : categories,
+        social: typeof social === 'string' ? JSON.parse(social) : social, 
+        agent: req.user._id,
+        profileImageUrl,
+        backgroundImageUrl,
+    });
 
-    if (!influencer) {
-        res.status(400);
-        throw new Error('Dados inválidos, não foi possível criar o perfil do influenciador.');
-    }
+    if (!influencer) {
+        res.status(400);
+        throw new Error('Dados inválidos, não foi possível criar o perfil do influenciador.');
+    }
 
-    if (wantsAccount === 'true' && email) {
-        const user = await User.create({
-            name: realName,
-            email: email,
-            password: crypto.randomBytes(20).toString('hex'), 
-            role: 'INFLUENCER',
-        });
-        
-        const setupToken = user.getPasswordSetupToken();
-        await user.save({ validateBeforeSave: false });
-        influencer.userAccount = user._id;
-        await influencer.save();
-        const setupUrl = `${process.env.FRONTEND_URL}/criar-senha/${setupToken}`;
-        try {
-            await sendWelcomeEmail(user.email, user.name, setupUrl);
-        } catch (error) {
-            console.error("Falha CRÍTICA ao enviar e-mail de boas-vindas:", error);
-        }
-    }
+    // --- ⚠️ AQUI ESTÁ A MUDANÇA ---
+    if (wantsAccount === 'true' && email) {
+        
+        // 1. Cria o usuário com a senha padrão que você definiu
+        const user = await User.create({
+            name: realName,
+            email: email,
+            password: 'senhaForte123', // ✅ SENHA PADRÃO APLICADA
+            role: 'INFLUENCER',
+        });
+        
+        // 2. Vincula a conta de usuário ao perfil (como no original)
+        // O hook 'pre-save' no userModel vai hashear a senha automaticamente
+        influencer.userAccount = user._id;
+        await influencer.save();
 
-    res.status(201).json({
-        _id: influencer._id,
-        name: influencer.name,
-        message: "Influenciador cadastrado com sucesso!"
-    });
+        // 3. Lógica de enviar email e token foi REMOVIDA
+        /*             const setupToken = user.getPasswordSetupToken();
+            await user.save({ validateBeforeSave: false });
+            const setupUrl = `${process.env.FRONTEND_URL}/criar-senha/${setupToken}`;
+            try {
+                await sendWelcomeEmail(user.email, user.name, setupUrl);
+            } catch (error) {
+                console.error("Falha CRÍTICA ao enviar e-mail de boas-vindas:", error);
+            }
+        */
+    }
+    // --- FIM DA MUDANÇA ---
+
+    // Resposta final (como no original)
+    res.status(201).json({
+        _id: influencer._id,
+        name: influencer.name,
+        message: "Influenciador cadastrado com sucesso!"
+    });
 });
 
 export const getMyInfluencers = asyncHandler(async (req, res) => {
@@ -283,7 +297,7 @@ export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
 // @access  Privado (AD_AGENT)
 export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     const campaign = await Campaign.findById(req.params.id)
-        .populate('participatingInfluencers', 'name email profileImageUrl'); // Popula os dados dos usuários
+        .populate('participatingInfluencers', 'name email profileImageUrl agent'); // Popula os dados dos usuários
 
     if (!campaign) {
         res.status(404);
@@ -297,4 +311,19 @@ export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     }
 
     res.status(200).json(campaign.participatingInfluencers);
+});
+
+export const getInfluencersByAgent = asyncHandler(async (req, res) => {
+    // Pega o ID do agente a partir do parâmetro da URL
+    const { agentId } = req.params;
+
+    // Busca todos os influenciadores onde o campo 'agent' é igual ao agentId
+    const influencers = await Influencer.find({ agent: agentId })
+        .select('name profileImageUrl'); // Seleciona apenas os campos necessários para a lista
+
+    if (influencers) {
+        res.status(200).json(influencers);
+    } else {
+        res.status(404).json({ message: 'Nenhum influenciador encontrado para este agente.' });
+    }
 });

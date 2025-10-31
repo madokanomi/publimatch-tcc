@@ -9,7 +9,8 @@ import {
     updateInfluencer, // ✅ 1. IMPORTAR A NOVA FUNÇÃO DE UPDATE
        getPublicInfluencerProfile,
       getAllInfluencers,
-       getInfluencerCampaigns
+       getInfluencerCampaigns,
+       getInfluencersByAgent
 } from '../controllers/influencerController.js';
 
 const router = express.Router();
@@ -54,5 +55,8 @@ router.route('/:id')
 
     
     router.route('/public/:id').get(getPublicInfluencerProfile);
+
+    router.route('/agente/:agentId')
+    .get(protect, getInfluencersByAgent);
     
 export default router;

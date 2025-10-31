@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
-    Box, Typography, Avatar, LinearProgress, CircularProgress, Tooltip 
+    Box, Typography, Avatar, LinearProgress, CircularProgress, Tooltip, IconButton
 } from "@mui/material";
-import { Instagram, YouTube, Twitter, StarRounded } from "@mui/icons-material";
+import { Instagram, YouTube, Twitter, StarRounded, Chat as ChatIcon } from "@mui/icons-material";
 import { FaTwitch, FaTiktok } from 'react-icons/fa';
 import { useAuth } from "../auth/AuthContext";
 import axios from "axios";
 import ReviewInfluencer from './ReviewInfluencer';
+import { useConversation } from '../scenes/chat/ConversationContext';
 
 const SocialIcon = ({ network }) => {
     const iconStyle = { color: "rgba(255,255,255,0.7)", fontSize: '20px' };
@@ -31,6 +33,9 @@ const CampaignInfluencers = ({ campaign }) => {
     const [reviewedIds, setReviewedIds] = useState(new Set());
 
     const { user } = useAuth();
+    const navigate = useNavigate();
+
+    const { setSelectedConversation, setConversations, conversations } = useConversation();
 
     useEffect(() => {
         const fetchData = async () => {
@@ -73,6 +78,42 @@ const CampaignInfluencers = ({ campaign }) => {
 
         fetchData();
     }, [campaign, user]);
+
+    const handleStartChat = async (agentId) => {
+        // 1. Impede que o AD_AGENT (você) inicie um chat consigo mesmo
+        if (agentId === user._id) {
+            console.warn("Você não pode iniciar um chat consigo mesmo.");
+            return;
+        }
+
+        try {
+            // 2. Pega o token para a requisição
+            const config = {
+                headers: { Authorization: `Bearer ${user.token}` },
+            };
+
+            // 3. Usa a rota 'ensure' e o body 'userId' (como no seu exemplo)
+            const { data: conversationData } = await axios.post(
+                `http://localhost:5001/api/chat/ensure`, 
+                { userId: agentId }, // O corpo da requisição com o ID do agente
+                config
+            );
+
+            // 4. Atualiza o Contexto global do chat (como no seu exemplo)
+            const conversationExists = conversations.some(c => c._id === conversationData._id);
+            if (!conversationExists) {
+                setConversations(prevConvos => [conversationData, ...prevConvos]);
+            }
+            setSelectedConversation(conversationData);
+
+            // 5. Navega para a página de conversa (com a URL singular 'conversa' do seu exemplo)
+            navigate(`/conversa/${conversationData._id}`);
+
+        } catch (error) {
+            console.error("Erro ao garantir ou criar a conversa:", error);
+            // Você pode adicionar um snackbar de erro aqui, se quiser
+        }
+    };
 
     const gridTemplate = "2.5fr 1.5fr 1.5fr 1fr 1.5fr 1fr";
     const primaryPink = "rgb(255, 0, 212)"; 
@@ -176,6 +217,27 @@ const CampaignInfluencers = ({ campaign }) => {
                                 <Typography color="white" fontWeight="bold">{influencer.randomStats.platform}</Typography>
                                 <Typography color={primaryPink} fontWeight="bold">{influencer.randomStats.conversion}%</Typography>
                             </Box>
+
+                            <IconButton
+                              onClick={() => handleStartChat(influencer.agent)}
+                              disabled={influencer.agent === user._id}
+                              sx={{
+                                position: 'absolute',
+                                top: '50%',
+                                  right: '16px',
+                                transform: 'translateY(-50%)',
+                                  color: 'rgba(255,255,255,0.7)',
+                                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
+                                  '&.Mui-disabled': { color: 'rgba(255,255,255,0.2)' },
+                                width: '36px',
+                                  height: '36px',
+                                  padding: 0,
+                                  borderRadius: '50%'
+                              }}
+                            >
+                              <ChatIcon sx={{ fontSize: '20px' }} /> 
+                            </IconButton>
+
                             <LinearProgress variant="determinate" value={influencer.randomStats.conversion} sx={{
                                 position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px',
                                 backgroundColor: lightPinkBg,
