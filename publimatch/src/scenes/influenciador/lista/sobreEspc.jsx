@@ -323,18 +323,23 @@ const Sobrespec = () => {
                         />
                     </motion.div>
                 );
-            case "Estatísticas":
-                return (
-                    <motion.div
-                        key="estatisticas"
-                        variants={tabContentVariant}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
-                    >
-                        <Estatisticas />
-                    </motion.div>
-                );
+    case "Estatísticas":
+    return (
+        <motion.div
+            key="estatisticas"
+            variants={tabContentVariant}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+        >
+        
+<Estatisticas 
+    youtubeData={influencer.youtubeStats} 
+    instagramData={influencer.instagramStats} // <--- ADICIONE ESTA LINHA
+    socialLinks={influencer.social}
+/>
+        </motion.div>
+    );
             default:
                 return null;
         }

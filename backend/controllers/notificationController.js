@@ -12,20 +12,18 @@ export const getNotifications = async (req, res) => {
             .populate('sender', 'name profileImageUrl')
             .populate({
                 path: 'campaign',
-                select: 'logo' // Assumindo que o campo no model Campaign é 'logo'
+                select: 'logo' 
             })
-            // =========================================================================
-            // ✅ CORREÇÃO PRINCIPAL AQUI: Populando o convite e o influenciador
             .populate({
-                path: 'entityId',   // 1. Popula o campo 'entityId' com os dados do Convite
+                path: 'entityId',   
                 populate: {
-                    path: 'influencer' // 2. Dentro do Convite, popula os dados do Influenciador
+                    path: 'influencer' 
                 }
             })
             // =========================================================================
             .sort({ createdAt: -1 });
 
-        // Mapeia os resultados para o frontend
+
         const formattedNotifications = notificationsFromDB.map(notif => ({
             _id: notif._id,
             title: notif.title,
@@ -37,8 +35,6 @@ export const getNotifications = async (req, res) => {
             senderAvatar: notif.sender ? notif.sender.profileImageUrl : 'default_avatar_url',
             logo: notif.campaign ? notif.campaign.logo : null,
 
-            // ✅ LINHA ADICIONADA: Garante que o objeto completo do convite
-            //    (com o influenciador populado) seja enviado ao frontend.
             entityId: notif.entityId 
         }));
 

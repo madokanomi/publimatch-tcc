@@ -7,6 +7,9 @@ import cloudinary from '../config/cloudinaryConfig.js';
 import Invite from '../models/inviteModel.js';
 import Campaign from '../models/campaignModel.js';
 import Application from '../models/applicationModel.js';
+import { getYoutubeStats } from '../config/youtubeHelper.js';
+import { getInstagramStats } from '../config/instagramHelper.js';
+
 
 const uploadToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -161,33 +164,55 @@ export const deleteInfluencer = asyncHandler(async (req, res) => {
 });
 
 export const getInfluencerById = asyncHandler(async (req, res) => {
-    // ✅ ESSENCIAL: Mantenha o .populate() para buscar os dados do agente.
-    const influencer = await Influencer.findById(req.params.id).populate('agent', 'name');
+    const influencer = await Influencer.findById(req.params.id).populate('agent', 'name');
 
-    if (!influencer) {
-        res.status(404);
-        throw new Error('Influenciador não encontrado');
-    }
+    if (!influencer) {
+        res.status(404);
+        throw new Error('Influenciador não encontrado');
+    }
 
-    // --- LÓGICA DE PERMISSÃO ---
+    const isAdmin = req.user.role === 'ADMIN';
+    const isOwnerAgent = influencer.agent._id.toString() === req.user._id.toString();
+    const isTheInfluencer = influencer.userAccount ? influencer.userAccount.toString() === req.user._id.toString() : false;
+    const isAdAgent = req.user.role === 'AD_AGENT';
 
-    // Verifica as permissões de "proprietário" do perfil
-    const isAdmin = req.user.role === 'ADMIN';
-    // Como usamos .populate(), 'influencer.agent' é um objeto. Acessamos o _id dentro dele.
-    const isOwnerAgent = influencer.agent._id.toString() === req.user._id.toString();
-    const isTheInfluencer = influencer.userAccount ? influencer.userAccount.toString() === req.user._id.toString() : false;
-    
-    // Adiciona a verificação para o Agente de Publicidade
-    const isAdAgent = req.user.role === 'AD_AGENT';
+    if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
+        
+        // --- BUSCA DE DADOS EXTERNOS ---
+        let youtubePromise = Promise.resolve(null);
+        let instagramPromise = Promise.resolve(null);
 
-    // A condição final que permite o acesso
-    if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
-        res.json(influencer);
-    } else {
-        // Se nenhuma das condições for atendida, o acesso é negado
-        res.status(403);
-        throw new Error('Você não tem permissão para acessar este perfil.');
-    }
+        // Prepara Promises se existirem links
+        if (influencer.social?.youtube) {
+            youtubePromise = getYoutubeStats(influencer.social.youtube);
+        }
+        if (influencer.social?.instagram) {
+            instagramPromise = getInstagramStats(influencer.social.instagram);
+        }
+
+        // Executa em paralelo (uma não trava a outra)
+        const [youtubeResult, instagramResult] = await Promise.allSettled([
+            youtubePromise,
+            instagramPromise
+        ]);
+
+        const responseData = influencer.toObject();
+
+        // Anexa resultados se deram certo (status 'fulfilled')
+        if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
+            responseData.youtubeStats = youtubeResult.value;
+        }
+        
+        if (instagramResult.status === 'fulfilled' && instagramResult.value) {
+            responseData.instagramStats = instagramResult.value;
+        }
+
+        res.json(responseData);
+
+    } else {
+        res.status(403);
+        throw new Error('Você não tem permissão para acessar este perfil.');
+    }
 });
 
 export const updateInfluencer = asyncHandler(async (req, res) => {

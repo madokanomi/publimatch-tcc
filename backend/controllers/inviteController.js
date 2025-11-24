@@ -26,8 +26,6 @@ export const createInvite = async (req, res) => {
 
         const newInvite = new Invite({
             campaign: campaignId,
-            // ✅ CORREÇÃO: Usamos o 'influencerId' diretamente,
-            // pois o schema agora espera um ID de Influenciador.
             influencer: influencerId,
             adAgent: adAgentId,
         });

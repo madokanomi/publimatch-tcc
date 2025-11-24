@@ -12,9 +12,7 @@ import CampaignIcon from '@mui/icons-material/Campaign';
 import axios from "axios";
 import { useState, useEffect } from "react";
 import '../../index.css'; 
-import { useAuth } from '../../auth/AuthContext.jsx'; // Certifique-se que o caminho está correto
-
-// ... (ROLES, mockUsers, e dashboardTexts continuam os mesmos) ...
+import { useAuth } from '../../auth/AuthContext.jsx'; 
 
 export const ROLES = {
   AD_AGENT: 'AGENTE_PUBLICIDADE',
@@ -46,12 +44,12 @@ const Dashboard = () => {
     const colors = tokens(theme.palette.mode);
     const { user } = useAuth();
     
-    // Seus estados para armazenar os dados da API
+    
     const [stats, setStats] = useState({});
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // useEffect busca os dados assim que o componente é montado
+
     useEffect(() => {
         const fetchData = async () => {
             if (user && user.token) {
@@ -60,7 +58,6 @@ const Dashboard = () => {
                         headers: { Authorization: `Bearer ${user.token}` },
                     };
                     
-                    // Busca estatísticas e campanhas em paralelo para mais eficiência
                     const [statsResponse, campaignsResponse] = await Promise.all([
                         axios.get('http://localhost:5001/api/dashboard/stats', config),
                         axios.get('http://localhost:5001/api/campaigns', config)
@@ -74,14 +71,12 @@ const Dashboard = () => {
                     setLoading(false);
                 }
             } else {
-                // Caso não haja usuário, para de carregar
                 setLoading(false);
             }
         };
         fetchData();
-    }, [user]); // A dependência [user] garante que a busca ocorra quando o usuário logar
-
-    // Mostra uma mensagem de "Carregando..." enquanto a API não responde
+    }, [user]);
+    
     if (loading) {
            <Box ml="25px" p={2}>
             {/* Esqueleto do Header */}
@@ -104,7 +99,7 @@ const Dashboard = () => {
         </Box>
     }
     
-    // Se não houver usuário após o carregamento, pode mostrar uma mensagem ou redirecionar
+   
     if (!user) {
         return <Typography sx={{ padding: "20px" }}>Faça login para ver o dashboard.</Typography>;
     }
@@ -139,11 +134,10 @@ const Dashboard = () => {
        <Fade in={true} timeout={1000}>
         <Box ml="25px">
             <Box display="flex" justifyContent="space-between" alignItems="center">
-                {/* CORREÇÃO 3: Usar user.username */}
                 <Header title={`Bem Vindo, ${user.name}!`} subtitle="Dashboard" />
             </Box>
 
-            {/* O restante do código não precisa de alterações */}
+        
             <Box 
                 height="calc(100vh - 120px)"
                 overflow="auto"
@@ -154,7 +148,7 @@ const Dashboard = () => {
         "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
         "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)" },}}
             >
-                {/* ... (todo o seu JSX de grid e charts) ... */}
+               
                  { /* GRID & CHARTS */}
         <Box display="grid" transition="all 0.3s ease-in-out" gridTemplateColumns="repeat(12, 1fr)" gap="20px"
             gridTemplateRows="140px 2% 500px auto" sx={{  willChange: "width",}}>
