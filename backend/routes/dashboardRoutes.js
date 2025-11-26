@@ -1,11 +1,11 @@
-// routes/dashboard.routes.js
 import express from 'express';
 import { protect } from '../middleware/authMiddleware.js';
-import { getDashboardStats } from '../controllers/dashboardControllers.js';
+import { getDashboardStats, getBarChartData, getLineChartData } from '../controllers/dashboardControllers.js';
 
 const router = express.Router();
 
-// This route is protected and will fetch the stats
 router.get('/stats', protect, getDashboardStats);
+router.get('/bar-chart', protect, getBarChartData);   // <--- Nova Rota
+router.get('/line-chart', protect, getLineChartData); // <--- Nova Rota
 
 export default router;

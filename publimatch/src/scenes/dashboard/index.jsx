@@ -1,6 +1,6 @@
 import Header from "../../components/Header.jsx";
-import {useTheme, Box, Typography, Slide, Fade, CircularProgress, Skeleton} from "@mui/material";
-import {tokens} from "../../theme.js";
+import { useTheme, Box, Typography, Slide, Fade, CircularProgress, Skeleton } from "@mui/material";
+import { tokens } from "../../theme.js";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";  
 import LineChart from "../../components/LineChart.jsx";
@@ -9,64 +9,101 @@ import StatBox from "../../components/StatBox.jsx";
 import { DataGrid } from "@mui/x-data-grid";
 import AdsClickIcon from '@mui/icons-material/AdsClick';
 import CampaignIcon from '@mui/icons-material/Campaign';
+import GroupIcon from '@mui/icons-material/Group';
+import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import axios from "axios";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import '../../index.css'; 
 import { useAuth } from '../../auth/AuthContext.jsx'; 
+import PublicIcon from '@mui/icons-material/Public'; // <--- Adicione este import lá em cima junto com os outros ícones
 
 export const ROLES = {
-  AD_AGENT: 'AGENTE_PUBLICIDADE',
-  INFLUENCER_AGENT: 'AGENTE_INFLUENCIADOR',
-  INFLUENCER: 'INFLUENCIADOR',
+  AD_AGENT: 'AD_AGENT',
+  INFLUENCER_AGENT: 'INFLUENCER_AGENT',
+  INFLUENCER: 'INFLUENCER',
 };
 
-export const mockUsers = [
-  { id: 1, email: 'publicidade@email.com', password: 'password123', username: 'Agente de Publicidade', role: ROLES.AD_AGENT },
-  { id: 2, email: 'agenteinflu@email.com', password: 'password123', username: 'Agente do Influenciador', role: ROLES.INFLUENCER_AGENT },
-  { id: 3, email: 'influenciador@email.com', password: 'password123', username: 'O Influenciador', role: ROLES.INFLUENCER },
-];
-
-const dashboardTexts = {
+// Configuração visual dos Cards baseada no Role
+const dashboardConfig = {
   [ROLES.AD_AGENT]: {
-    stat1_subtitle: "Campanhas Ativas", stat1_increase: "+14% que o mês passado", stat2_subtitle: "Vendas Totais", stat3_subtitle: "Candidatura de influenciadores", stat4_subtitle: "Conversão de cliques", table_title: "Campanhas"
+    stat1: { subtitle: "Campanhas Ativas", icon: <CampaignIcon sx={{color:"white", fontSize: "26px"}} /> },
+    stat2: { subtitle: "Investimento Previsto", icon: <AttachMoneyIcon sx={{color:"white", fontSize: "26px"}} /> },
+    stat3: { subtitle: "Candidaturas Pendentes", icon: <PersonAddIcon sx={{color:"white", fontSize: "26px"}} /> },
+    stat4: { subtitle: "Influenciadores Contratados", icon: <GroupIcon sx={{color:"white", fontSize: "26px"}} /> },
+    table_title: "Gerenciamento de Campanhas",
+    stat1_increase: "+5% este mês"
   },
-  [ROLES.INFLUENCER_AGENT]: {
-    stat1_subtitle: "Colaborações Gerenciadas", stat1_increase: "+14% que o último mês", stat2_subtitle: "Receita Total Gerada", stat3_subtitle: "Oportunidades de Parceria", stat4_subtitle: "Performance de Engajamento", table_title: "Projetos dos Influenciadores"
+[ROLES.INFLUENCER_AGENT]: {
+    stat1: { subtitle: "Influenciadores Agenciados", icon: <GroupIcon sx={{color:"white", fontSize: "26px"}} /> },
+    
+    // 👇 AQUI A MUDANÇA
+    stat2: { subtitle: "Alcance Total (Seguidores)", icon: <PublicIcon sx={{color:"white", fontSize: "26px"}} /> },
+    
+    stat3: { subtitle: "Convites Pendentes", icon: <AssignmentIndIcon sx={{color:"white", fontSize: "26px"}} /> },
+    stat4: { subtitle: "Campanhas Concluídas", icon: <EmojiEventsIcon sx={{color:"white", fontSize: "26px"}} /> },
+    table_title: "Performance dos Agenciados",
+    stat1_increase: "+2 novos"
   },
   [ROLES.INFLUENCER]: {
-    stat1_subtitle: "Meus Projetos Atuais", stat1_increase: "+14% em relação ao mês passado", stat2_subtitle: "Meus Ganhos Totais", stat3_subtitle: "Novos Convites e Propostas", stat4_subtitle: "Desempenho dos Meus Links", table_title: "Minhas Colaborações"
+    stat1: { subtitle: "Jobs em Andamento", icon: <AdsClickIcon sx={{color:"white", fontSize: "26px"}} /> },
+    stat2: { subtitle: "Meus Ganhos", icon: <PointOfSaleIcon sx={{color:"white", fontSize: "26px"}} /> },
+    stat3: { subtitle: "Propostas Recebidas", icon: <CampaignIcon sx={{color:"white", fontSize: "26px"}} /> },
+    stat4: { subtitle: "Alcance Total", icon: <GroupIcon sx={{color:"white", fontSize: "26px"}} /> },
+    table_title: "Minhas Candidaturas",
+    stat1_increase: "+12% engajamento"
   }
 };
-
 
 const Dashboard = () => {
     const theme = useTheme();
     const colors = tokens(theme.palette.mode);
     const { user } = useAuth();
     
-    
-    const [stats, setStats] = useState({});
-    const [campaigns, setCampaigns] = useState([]);
+    const [stats, setStats] = useState({ stat1: 0, stat2: 0, stat3: 0, stat4: 0 });
+    const [tableData, setTableData] = useState([]);
     const [loading, setLoading] = useState(true);
-
 
     useEffect(() => {
         const fetchData = async () => {
             if (user && user.token) {
-                try {
-                    const config = {
-                        headers: { Authorization: `Bearer ${user.token}` },
-                    };
-                    
-                    const [statsResponse, campaignsResponse] = await Promise.all([
-                        axios.get('http://localhost:5001/api/dashboard/stats', config),
-                        axios.get('http://localhost:5001/api/campaigns', config)
-                    ]);
+                // 1. Configuração do Header
+                const config = {
+                    headers: { Authorization: `Bearer ${user.token}` },
+                };
 
+                // 2. Busca os DADOS DOS CARDS (Stats)
+                // Fazemos essa busca separado para garantir que os cards carreguem mesmo se a tabela falhar
+                try {
+                    console.log("Buscando Stats...");
+                    const statsResponse = await axios.get('http://localhost:5001/api/dashboard/stats', config);
+                    console.log("Stats Recebidos no Front:", statsResponse.data);
                     setStats(statsResponse.data);
-                    setCampaigns(campaignsResponse.data);
                 } catch (error) {
-                    console.error("Erro ao buscar dados do dashboard:", error);
+                    console.error("❌ Erro ao buscar Stats:", error);
+                }
+
+                // 3. Busca os DADOS DA TABELA (Grid)
+                try {
+                    let listEndpoint = 'http://localhost:5001/api/campaigns'; // Default
+
+                    if (user.role === ROLES.INFLUENCER) {
+                        listEndpoint = 'http://localhost:5001/api/applications'; 
+                    } else if (user.role === ROLES.INFLUENCER_AGENT) {
+                        listEndpoint = 'http://localhost:5001/api/invites'; 
+                    }
+
+                    console.log("Buscando Tabela em:", listEndpoint);
+                    const listResponse = await axios.get(listEndpoint, config);
+                    console.log("Tabela Recebida:", listResponse.data);
+                    
+                    // Garante que seja um array
+                    const rows = Array.isArray(listResponse.data) ? listResponse.data : [];
+                    setTableData(rows);
+
+                } catch (error) {
+                    console.error("❌ Erro ao buscar Tabela:", error);
                 } finally {
                     setLoading(false);
                 }
@@ -74,62 +111,150 @@ const Dashboard = () => {
                 setLoading(false);
             }
         };
+
         fetchData();
     }, [user]);
     
+    // Definição dinâmica das colunas baseada no Role
+    const columns = useMemo(() => {
+        const role = user?.role || ROLES.AD_AGENT;
+
+        const renderStatus = (params) => {
+            const value = params.value || "";
+            let color = "white";
+            const s = value.toString().toLowerCase();
+            
+            if(s === "aberta" || s === "ativa" || s === "aprovada" || s === "accepted") color = "#61E5AC"; 
+            else if(s === "privada" || s === "pendente" || s === "pending") color = "#ea099fff"; 
+            else if(s === "finalizada" || s === "cancelada" || s === "rejeitada" || s === "rejected") color = "#ff4d4d"; 
+            else if(s === "planejamento") color = "orange";
+            
+            return <span style={{ color, fontWeight:"bold", textTransform: "capitalize" }}>{value}</span>;
+        };
+
+        const renderDate = (params) => params.value ? new Date(params.value).toLocaleDateString('pt-BR') : "-";
+
+        // --- COLUNAS PARA AGÊNCIA (Model: Campaign) ---
+        if (role === ROLES.AD_AGENT) {
+            return [
+                { field: "title", headerName: "Campanha", flex: 1 },
+                { field: "status", headerName: "Status", flex: 0.8, renderCell: renderStatus },
+                { field: "startDate", headerName: "Início", flex: 0.8, renderCell: renderDate },
+                { field: "brandName", headerName: "Marca", flex: 1 },
+                { 
+                    field: "applications", 
+                    headerName: "Candidatos", 
+                    flex: 0.5, 
+                    align: "center", 
+                    headerAlign: "center",
+                    valueGetter: (params) => {
+                        // Tratamento defensivo para evitar crash
+                        if (Array.isArray(params.row.applications)) return params.row.applications.length;
+                        return params.row.applications || 0;
+                    }
+                },
+                { 
+                    field: "paymentType", 
+                    headerName: "Investimento", 
+                    flex: 1,
+                    renderCell: ({ row }) => row.paymentType === 'Exato' ? `R$ ${row.paymentValueExact}` : row.paymentType
+                }
+            ];
+        }
+
+        // --- COLUNAS PARA INFLUENCIADOR (Model: Application populates Campaign) ---
+        if (role === ROLES.INFLUENCER) {
+            return [
+                { 
+                    field: "campaignTitle", 
+                    headerName: "Campanha", 
+                    flex: 1,
+                    valueGetter: (params) => params.row.campaign?.title || "Removida"
+                },
+                { 
+                    field: "brandName", 
+                    headerName: "Marca", 
+                    flex: 1,
+                    valueGetter: (params) => params.row.campaign?.brandName || "-"
+                },
+                { field: "status", headerName: "Status", flex: 0.8, renderCell: renderStatus },
+                { 
+                    field: "paymentValueExact", 
+                    headerName: "Cachê", 
+                    flex: 0.8,
+                    renderCell: (params) => {
+                        const camp = params.row.campaign;
+                        if (!camp) return "-";
+                        if (camp.paymentType === 'Permuta') return "Permuta";
+                        return camp.paymentValueExact ? `R$ ${camp.paymentValueExact}` : "A negociar";
+                    }
+                },
+                { field: "createdAt", headerName: "Data Candidatura", flex: 0.8, renderCell: renderDate }
+            ];
+        }
+
+        // --- COLUNAS PARA AGENTE DE INFLUENCER (Model: Invite populates Campaign & Influencer) ---
+        if (role === ROLES.INFLUENCER_AGENT) {
+            return [
+                { 
+                    field: "campaignTitle", 
+                    headerName: "Campanha", 
+                    flex: 1,
+                    valueGetter: (params) => params.row.campaign?.title || "-"
+                },
+                { 
+                    field: "influencerName", 
+                    headerName: "Influenciador", 
+                    flex: 1,
+                    valueGetter: (params) => params.row.influencer?.name || "-"
+                },
+                { field: "status", headerName: "Status Convite", flex: 0.8, renderCell: renderStatus },
+                { 
+                    field: "brandName", 
+                    headerName: "Marca", 
+                    flex: 1,
+                    valueGetter: (params) => params.row.campaign?.brandName || "-"
+                },
+                { 
+                    field: "commission", 
+                    headerName: "Comissão (20%)", 
+                    flex: 0.7,
+                    renderCell: (params) => {
+                        const val = params.row.campaign?.paymentValueExact;
+                        return val ? `R$ ${(val * 0.2).toFixed(2)}` : "-";
+                    }
+                }
+            ];
+        }
+
+        return [];
+    }, [user]);
+
     if (loading) {
+           return (
            <Box ml="25px" p={2}>
-            {/* Esqueleto do Header */}
             <Skeleton variant="text" width="40%" height={60} />
             <Skeleton variant="text" width="20%" height={30} />
-
-            {/* Esqueleto dos StatBoxes */}
             <Box display="grid" gridTemplateColumns="repeat(12, 1fr)" gap="20px" mt={3}>
                 <Skeleton variant="rectangular" gridColumn="span 3" height={140} sx={{ borderRadius: "15px" }} />
                 <Skeleton variant="rectangular" gridColumn="span 3" height={140} sx={{ borderRadius: "15px" }} />
                 <Skeleton variant="rectangular" gridColumn="span 3" height={140} sx={{ borderRadius: "15px" }} />
                 <Skeleton variant="rectangular" gridColumn="span 3" height={140} sx={{ borderRadius: "15px" }} />
             </Box>
-
-            {/* Esqueleto da Tabela */}
             <Box mt={5}>
                 <Skeleton variant="text" width="25%" height={50} />
                 <Skeleton variant="rectangular" width="99%" height={400} sx={{ borderRadius: "15px", mt: 2 }} />
             </Box>
         </Box>
+        )
     }
     
-   
     if (!user) {
         return <Typography sx={{ padding: "20px" }}>Faça login para ver o dashboard.</Typography>;
     }
     
-    const texts = dashboardTexts[user.role] || dashboardTexts[ROLES.AD_AGENT];
+    const config = dashboardConfig[user.role] || dashboardConfig[ROLES.AD_AGENT];
 
-    const columns = [
-        { field: "title", headerName: "Nome", flex: 1 },
-        { 
-            field: "status", 
-            headerName: "Status", 
-            flex: 1,
-            renderCell: ({ value }) => {
-                let color = "white";
-                if(value === "Aberta" || value === "Ativa") color = "#61E5AC";
-                else if(value === "Privada") color = "#ea099fff";
-                else if(value === "Finalizada" || value === "Cancelada") color = "red";
-                return <span style={{ color, fontWeight:"bold" }}>{value}</span>;
-            }
-        },
-        { 
-            field: "startDate", 
-            headerName: "Data de Início", 
-            flex: 1, 
-            renderCell: ({ value }) => value ? new Date(value).toLocaleDateString('pt-BR') : "N/A"
-        },
-        { field: "brandName", headerName: "Marca", flex: 1 },
-    ];
-
-  
     return (
        <Fade in={true} timeout={1000}>
         <Box ml="25px">
@@ -137,67 +262,72 @@ const Dashboard = () => {
                 <Header title={`Bem Vindo, ${user.name}!`} subtitle="Dashboard" />
             </Box>
 
-        
             <Box 
                 height="calc(100vh - 120px)"
                 overflow="auto"
                 sx={{ transition: "all 0.3s ease-in-out",
-        willChange: "width",
-        "&::-webkit-scrollbar": { width: "10px", marginRight: "10px" },
-        "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px" },
-        "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
-        "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)" },}}
+                willChange: "width",
+                "&::-webkit-scrollbar": { width: "10px", marginRight: "10px" },
+                "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px" },
+                "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
+                "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)" },}}
             >
-               
+                
                  { /* GRID & CHARTS */}
         <Box display="grid" transition="all 0.3s ease-in-out" gridTemplateColumns="repeat(12, 1fr)" gap="20px"
             gridTemplateRows="140px 2% 500px auto" sx={{  willChange: "width",}}>
             
-            { /* ROW 1 - StatBoxes com textos dinâmicos */ }
-             <Slide direction="up" in={true} timeout={600}>
-                            <Box gridColumn="span 3" borderRadius="15px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
-                                <StatBox
-                                    title={stats.stat1 || "0"}
-                                    subtitle={texts.stat1_subtitle}
-                                    increase={texts.stat1_increase}
-                                    icon={<CampaignIcon sx={{color:"white", fontSize: "26px"}} />}
-                                />
-                            </Box>
-                        </Slide>
-                        <Slide direction="up" in={true} timeout={700}>
-                            <Box gridColumn="span 3" borderRadius="15px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
-                                <StatBox
-                                    title={stats.stat2 || "R$ 0,00"}
-                                    subtitle={texts.stat2_subtitle}
-                                    increase="+21%"
-                                    icon={<PointOfSaleIcon sx={{color:"white", fontSize: "26px"}} />} 
-                                />
-                            </Box>
-                        </Slide>
-                        <Slide direction="up" in={true} timeout={800}>
-                            <Box gridColumn="span 3" borderRadius="15px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
-                                <StatBox
-                                    title={stats.stat3 || "0"}
-                                    subtitle={texts.stat3_subtitle}
-                                    increase="+5%"
-                                    icon={<PersonAddIcon sx={{color:"white", fontSize: "26px"}} />}
-                                />
-                            </Box>
-                        </Slide>
-                        <Slide direction="up" in={true} timeout={900}>
-                            <Box gridColumn="span 3" borderRadius="15px" marginRight="20px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
-                                <StatBox
-                                    title={stats.stat4 || "0"}
-                                    subtitle={texts.stat4_subtitle}
-                                    increase="+43%"
-                                    icon={<AdsClickIcon sx={{color:"white", fontSize: "26px"}} />}
-                                />
-                            </Box> 
-                        </Slide>
+            { /* ROW 1 - StatBoxes */ }
+           { /* ROW 1 - StatBoxes */ }
+<Slide direction="up" in={true} timeout={600}>
+    <Box gridColumn="span 3" borderRadius="15px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
+        <StatBox
+            // O backend manda numbers (10) ou strings ("R$ 20.000"). 
+            // A verificação abaixo garante que o valor 0 (número) seja exibido e não tratado como falso.
+            title={stats.stat1 !== undefined ? stats.stat1 : "0"}
+            subtitle={config.stat1.subtitle}
+            increase={config.stat1_increase}
+            icon={config.stat1.icon}
+        />
+    </Box>
+</Slide>
+
+<Slide direction="up" in={true} timeout={700}>
+    <Box gridColumn="span 3" borderRadius="15px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
+        <StatBox
+            title={stats.stat2 !== undefined ? stats.stat2 : "0"}
+            subtitle={config.stat2.subtitle}
+            increase="+21%"
+            icon={config.stat2.icon} 
+        />
+    </Box>
+</Slide>
+
+<Slide direction="up" in={true} timeout={800}>
+    <Box gridColumn="span 3" borderRadius="15px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
+        <StatBox
+            title={stats.stat3 !== undefined ? stats.stat3 : "0"}
+            subtitle={config.stat3.subtitle}
+            increase="+5%"
+            icon={config.stat3.icon}
+        />
+    </Box>
+</Slide>
+
+<Slide direction="up" in={true} timeout={900}>
+    <Box gridColumn="span 3" borderRadius="15px" marginRight="20px" backgroundColor="#ffffff2f" display="flex" alignItems="center" justifyContent="center">
+        <StatBox
+            title={stats.stat4 !== undefined ? stats.stat4 : "0"}
+            subtitle={config.stat4.subtitle}
+            increase="+43%"
+            icon={config.stat4.icon}
+        />
+    </Box> 
+</Slide>    
             
-            { /* ROW 2 - Gráficos com animação */ }
+            { /* ROW 2 - Charts */ }
             <Slide direction="up" in={true} timeout={1000} mountOnEnter unmountOnExit>
-                <Box gridColumn="span 7"  transition="all 0.3s ease-in-out" height={500} gridRow="span 2">
+                <Box gridColumn="span 6"  transition="all 0.3s ease-in-out" height={500} gridRow="span 2">
                     <Box   sx={{ willChange: 'transform, width, height' }} mt="20px">
                         <LineChart  willChange="width"  isDashboard={true}/>
                     </Box>
@@ -205,14 +335,14 @@ const Dashboard = () => {
             </Slide>
 
             <Slide direction="up" in={true} timeout={1000} mountOnEnter unmountOnExit>
-                <Box gridColumn="span 5" height="50vh" gridRow="span 10" mr="40px" mt="2px" >
+                <Box gridColumn="span 6" height="50vh" gridRow="span 10" mr="40px" mt="2px" >
                     <Box  transition="all 0.3s ease-in-out"  sx={{ willChange: 'transform, width, height' }} width="100%">
                         <BarCharts  willChange="width"  isDashboard={true}/>
                     </Box>
                 </Box>
             </Slide>
 
-            {/* Tabela de Campanhas com animação */}
+            {/* Tabela de Dados */}
             <Slide direction="up" in={true} timeout={1500} mountOnEnter unmountOnExit>
                 <Box
                     width="99%"
@@ -231,7 +361,7 @@ const Dashboard = () => {
                     mb="10px"
                     padding="10px"
                 >
-                    {texts.table_title}
+                    {config.table_title}
                 </Typography>
                 <Box sx={{ 
                     height: 400, 
@@ -240,14 +370,14 @@ const Dashboard = () => {
                     position: 'relative'
                 }}>
                 <DataGrid
-                    rows={campaigns}
+                    rows={tableData}
                     columns={columns}
-                       getRowId={(row) => row._id} 
+                    getRowId={(row) => row._id} 
                     disableRowSelectionOnClick
                     hideFooter={true}
                     autoHeight={false}
                     sx={{
-                       height: "100%", paddingLeft: "10px", paddingRight: "10px", border: "none", color: "white !important", backgroundColor: "transparent !important",
+                        height: "100%", paddingLeft: "10px", paddingRight: "10px", border: "none", color: "white !important", backgroundColor: "transparent !important",
                       "& .MuiDataGrid-main": { overflow: "hidden !important", position: "relative" },
                       "& .MuiDataGrid-scrollArea": { display: "none !important" },
                       "& .M_uiDataGrid-root, & .MuiDataGrid-main, & .MuiDataGrid-window": { overflow: "hidden !important" },
@@ -266,7 +396,6 @@ const Dashboard = () => {
                       "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.05)", borderRadius: "10px" },
                       "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
                       "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.5)" },
-                      // Firefox
                       "& .MuiDataGrid-virtualScroller": { scrollbarWidth: "thin", marginLeft:"10px", scrollbarColor: "rgba(255,255,255,0.3) transparent" },
                     }}
                 />
