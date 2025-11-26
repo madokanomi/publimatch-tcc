@@ -81,7 +81,7 @@ const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate
                 }
 
                 // Caso contrário, busca na API de reviews
-                const userInfo = JSON.parse(localStorage.getItem('user'));
+       const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
                 const token = userInfo?.token;
                 if (!token) return;
 
@@ -268,7 +268,7 @@ const Influenciadores = () => {
   useEffect(() => {
     const fetchInfluencersData = async () => {
       try {
-        const userInfo = JSON.parse(localStorage.getItem('user'));
+      const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
         const token = userInfo?.token;
         if (!token) throw new Error('Utilizador não autenticado.');
         
@@ -313,7 +313,7 @@ const Influenciadores = () => {
     setIsDeleting(true);
     setDialogError('');
     try {
-      const userInfo = JSON.parse(localStorage.getItem('user'));
+  const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
       const token = userInfo?.token;
       const config = { headers: { Authorization: `Bearer ${token}` } };
       await axios.delete(`http://localhost:5001/api/influencers/${selectedInfluencer._id}`, config);
@@ -373,7 +373,7 @@ const Influenciadores = () => {
     return sorted;
   }, [listaInfluenciadores, sortConfig]);
 
-  
+
   const handleSort = (key) => {
     setSortConfig((prev) => {
       if (prev.key !== key) return { key, direction: "asc" };
@@ -411,7 +411,7 @@ const handleNextStep = async () => {
 
     setIsVerifying(true);
     try {
-      const userInfo = JSON.parse(localStorage.getItem('user'));
+   const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
       const token = userInfo?.token;
       
       const config = { headers: { Authorization: `Bearer ${token}` } };

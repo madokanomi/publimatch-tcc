@@ -214,7 +214,7 @@ const CadastroInflu = () => {
   }
 
   try {
-    const userInfo = JSON.parse(localStorage.getItem('user'));
+  const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
     const token = userInfo ? userInfo.token : null;
     if (!token) throw new Error('Usuário não autenticado. Faça login novamente.');
 

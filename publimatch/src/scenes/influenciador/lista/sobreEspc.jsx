@@ -84,7 +84,8 @@ const Sobrespec = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const userInfoString = localStorage.getItem('user');
+    // Tenta pegar do localStorage OU do sessionStorage
+const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('user');
                 if (!userInfoString) throw new Error('Utilizador não autenticado.');
                 
                 const userInfo = JSON.parse(userInfoString);

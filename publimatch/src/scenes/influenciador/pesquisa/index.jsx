@@ -89,7 +89,7 @@ const Influenciadores = () => {
         
         // A busca de 'todos' pode não precisar de token, mas é boa prática enviar
         // caso a rota se torne protegida no futuro.
-        const token = localStorage.getItem('token'); 
+const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         
         // 🎯 AQUI ESTÁ A MUDANÇA PRINCIPAL: Usar a rota '/api/influencers/all'
         const response = await fetch('/api/influencers/all', {

@@ -156,7 +156,7 @@ const EditarInfluenciador = () => {
     const fetchInfluencerData = async () => {
       setIsLoading(true);
    try {
-                const userInfo = JSON.parse(localStorage.getItem('user'));
+              const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
                 const token = userInfo ? userInfo.token : null;
                 if (!token) throw new Error('Usuário não autenticado.');
 
@@ -235,7 +235,7 @@ const EditarInfluenciador = () => {
     if (arquivoImagemFundo) dataToSubmit.append('backgroundImage', arquivoImagemFundo);
 
     try {
-      const userInfo = JSON.parse(localStorage.getItem('user'));
+   const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
       const token = userInfo ? userInfo.token : null;
       if (!token) throw new Error('Autenticação expirada.');
       
