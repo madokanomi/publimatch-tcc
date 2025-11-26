@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -8,7 +8,8 @@ import {
   Rating,
   Divider,
   InputAdornment,
-  Fade
+  Fade,
+  CircularProgress
 } from "@mui/material";
 import Header from "../../../components/Header";
 import SearchIcon from "@mui/icons-material/Search";
@@ -24,8 +25,8 @@ import FavoriteIcon from "@mui/icons-material/Favorite";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import GroupsIcon from "@mui/icons-material/Groups";
 import { motion } from "framer-motion";
-import { influencers } from "../../../data/mockInfluencer";
 import { Link } from "react-router-dom";
+import axios from "axios";
 
 // ————— Helpers
 const ICONS_BY_CATEGORY = {
@@ -50,56 +51,121 @@ const ICONS_BY_CATEGORY = {
   "Opinião": <NewspaperIcon />,
 };
 
-function useCategorias() {
-  // pega todas as categorias da mockInfluencer
-  const todasCategorias = Array.from(
-    new Set(influencers.flatMap((i) => i.categorias || []))
-  );
-
-  // transforma em objeto { key, icon }
-  return todasCategorias.map((c) => ({
-    key: c,
-    icon: ICONS_BY_CATEGORY[c] || <GroupsIcon />, // se não tiver, usa padrão
-  }));
-}
-
-
-const fmtM = (v) => `${parseFloat(v || 0)}M`;
-const colorByEng = (p) => (p >= 90 ? "#6EE787" : p >= 75 ? "#E7C76E" : "#F07171");
-const getReviewCount = (inf) =>
-  typeof inf.qtdAvaliacoes === "number"
-    ? inf.qtdAvaliacoes
-    : Math.max(1, Math.round(parseFloat(inf.inscritos || 0) * 1200)); // fallback
+// Função auxiliar para pegar ícone ou padrão
+const getCategoryIcon = (key) => ICONS_BY_CATEGORY[key] || <GroupsIcon />;
 
 export default function RankingInfluenciadores() {
+  const [listaInfluenciadores, setListaInfluenciadores] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [categoria, setCategoria] = useState("Jogos");
   const [catQuery, setCatQuery] = useState("");
 
-  const CATEGORIES = useCategorias();
+  // 1. Fetch dos dados reais do Backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const userInfo = JSON.parse(localStorage.getItem('user'));
+        const token = userInfo?.token;
+        const config = { headers: { Authorization: `Bearer ${token}` } };
 
+        // Pega a lista básica
+        const { data: influencersData } = await axios.get('http://localhost:5001/api/influencers', config);
+
+        // Enriquece com as avaliações reais para o ranking ser fidedigno
+        const fullData = await Promise.all(influencersData.map(async (inf) => {
+           let avg = 0;
+           let count = 0;
+
+           // Se o backend já mandar, usa. Se não, busca.
+           if (inf.averageRating !== undefined && inf.reviewsCount !== undefined) {
+               avg = Number(inf.averageRating);
+               count = Number(inf.reviewsCount);
+           } else {
+               try {
+                   const { data: reviews } = await axios.get(`http://localhost:5001/api/reviews/influencer/${inf._id}`, config);
+                   const total = reviews.reduce((acc, r) => acc + r.rating, 0);
+                   avg = reviews.length > 0 ? total / reviews.length : 0;
+                   count = reviews.length;
+               } catch (e) {
+                   console.log("Sem reviews para", inf.name);
+               }
+           }
+
+           // Mapeia para o formato que o componente visual espera
+           return {
+               id: inf._id,
+               nome: inf.name,
+               nomeReal: inf.realName || "",
+               imagem: inf.profileImageUrl,
+               imagemFundo: inf.backgroundImageUrl,
+               categorias: inf.niches || [],
+               engajamento: inf.engagementRate || 0,
+               inscritos: inf.followersCount || 0,
+               avaliacao: avg,
+               qtdAvaliacoes: count
+           };
+        }));
+
+        setListaInfluenciadores(fullData);
+        
+        // Ajusta a categoria inicial caso "Jogos" não exista nos dados retornados
+        const allCats = Array.from(new Set(fullData.flatMap(i => i.categorias)));
+        if (allCats.length > 0 && !allCats.includes("Jogos")) {
+            setCategoria(allCats[0]);
+        }
+
+      } catch (error) {
+        console.error("Erro ao carregar ranking:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // 2. Extrai categorias únicas dos dados carregados
+  const categoriesList = useMemo(() => {
+    const todas = Array.from(
+      new Set(listaInfluenciadores.flatMap((i) => i.categorias || []))
+    );
+    return todas.map((c) => ({
+      key: c,
+      icon: getCategoryIcon(c),
+    }));
+  }, [listaInfluenciadores]);
+
+  // 3. Filtra categorias pelo texto da busca lateral
   const catsFiltradas = useMemo(
     () =>
-      CATEGORIES.filter((c) =>
+        categoriesList.filter((c) =>
         c.key.toLowerCase().includes(catQuery.trim().toLowerCase())
       ),
-    [catQuery, CATEGORIES]
+    [catQuery, categoriesList]
   );
-  // Filtra e ordena rank: 1) média desc  2) qtdAvaliações desc
+
+  // 4. Lógica de Ranking (Filtra por categoria ativa + Ordena)
   const listaOrdenada = useMemo(() => {
-    const base = influencers.filter((i) => i.categorias?.includes(categoria));
+    const base = listaInfluenciadores.filter((i) => i.categorias?.includes(categoria));
     return [...base].sort((a, b) => {
-      if (b.avaliacao === a.avaliacao) {
-        return getReviewCount(b) - getReviewCount(a);
+      // Prioridade 1: Nota de Avaliação
+      if (b.avaliacao !== a.avaliacao) {
+        return b.avaliacao - a.avaliacao;
       }
-      return b.avaliacao - a.avaliacao;
+      // Prioridade 2: Quantidade de Avaliações (Desempate)
+      return b.qtdAvaliacoes - a.qtdAvaliacoes;
     });
-  }, [categoria]);
+  }, [categoria, listaInfluenciadores]);
 
   const top3 = listaOrdenada.slice(0, 3);
   const resto = listaOrdenada.slice(3);
 
+  if (loading) {
+      return <Box display="flex" justifyContent="center" alignItems="center" height="100vh"><CircularProgress /></Box>;
+  }
+
   return (
-     <Fade in={true} timeout={800}>
+      <Fade in={true} timeout={800}>
     <Box
       sx={{
         minHeight: "100vh",
@@ -122,12 +188,11 @@ export default function RankingInfluenciadores() {
             color: "white",
             boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
              height: "70vh",
-              position: "sticky",
-              top: "20px",
-              alignSelf: "flex-start",
-              boxShadow: "0 8px 20px rgba(0,0,0,0.4)",
-              display: "flex",
-              flexDirection: "column",
+             position: "sticky",
+             top: "20px",
+             alignSelf: "flex-start",
+             display: "flex",
+             flexDirection: "column",
           }}
         >
             
@@ -167,71 +232,78 @@ export default function RankingInfluenciadores() {
           >
             Categorias
           </Typography>
-<Box
-                        sx={{
-                            flex: 1, // ✅ Ocupa todo espaço disponível
-                            overflowY: "auto", // ✅ Adiciona scroll vertical
-                            overflowX: "visible",
-                            width: "100%", // ✅ Remove scroll horizontal
-                            pr: 5, // Espaçamento para a scrollbar
-                            "&::-webkit-scrollbar": { 
-                              width: "6px" 
-                            },
-                            "&::-webkit-scrollbar-track": {
-                              background: "rgba(255, 255, 255, 0.1)",
-                              borderRadius: "10px",
-                            },
-                            "&::-webkit-scrollbar-thumb": {
-                              background: "rgba(255, 255, 255, 0.3)",
-                              borderRadius: "10px",
-                            },
-                          }}
-                        >
-          <Box mt={1} display="flex" flexDirection="column" gap={1}>
-            {catsFiltradas.map((c) => {
-              const active = c.key === categoria;
-              return (
-                <Box
-                  key={c.key}
-                  onClick={() => setCategoria(c.key)}
-                  sx={{
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1.5,
-                    px: 1.5,
-                    py: 1.2,
-                    borderRadius: "14px",
-                    background: active
-                      ? "linear-gradient(90deg, rgba(255, 255, 255, 0.25) 0%, rgba(255,255,255,0.06) 100%)"
-                      : "rgba(255,255,255,0.06)",
-                    border: active
-                      ? "1px solid rgba(255,255,255,0.35)"
-                      : "1px solid rgba(255,255,255,0.10)",
-                    transition: "all .2s",
-                    "&:hover": {
-                      background: "rgba(255,255,255,0.12)",
+          
+        <Box
+                sx={{
+                    flex: 1, 
+                    overflowY: "auto", 
+                    overflowX: "visible",
+                    width: "100%", 
+                    pr: 1, 
+                    "&::-webkit-scrollbar": { 
+                      width: "6px" 
+                    },
+                    "&::-webkit-scrollbar-track": {
+                      background: "rgba(255, 255, 255, 0.1)",
+                      borderRadius: "10px",
+                    },
+                    "&::-webkit-scrollbar-thumb": {
+                      background: "rgba(255, 255, 255, 0.3)",
+                      borderRadius: "10px",
                     },
                   }}
                 >
-                  <Box
+          <Box mt={1} display="flex" flexDirection="column" gap={1}>
+            {catsFiltradas.length > 0 ? (
+                catsFiltradas.map((c) => {
+                const active = c.key === categoria;
+                return (
+                    <Box
+                    key={c.key}
+                    onClick={() => setCategoria(c.key)}
                     sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "10px",
-                      display: "grid",
-                      placeItems: "center",
-                      background: active
-                        ? "linear-gradient(180deg, #ed4fffff 0%, #cc438eff 100%)"
-                        : "rgba(255,255,255,0.12)",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.5,
+                        px: 1.5,
+                        py: 1.2,
+                        borderRadius: "14px",
+                        background: active
+                        ? "linear-gradient(90deg, rgba(255, 255, 255, 0.25) 0%, rgba(255,255,255,0.06) 100%)"
+                        : "rgba(255,255,255,0.06)",
+                        border: active
+                        ? "1px solid rgba(255,255,255,0.35)"
+                        : "1px solid rgba(255,255,255,0.10)",
+                        transition: "all .2s",
+                        "&:hover": {
+                        background: "rgba(255,255,255,0.12)",
+                        },
                     }}
-                  >
-                    {c.icon}
-                  </Box>
-                  <Typography fontWeight={700}>{c.key}</Typography>
-                </Box>
-              );
-            })}
+                    >
+                    <Box
+                        sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "10px",
+                        display: "grid",
+                        placeItems: "center",
+                        background: active
+                            ? "linear-gradient(180deg, #ed4fffff 0%, #cc438eff 100%)"
+                            : "rgba(255,255,255,0.12)",
+                        }}
+                    >
+                        {c.icon}
+                    </Box>
+                    <Typography fontWeight={700}>{c.key}</Typography>
+                    </Box>
+                );
+                })
+            ) : (
+                 <Typography variant="body2" sx={{ opacity: 0.6, mt: 2, textAlign: 'center' }}>
+                    Nenhuma categoria encontrada.
+                 </Typography>
+            )}
           </Box>
           </Box>
         </Box>
@@ -277,31 +349,39 @@ export default function RankingInfluenciadores() {
               pb: 0,
             }}
           >
-            {/* 3º */}
-            <PodiumBar
-             key={categoria + "-3"}
-              pos={3}
-              color="linear-gradient(180deg, #D08B52 0%, #B1652B 100%)"
-              h="26vh"
-              inf={top3[2]}
-            />
-            {/* 1º */}
-            <PodiumBar
-              pos={1}
-                 key={categoria + "-1"}
-              color="linear-gradient(180deg, #FFD54F 0%, #FFB300 100%)"
-              h="45vh"
-              inf={top3[0]}
-              crown
-            />
-            {/* 2º */}
-            <PodiumBar
-              pos={2}
-                 key={categoria + "-2"}
-              color="linear-gradient(180deg, #D2D4DB 0%, #BFC2CB 100%)"
-              h="35vh"
-              inf={top3[1]}
-            />
+             {top3.length === 0 ? (
+                 <Box gridColumn="1 / -1" display="flex" justifyContent="center" alignItems="center" height="100%">
+                     <Typography sx={{ opacity: 0.5 }}>Sem influenciadores nesta categoria.</Typography>
+                 </Box>
+             ) : (
+                 <>
+                    {/* 3º */}
+                    <PodiumBar
+                    key={categoria + "-3"}
+                    pos={3}
+                    color="linear-gradient(180deg, #D08B52 0%, #B1652B 100%)"
+                    h="26vh"
+                    inf={top3[2]}
+                    />
+                    {/* 1º */}
+                    <PodiumBar
+                    pos={1}
+                        key={categoria + "-1"}
+                    color="linear-gradient(180deg, #FFD54F 0%, #FFB300 100%)"
+                    h="45vh"
+                    inf={top3[0]}
+                    crown
+                    />
+                    {/* 2º */}
+                    <PodiumBar
+                    pos={2}
+                        key={categoria + "-2"}
+                    color="linear-gradient(180deg, #D2D4DB 0%, #BFC2CB 100%)"
+                    h="35vh"
+                    inf={top3[1]}
+                    />
+                 </>
+             )}
           </Box>
         </Box>
 
@@ -357,32 +437,34 @@ export default function RankingInfluenciadores() {
       
       mt: 1,
       flex: 1,
-      pr: 1, // evita que a scrollbar encoste no conteúdo
+      pr: 1, 
           "&::-webkit-scrollbar": {
       width: "10px",
-      marginRight:"10px",               // largura da scrollbar
+      marginRight:"10px",              
     },
     "&::-webkit-scrollbar-track": {
-      background: "rgba(255, 255, 255, 0.1)", // cor do fundo da scrollbar
+      background: "rgba(255, 255, 255, 0.1)", 
       borderRadius: "10px",
     },
     "&::-webkit-scrollbar-thumb": {
-      background: "rgba(255, 255, 255, 0.3)", // cor da parte que você arrasta
+      background: "rgba(255, 255, 255, 0.3)", 
       borderRadius: "10px",
     },
     "&::-webkit-scrollbar-thumb:hover": {
-      background: "rgba(255, 255, 255, 0.6)", // muda a cor ao passar o mouse
+      background: "rgba(255, 255, 255, 0.6)", 
     },
     }}
   >
     {[...top3, ...resto].map((inf, idx) => {
+      // Se não tiver inf (pode acontecer se o array for vazio ou menor que 3 no podio), não renderiza na lista
+      if (!inf) return null;
+
       const rank = idx + 1;
       return (
         <Link
-        to={`/influenciador/${inf.id}`} // ✅ caminho dinâmico
+        to={`/influenciadores/perfil/${inf.id}`}
         key={inf.nome + rank}
         style={{ textDecoration: "none",  color: "inherit",    }} 
-        // remove underline
       >
         <Box
           key={inf.nome + rank}
@@ -403,6 +485,10 @@ export default function RankingInfluenciadores() {
             backgroundPosition:"center",
             border: "none",
             backdropFilter: "blur(10px)",
+            transition: "transform 0.2s",
+            "&:hover": {
+                transform: "translateX(4px)"
+            }
           }}
         >
                 {/* Ranking */}
@@ -434,13 +520,13 @@ export default function RankingInfluenciadores() {
                     <Typography fontWeight={700}>{inf.avaliacao.toFixed(1)}</Typography>
                   </Box>
                   <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                    ({getReviewCount(inf).toLocaleString("pt-BR")})
+                    ({inf.qtdAvaliacoes.toLocaleString("pt-BR")})
                   </Typography>
                 </Box>
 
                 {/* Categorias */}
                 <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
-                  {inf.categorias?.map((c) => (
+                  {inf.categorias?.slice(0, 2).map((c) => (
                     <Chip
                       key={c}
                       label={c}
@@ -454,6 +540,9 @@ export default function RankingInfluenciadores() {
                       }}
                     />
                   ))}
+                  {inf.categorias?.length > 2 && (
+                       <Chip label={`+${inf.categorias.length - 2}`} size="small" sx={{ height: 22, fontSize: "0.7rem", borderRadius: "8px", bgcolor: "rgba(255,255,255,0.1)", color: "white" }} />
+                  )}
                 </Box>
 
                 {/* Engajamento */}
@@ -475,7 +564,7 @@ export default function RankingInfluenciadores() {
 
 function PodiumBar({ pos, h, color, crown = false, inf }) {
   if (!inf) {
-    return <Box />; // quando não há 3 itens ainda
+    return <Box />; 
   }
   const nota = inf.avaliacao?.toFixed(1) ?? "—";
   const rotulo = `${pos}º`;
