@@ -1,15 +1,14 @@
 import { useState } from "react";
-import { ProSidebar, Menu, MenuItem, SubMenu } from "react-pro-sidebar";
+// 1. Adicionado SidebarFooter aos imports
+import { ProSidebar, Menu, MenuItem, SubMenu, SidebarFooter } from "react-pro-sidebar";
 import 'react-pro-sidebar/dist/css/styles.css';
-import { Box, IconButton, Typography, useTheme } from '@mui/material';
+import { Box, IconButton, Typography, useTheme, Tooltip } from '@mui/material'; // Adicionei Tooltip opcionalmente
 import { Link } from "react-router-dom";
 import { tokens } from "../../theme";
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
 
-// 1. Importar o hook de autenticação e as ROLES
 import { useAuth } from '../../auth/AuthContext';
 
-// ... (Seus outros imports de ícones)
 import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
@@ -17,17 +16,29 @@ import SearchIcon from '@mui/icons-material/Search';
 import HotelClassIcon from '@mui/icons-material/HotelClass';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import ChatIcon from '@mui/icons-material/Chat';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import ThreePIcon from '@mui/icons-material/ThreeP';
-import foto from "../../assets/user.png"; // Usaremos como foto padrão
+import foto from "../../assets/user.png";
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 
+// 2. Novos ícones para identificar os cargos
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter'; // Para Agente Publi
+import SupportAgentIcon from '@mui/icons-material/SupportAgent'; // Para Agente Influencer
+import FaceIcon from '@mui/icons-material/Face'; // Para Influencer
 
 export const ROLES = {
     AD_AGENT: 'AD_AGENT',
     INFLUENCER_AGENT: 'INFLUENCER_AGENT',
     INFLUENCER: 'INFLUENCER',
     ADMIN: 'ADMIN',
+};
+
+// 3. Objeto para mapear o ícone de acordo com o cargo
+const roleIcons = {
+    [ROLES.AD_AGENT]: <BusinessCenterIcon sx={{ fontSize: "28px" }} />,
+    [ROLES.INFLUENCER_AGENT]: <SupportAgentIcon sx={{ fontSize: "28px" }} />,
+    [ROLES.INFLUENCER]: <FaceIcon sx={{ fontSize: "28px" }} />,
+    [ROLES.ADMIN]: <AdminPanelSettingsIcon sx={{ fontSize: "28px" }} />,
 };
 
 const Item = ({ title, to, icon, selected, setSelected }) => {
@@ -52,20 +63,17 @@ const Sidebar = () => {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [selected, setSelected] = useState("Dashboard");
 
-    // 2. Obter os dados do usuário logado
     const { user } = useAuth();
 
-    // 3. (Opcional, mas recomendado) Mapear as roles para nomes amigáveis
     const roleDisplayNames = {
       [ROLES.AD_AGENT]: 'Agente de Publicidade',
       [ROLES.INFLUENCER_AGENT]: 'Agente do Influenciador',
       [ROLES.INFLUENCER]: 'Influenciador',
-       [ROLES.ADMIN]: 'Administrador',
+      [ROLES.ADMIN]: 'Administrador',
     };
 
     const influenciadoresSubItems = ["Pesquisa", "Ranking", "Lista"];
     const isInfluenciadoresActive = influenciadoresSubItems.includes(selected);
-
 
     return (
         <Box 
@@ -187,102 +195,103 @@ const Sidebar = () => {
                     overflow: "hidden",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
                     background: "linear-gradient(0deg, rgba(34, 22, 164, 0.15), rgba(34, 22, 164, 0.15)), url(image.png)",
-                    overflow: "auto",
+                    // Removido overflow: "auto" daqui pois ele conflitava com o layout flex do footer
+                    display: "flex", 
+                    flexDirection: "column"
                 }}
             >
-                <Menu iconShape="square">
-                   <MenuItem
-                        onClick={() => setIsCollapsed(!isCollapsed)}
-                        icon={isCollapsed ? <MenuOutlinedIcon /> : undefined}
-                        style={{ margin: "10px 0 20px 0", color: colors.grey[100] }}
-                    >
-                        {!isCollapsed && (
-                            <Box display="flex" justifyContent="space-between" alignItems="center" ml="15px">
-                                <Typography variant="h1" style={{ fontWeight: "Bold", fontSize: "50px" }} color={colors.grey[100]}>
-                                    Publimatch
-                                </Typography>
-                                <IconButton onClick={() => setIsCollapsed(!isCollapsed)}>
-                                    <MenuOutlinedIcon />
-                                </IconButton>
-                            </Box>
-                        )}
-                    </MenuItem>
-
-                    {!isCollapsed && user && (
-                        <Box mb="25px">
-                            <Box display="flex" justifyContent="center" alignItems="center" flexDirection="column">
-                                <img
-                                    alt="profile-user"
-                                    width="180px"
-                                    height="180px"
-                                    src={foto}
-                                    style={{ cursor: "pointer", borderRadius: "50%", objectFit: "cover" }}
-                                />
-                            </Box>
-                            <Box textAlign="center">
-                                <Typography variant="h4" color={colors.grey[100]} fontWeight="bold" sx={{ m: "10px 0 0 0" }}>
-                                    {user.name}
-                                </Typography>
-                                <Typography variant="h6" fontWeight="bold" color={"#ffffff"}>
-                                    {roleDisplayNames[user.role]}
-                                </Typography>
-                                <Typography variant="h7" color={colors.grey[100]}>
-                                    {user.email}
-                                </Typography>
-                            </Box>
-                        </Box>
-                    )}
-
-                    <Box paddingLeft={isCollapsed ? undefined : "10%"}>
-                        <Item
-                            title="Dashboard"
-                            to="/"
-                            icon={<HomeOutlinedIcon />}
-                            selected={selected}
-                            setSelected={setSelected}
-                        />
-
-
-  {user.isCompanyAdmin && (
-                            <Item title="Gerenciar Equipe" to="/equipe" icon={<SupervisorAccountIcon />} />
-                        )}
-
-                        {user.role === ROLES.ADMIN && (
-    <Item 
-        title="Solicitações" 
-        to="/solicitacoes" 
-        icon={<PendingActionsIcon />} 
-         selected={selected}
-                            setSelected={setSelected}
-    />
-)}
-    
-                        <SubMenu
-                            active={isInfluenciadoresActive}
-                            title={!isCollapsed ? "Influenciadores" : ""}
-                            icon={<ThreePIcon />}
-                            style={{ color: colors.grey[100] }}
+                {/* Envolvemos o Menu em um Box flex-grow para empurrar o footer para baixo */}
+                <Box style={{ flexGrow: 1, overflowY: "auto", overflowX: "hidden" }}>
+                    <Menu iconShape="square">
+                        <MenuItem
+                            onClick={() => setIsCollapsed(!isCollapsed)}
+                            icon={isCollapsed ? <MenuOutlinedIcon /> : undefined}
+                            style={{ margin: "10px 0 20px 0", color: colors.grey[100] }}
                         >
-                            <MenuItem onClick={() => setSelected("Pesquisa")} icon={<SearchIcon />}>
-                                <Typography>Pesquisa</Typography>
-                                <Link to="/influenciador/pesquisa" />
-                            </MenuItem>
-                            <MenuItem onClick={() => setSelected("Ranking")} icon={<HotelClassIcon />}>
-                                <Typography>Ranking</Typography>
-                                <Link to="/influenciadores/ranking" />
-                            </MenuItem>
-
-                            {user?.role === ROLES.INFLUENCER_AGENT && (
-                                <MenuItem onClick={() => setSelected("Lista")} icon={<PeopleOutlinedIcon />}>
-                                    <Typography>Influenciadores</Typography>
-                                    <Link to="/influenciador/lista" />
-                                </MenuItem>
+                            {!isCollapsed && (
+                                <Box display="flex" justifyContent="space-between" alignItems="center" ml="15px">
+                                    <Typography variant="h1" style={{ fontWeight: "Bold", fontSize: "50px" }} color={colors.grey[100]}>
+                                        Publimatch
+                                    </Typography>
+                                    <IconButton onClick={() => setIsCollapsed(!isCollapsed)}>
+                                        <MenuOutlinedIcon />
+                                    </IconButton>
+                                </Box>
                             )}
-                        </SubMenu>
+                        </MenuItem>
 
-                        {/* == ITENS PARA AGENTE DE PUBLICIDADE == */}
-                        {user?.role === ROLES.AD_AGENT && (
-                            <>
+                        {!isCollapsed && user && (
+                            <Box mb="25px">
+                                <Box display="flex" justifyContent="center" alignItems="center" flexDirection="column">
+                                    <img
+                                        alt="profile-user"
+                                        width="180px"
+                                        height="180px"
+                                        src={foto}
+                                        style={{ cursor: "pointer", borderRadius: "50%", objectFit: "cover" }}
+                                    />
+                                </Box>
+                                <Box textAlign="center">
+                                    <Typography variant="h4" color={colors.grey[100]} fontWeight="bold" sx={{ m: "10px 0 0 0" }}>
+                                        {user.name}
+                                    </Typography>
+                                    <Typography variant="h6" fontWeight="bold" color={"#ffffff"}>
+                                        {roleDisplayNames[user.role]}
+                                    </Typography>
+                                    <Typography variant="h7" color={colors.grey[100]}>
+                                        {user.email}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        )}
+
+                        <Box paddingLeft={isCollapsed ? undefined : "10%"}>
+                            <Item
+                                title="Dashboard"
+                                to="/"
+                                icon={<HomeOutlinedIcon />}
+                                selected={selected}
+                                setSelected={setSelected}
+                            />
+
+                            {user.isCompanyAdmin && (
+                                <Item title="Gerenciar Equipe" to="/equipe" icon={<SupervisorAccountIcon />} />
+                            )}
+
+                            {user.role === ROLES.ADMIN && (
+                                <Item 
+                                    title="Solicitações" 
+                                    to="/solicitacoes" 
+                                    icon={<PendingActionsIcon />} 
+                                    selected={selected}
+                                    setSelected={setSelected}
+                                />
+                            )}
+    
+                            <SubMenu
+                                active={isInfluenciadoresActive}
+                                title={!isCollapsed ? "Influenciadores" : ""}
+                                icon={<ThreePIcon />}
+                                style={{ color: colors.grey[100] }}
+                            >
+                                <MenuItem onClick={() => setSelected("Pesquisa")} icon={<SearchIcon />}>
+                                    <Typography>Pesquisa</Typography>
+                                    <Link to="/influenciador/pesquisa" />
+                                </MenuItem>
+                                <MenuItem onClick={() => setSelected("Ranking")} icon={<HotelClassIcon />}>
+                                    <Typography>Ranking</Typography>
+                                    <Link to="/influenciadores/ranking" />
+                                </MenuItem>
+
+                                {user?.role === ROLES.INFLUENCER_AGENT && (
+                                    <MenuItem onClick={() => setSelected("Lista")} icon={<PeopleOutlinedIcon />}>
+                                        <Typography>Influenciadores</Typography>
+                                        <Link to="/influenciador/lista" />
+                                    </MenuItem>
+                                )}
+                            </SubMenu>
+
+                            {user?.role === ROLES.AD_AGENT && (
                                 <Item
                                     title="Campanhas"
                                     to="/campanha"
@@ -290,35 +299,62 @@ const Sidebar = () => {
                                     selected={selected}
                                     setSelected={setSelected}
                                 />
-                                {/* REMOVIDO: O item "Cadastrar Campanha" que estava aqui foi removido.
-                                */}
-                            </>
-                        )}
+                            )}
 
-                        {/* == ITENS APENAS PARA AGENTE DO INFLUENCIADOR == */}
-                 {user && [ROLES.INFLUENCER_AGENT, ROLES.INFLUENCER].includes(user.role) && (
-                            <Item
-                                title="Campanhas"
-                                to="/PesquisaCampanha"
-                                icon={<SearchIcon />}
-                                selected={selected}
-                                setSelected={setSelected}
-                            />
-                        )}
-            
+                            {user && [ROLES.INFLUENCER_AGENT, ROLES.INFLUENCER].includes(user.role) && (
+                                <Item
+                                    title="Campanhas"
+                                    to="/PesquisaCampanha"
+                                    icon={<SearchIcon />}
+                                    selected={selected}
+                                    setSelected={setSelected}
+                                />
+                            )}
+        
+                            {user && [ROLES.AD_AGENT, ROLES.INFLUENCER_AGENT, ROLES.INFLUENCER].includes(user.role) && (
+                                <Item
+                                    title="Conversas"
+                                    to="/conversas"
+                                    icon={<ChatIcon />}
+                                    selected={selected}
+                                    setSelected={setSelected}
+                                />
+                            )}
+                        </Box>
+                    </Menu>
+                </Box>
 
-                        {/* Itens de menu visíveis para MÚLTIPLOS cargos */}
-                         {user && [ROLES.AD_AGENT, ROLES.INFLUENCER_AGENT, ROLES.INFLUENCER].includes(user.role) && (
-                            <Item
-                                title="Conversas"
-                                to="/conversas"
-                                icon={<ChatIcon />}
-                                selected={selected}
-                                setSelected={setSelected}
-                            />
-                        )}
-                    </Box>
-                </Menu>
+                {/* 4. IMPLEMENTAÇÃO DO RODAPÉ COM INDICADOR DE CARGO */}
+                {user && (
+                    <SidebarFooter style={{ textAlign: 'center', padding: '20px 0', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                        <Tooltip title={isCollapsed ? roleDisplayNames[user.role] : ""} placement="right">
+                            <Box 
+                                display="flex" 
+                                flexDirection={isCollapsed ? "column" : "row"} 
+                                alignItems="center" 
+                                justifyContent="center" 
+                                gap={1}
+                                sx={{ color: colors.grey[100] }}
+                            >
+                                {/* Ícone do Cargo */}
+                                {roleIcons[user.role]}
+
+                                {/* Texto do Cargo (Some se sidebar fechada) */}
+                                {!isCollapsed && (
+                                    <Box textAlign="left">
+                                        <Typography variant="body2" sx={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#ccc' }}>
+                                            Acesso:
+                                        </Typography>
+                                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                                            {roleDisplayNames[user.role]}
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
+                        </Tooltip>
+                    </SidebarFooter>
+                )}
+
             </ProSidebar>
         </Box>
     );
