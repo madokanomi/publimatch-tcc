@@ -99,8 +99,8 @@ const CampaignSearchRow = ({ campaign }) => {
                     <Tooltip title="Vagas Abertas">
                         <Groups sx={{ color: "rgba(255,255,255,0.7)" }} />
                     </Tooltip>
-                    {/* Exibe o número de vagas aleatório gerado no componente pai */}
-                    <Typography fontWeight={500} color="white">{campaign.randomOpenSlots ?? 0}</Typography>
+                   {/* Exibe o número de vagas calculado 'vagasDisponiveis' */}
+                    <Typography fontWeight={500} color="white">{campaign.vagasDisponiveis ?? 0}</Typography>
                 </Box>
                 {/* ===== FIM DA ALTERAÇÃO ===== */}
 

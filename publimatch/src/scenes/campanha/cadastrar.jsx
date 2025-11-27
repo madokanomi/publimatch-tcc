@@ -68,8 +68,10 @@ const CampaignsRegister = () => {
     const [paymentValueExact, setPaymentValueExact] = useState('');
     const [paymentValueMin, setPaymentValueMin] = useState('');
     const [paymentValueMax, setPaymentValueMax] = useState('');
+    const [vagas, setVagas] = useState('');
     const [errors, setErrors] = useState({});
     const allSocials = ['instagram', 'youtube', 'twitch', 'tiktok'];
+    
 
     const [categorySearch, setCategorySearch] = useState('');
     const [showAllCategories, setShowAllCategories] = useState(false);
@@ -199,6 +201,11 @@ const CampaignsRegister = () => {
         if (!description || !description.content || (description.content.length === 1 && !description.content[0].content)) {
             newErrors.description = true;
         }
+
+        if (!vagas || Number(vagas) <= 0) {
+            newErrors.vagas = true;
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -224,6 +231,7 @@ const CampaignsRegister = () => {
         formData.append('paymentValueMax', Number(paymentValueMax) || 0);
         formData.append('startDate', startDate);
         formData.append('endDate', endDate);
+        formData.append('vagas', Number(vagas));
 
         formData.append('description', JSON.stringify(description));
         formData.append('categories', JSON.stringify(selectedCategories));
@@ -268,6 +276,7 @@ const CampaignsRegister = () => {
                 paymentValueMax: setPaymentValueMax,
                 minFollowers: setMinFollowers,
                 minViews: setMinViews,
+                vagas: setVagas,
             };
             stateSetter[fieldName](e.target.value);
             if (errors[fieldName]) {
@@ -362,7 +371,11 @@ const CampaignsRegister = () => {
                         </Box>
                         <Box sx={{ flex: 1 }}> <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>Data de Início</Typography> </Box>
                         <Box sx={{ flex: 1 }}> <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>Data de Término</Typography> </Box>
+
+                        <Box sx={{ flex: 0.5 }}> <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>Vagas</Typography> </Box>
                     </Box>
+
+                    
 
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Box sx={{ flex: 1 }}>
@@ -409,6 +422,18 @@ const CampaignsRegister = () => {
                                 disabled={!startDate} 
                                 InputProps={{ ...getTextFieldProps('endDate').InputProps, sx: { ...getTextFieldProps('endDate').InputProps.sx, '& input': { color: 'white', colorScheme: 'dark' } } }}
                                 inputProps={{ min: minEndDateString }}
+                            />
+                        </Box>
+
+                        <Box sx={{ flex: 0.5 }}>
+                            <TextField
+                                fullWidth
+                                type="number"
+                                variant="outlined"
+                                placeholder="Ex: 10"
+                                value={vagas}
+                                {...getTextFieldProps('vagas')}
+                                inputProps={{ min: 1 }} // Impede números negativos no input
                             />
                         </Box>
                     </Box>

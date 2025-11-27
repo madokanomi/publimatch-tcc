@@ -13,35 +13,7 @@ import axios from "axios";
 const allPlatforms = ["instagram", "youtube", "twitch", "tiktok", "twitter"];
 
 // Função para adicionar vagas aleatórias seguindo a regra especificada
-const addRandomOpenSlots = (campaignsList) => {
-    if (!campaignsList || campaignsList.length === 0) {
-        return [];
-    }
 
-    const totalCampaigns = campaignsList.length;
-    // Determina o número de campanhas que terão 0 vagas: 1 se houver poucas, senão 1 ou 2.
-    const zerosToAssign = totalCampaigns <= 2 ? 1 : Math.floor(Math.random() * 2) + 1;
-
-    // Cria uma cópia para não modificar o array original diretamente
-    const campaignsCopy = [...campaignsList];
-    
-    // Embaralha o array para escolher aleatoriamente quais campanhas terão 0 vagas
-    for (let i = campaignsCopy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [campaignsCopy[i], campaignsCopy[j]] = [campaignsCopy[j], campaignsCopy[i]];
-    }
-
-    // Associa os IDs das campanhas que terão 0 vagas
-    const zeroSlotIds = new Set(campaignsCopy.slice(0, zerosToAssign).map(c => c._id));
-
-    // Mapeia a lista original, adicionando a nova propriedade `randomOpenSlots`
-    return campaignsList.map(campaign => ({
-        ...campaign,
-        randomOpenSlots: zeroSlotIds.has(campaign._id)
-            ? 0 // Se o ID estiver no set, atribui 0
-            : Math.floor(Math.random() * 25) + 1, // Senão, um número aleatório de 1 a 25
-    }));
-};
 
 
 const CampaignsSearch = () => {
@@ -100,25 +72,39 @@ const CampaignsSearch = () => {
 
             const { data } = await axios.get("http://localhost:5001/api/campaigns/search", config);
             
-            // AQUI A MÁGICA ACONTECE: Adiciona os slots aleatórios aos dados recebidos
-            const campaignsWithSlots = addRandomOpenSlots(data);
-            setAllFetchedCampaigns(campaignsWithSlots);
-            setError("");
-        } catch (err) {
-            setError(err.response?.data?.message || "Erro ao buscar campanhas.");
-            setAllFetchedCampaigns([]);
-        } finally {
-            setLoading(false);
-        }
+            // ✨ ✨ AQUI ESTÁ A MUDANÇA PRINCIPAL ✨ ✨
+            // Calculamos as vagas reais em vez de usar a função aleatória
+            const campaignsWithRealSlots = data.map(campaign => {
+                // Garante que os campos existem antes de calcular
+                const totalVagas = campaign.vagas || 0;
+                const vagasOcupadas = campaign.participatingInfluencers ? campaign.participatingInfluencers.length : 0;
+                const vagasDisponiveis = totalVagas - vagasOcupadas;
+
+                return {
+                    ...campaign,
+                    // Criamos o campo 'vagasDisponiveis'
+                    vagasDisponiveis: vagasDisponiveis < 0 ? 0 : vagasDisponiveis // Garante que não seja negativo
+                };
+            });
+            
+            setAllFetchedCampaigns(campaignsWithRealSlots); // Salvamos os dados calculados
+            setError("");
+        } catch (err) {
+            setError(err.response?.data?.message || "Erro ao buscar campanhas.");
+            setAllFetchedCampaigns([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Filtra as campanhas no frontend com base no checkbox
-    const filteredCampaigns = useMemo(() => {
-        if (filters.vagasAbertas) {
-            return allFetchedCampaigns.filter(campaign => campaign.randomOpenSlots > 0);
-        }
-        return allFetchedCampaigns;
-    }, [allFetchedCampaigns, filters.vagasAbertas]);
+   const filteredCampaigns = useMemo(() => {
+        if (filters.vagasAbertas) {
+            // Filtra usando o campo calculado 'vagasDisponiveis'
+            return allFetchedCampaigns.filter(campaign => campaign.vagasDisponiveis > 0);
+        }
+        return allFetchedCampaigns;
+    }, [allFetchedCampaigns, filters.vagasAbertas]);
 
 
     const sortedCampaigns = useMemo(() => {
@@ -180,7 +166,7 @@ const CampaignsSearch = () => {
     { key: 'startDate', label: 'Data de Início', align: 'left' },
     { key: 'endDate', label: 'Data de Término', align: 'left' },
     { key: 'categories', label: 'Categorias', align: 'left' },
-    { key: 'randomOpenSlots', label: 'Vagas Abertas', align: 'left' },
+    { key: 'vagasDisponiveis', label: 'Vagas Abertas', align: 'left' },
     { key: 'requiredSocials', label: 'Redes Necessárias', align: 'left' }
 ];
 
