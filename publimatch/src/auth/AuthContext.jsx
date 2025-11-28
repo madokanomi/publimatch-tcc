@@ -2,12 +2,12 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios'; // Importa o axios
+import axios from 'axios';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-    // A lógica para iniciar o estado a partir do storage continua a mesma
+    // 1. Inicializa o estado lendo do localStorage ou sessionStorage
     const [user, setUser] = useState(() => {
         const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
         try {
@@ -20,28 +20,22 @@ export const AuthProvider = ({ children }) => {
 
     const navigate = useNavigate();
 
-    // 👇 A MÁGICA ACONTECE AQUI: A FUNÇÃO DE LOGIN CONECTADA À API 👇
+    // 2. Função de Login
     const login = async (email, password, rememberMe) => {
         try {
-            // Faz a chamada POST para a API de login
             const response = await axios.post(
                 'http://localhost:5001/api/auth/login', 
-                { email, password } // Envia email e senha no corpo
+                { email, password }
             );
 
-            // O backend retorna os dados do usuário em response.data
             const userData = response.data; 
 
             console.log("Login via API bem-sucedido para:", userData.name);
             
-            // Salva os dados do usuário (que agora vêm do backend) no storage
             const storage = rememberMe ? localStorage : sessionStorage;
             storage.setItem('user', JSON.stringify(userData));
 
-            // Atualiza o estado do React
             setUser(userData);
-
-            // Redireciona para o dashboard
             navigate("/"); 
 
             return { success: true };
@@ -53,26 +47,51 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    // A função de logout continua a mesma
+    // 3. Função de Logout
     const logout = () => {
         localStorage.removeItem('user');
         sessionStorage.removeItem('user');
         setUser(null);
         navigate("/login");
     };
+
+    // ✅ 4. FUNÇÃO DE ATUALIZAR USUÁRIO (ESSA É A QUE FALTAVA)
+    // Ela mescla os dados antigos (token, id) com os novos (nome, foto)
+    const updateUser = (updatedData) => {
+        setUser((prevUser) => {
+            if (!prevUser) return null;
+
+            // Cria o novo objeto combinando o anterior com as atualizações
+            const newUser = { ...prevUser, ...updatedData };
+
+            // Atualiza no localStorage se estiver lá
+            if (localStorage.getItem('user')) {
+                localStorage.setItem('user', JSON.stringify(newUser));
+            }
+            
+            // Atualiza no sessionStorage se estiver lá
+            if (sessionStorage.getItem('user')) {
+                sessionStorage.setItem('user', JSON.stringify(newUser));
+            }
+
+            return newUser;
+        });
+    };
     
+    // 5. Redirecionamento de segurança
     useEffect(() => {
         if(user && window.location.pathname === '/login') {
             navigate('/');
         }
     }, [user, navigate]);
 
-
+    // 6. Objeto de valores expostos pelo contexto
     const value = {
         isAuthenticated: !!user,
         user,
         login,
         logout,
+        updateUser, // ✅ AGORA A SIDEBAR CONSEGUE ACESSAR ISSO
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

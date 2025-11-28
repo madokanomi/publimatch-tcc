@@ -3,6 +3,7 @@
 import User from '../models/userModel.js';
 import { sendWelcomeEmail } from '../config/email.js';
 import asyncHandler from 'express-async-handler';
+import cloudinary from '../config/cloudinaryConfig.js';
 
 // @desc    Listar todos os usuários da empresa do admin logado
 // @route   GET /api/users/equipe
@@ -17,6 +18,19 @@ export const getMembrosDaEquipe = asyncHandler(async (req, res) => {
     const membros = await User.find({ empresaId: req.user.empresaId }).select('-password');
     res.status(200).json(membros);
 });
+
+const uploadToCloudinary = (file) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "user_profiles" }, // Pasta diferente para usuários
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    stream.end(file.buffer);
+  });
+};
 
 // @desc    Verificar a senha do usuário logado
 // @route   POST /api/users/verify-password
@@ -128,3 +142,79 @@ export const updateUserPassword = asyncHandler(async (req, res) => {
         throw new Error('Usuário não encontrado.');
     }
 });
+
+// @desc    Atualizar perfil público do usuário
+// @route   PUT /api/users/profile
+// @access  Privado
+export const updateUserProfile = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+
+    if (user) {
+        // 1. Processar Upload de Imagens (se houver)
+        if (req.files) {
+            if (req.files.profileImageUrl) {
+                const result = await uploadToCloudinary(req.files.profileImageUrl[0]);
+                user.profileImageUrl = result.secure_url;
+            }
+            if (req.files.backgroundImageUrl) {
+                const result = await uploadToCloudinary(req.files.backgroundImageUrl[0]);
+                user.backgroundImageUrl = result.secure_url;
+            }
+        }
+
+        // 2. Atualizar Campos de Texto
+        // Nota: Quando vem via FormData, tudo vem como string.
+        // O req.body agora estará preenchido graças ao middleware na rota.
+        user.name = req.body.name || user.name;
+        user.telefone = req.body.telefone || user.telefone;
+        
+        // Tratar BIO (Pode vir como string JSON do Tiptap ou texto simples)
+        if (req.body.bio) {
+             user.bio = req.body.bio; 
+        }
+
+        // Tratar Configurações de Privacidade (Vem como string JSON do FormData)
+        if (req.body.privacySettings) {
+            try {
+                const parsedSettings = JSON.parse(req.body.privacySettings);
+                user.privacySettings = { ...user.privacySettings, ...parsedSettings };
+            } catch (e) {
+                console.error("Erro ao parsear privacySettings", e);
+                // Se falhar o parse, ignora ou trata como erro
+            }
+        }
+
+        const updatedUser = await user.save();
+
+        // Remover senha do retorno
+        const userResponse = updatedUser.toObject();
+        delete userResponse.password;
+
+        res.json(userResponse);
+    } else {
+        res.status(404);
+        throw new Error('Usuário não encontrado');
+    }
+});
+
+// controllers/userController.js
+// ... (mantenha os imports e funções anteriores: getMembrosDaEquipe, verifyUserPassword, etc)
+
+// ... (código anterior do updateUserProfile)
+
+// ✅ ADICIONE ESTA FUNÇÃO NO FINAL DO ARQUIVO
+// @desc    Buscar dados públicos de um usuário pelo ID
+// @route   GET /api/users/public/:id
+// @access  Público
+export const getPublicProfile = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id)
+        .select('-password -passwordResetToken -passwordResetExpires -empresaId'); // Remove dados sensíveis
+
+    if (user) {
+        res.status(200).json(user);
+    } else {
+        res.status(404);
+        throw new Error('Usuário não encontrado.');
+    }
+});
+

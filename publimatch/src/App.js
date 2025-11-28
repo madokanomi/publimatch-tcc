@@ -31,6 +31,7 @@ import Conversas from "./scenes/chat/index.jsx";
 import TelaChat from "./scenes/chat/TelaChat.jsx";
 import Configuracoes from "./scenes/perfil/config.jsx";
 import PerfilAgente from "./scenes/perfil/perfil.jsx";
+import EditarAgente from "./scenes/perfil/EditarPerfilUsuario.jsx";
 import CompanyAdminProtectedRoute from "./auth/CompanyAdminProtectedRoute.jsx";
 import Equipe from "./scenes/empresa/equipe.jsx";
 // CORREÇÃO 1: Definir as ROLES para corresponder ao backend.
@@ -79,6 +80,7 @@ function App() {
             {/* == Rotas COMUNS a TODOS os usuários logados == */}
             <Route index element={<Dashboard />} />
             <Route path="/perfil" element={<PerfilAgente />} />
+              <Route path="/editar" element={<EditarAgente />} />
             <Route path="/configuracoes" element={<Configuracoes />} />
             <Route path="/conversas" element={<Conversas />} />
             <Route path="/conversa/:chatId" element={<TelaChat />} />
@@ -86,7 +88,7 @@ function App() {
             <Route path="/influenciador/pesquisa" element={<PesquisaInflu />} />
             <Route path="/influenciador/:id" element={<InfluencerProfile />} />
             <Route path="/campaign/:id" element={<CampaignProfile />} />
-            
+            <Route path="/perfil/:id" element={<PerfilAgente />} />
             {/* == Rota EXCLUSIVA para ADMIN == */}
            {/* == Rota EXCLUSIVA para ADMIN DA PLATAFORMA == */}
             <Route element={<RoleProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>

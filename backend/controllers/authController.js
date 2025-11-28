@@ -15,36 +15,39 @@ const generateToken = (id) => {
 // @desc    Registrar um novo usuário
 // @route   POST /api/auth/register
 // @access  Público
+// @desc    Registrar um novo usuário
+// @route   POST /api/auth/register
 export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // 1. Validação simples
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'Por favor, preencha todos os campos.' });
     }
 
-    // 2. Verifica se o usuário já existe
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: 'Este e-mail já está em uso.' });
     }
 
-    // 3. Cria o novo usuário no banco de dados
     const user = await User.create({
       name,
       email,
       password,
       role,
+      // O profileImageUrl padrão será definido pelo Schema do Mongoose se não for passado
     });
 
-    // 4. Se o usuário foi criado com sucesso, retorna os dados e um token
     if (user) {
       res.status(201).json({
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
+        // ✅ CORREÇÃO: Retornar campos extras
+        profileImageUrl: user.profileImageUrl,
+        isCompanyAdmin: user.isCompanyAdmin,
+        empresaId: user.empresaId,
         token: generateToken(user._id),
       });
     } else {
@@ -53,55 +56,50 @@ export const register = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Erro no servidor', error: error.message });
   }
-}; // <-- A função register TERMINA AQUI.
-
+};
 // A função login começa AQUI, do lado de fora.
+// @desc    Login
+// @route   POST /api/auth/login
 export const login = async (req, res) => {
     try {
-        console.log("--- INÍCIO DA REQUISIÇÃO DE LOGIN ---");
         const { email, password } = req.body;
 
         if (!email || !password) {
-            console.log("Login falhou: E-mail ou senha não fornecidos.");
             return res.status(400).json({ message: 'Por favor, forneça e-mail e senha.' });
         }
 
-        // Passo 1: Encontrar o usuário
         const user = await User.findOne({ email }).select('+password');
 
-        // Se o usuário não existir, pare aqui.
         if (!user) {
-            console.log(`Login falhou: Usuário com e-mail ${email} não encontrado.`);
             return res.status(401).json({ message: 'Credenciais inválidas.' });
         }
 
-        console.log(`Usuário ${email} encontrado. Verificando a senha...`);
-        // Passo 2: Comparar a senha
         const isMatch = await user.comparePassword(password);
 
-        // Se a senha estiver correta
         if (isMatch) {
             const token = generateToken(user._id);
-            console.log(`Login BEM-SUCEDIDO para ${email}. Enviando token.`);
             
             return res.status(200).json({
                 _id: user._id,
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                // ✅ CORREÇÃO CRÍTICA: Adicionado envio da imagem e dados da empresa
+                profileImageUrl: user.profileImageUrl, 
+                isCompanyAdmin: user.isCompanyAdmin,
+                empresaId: user.empresaId,
                 token: token,
             });
         } 
         
-        // Se a senha estiver incorreta
-        console.log(`Login falhou: Senha INCORRETA para o usuário ${email}.`);
         res.status(401).json({ message: 'Credenciais inválidas.' });
 
     } catch (error) {
-        console.error("ERRO CRÍTICO NO CONTROLLER DE LOGIN:", error);
-        res.status(500).json({ message: 'Erro interno no servidor ao tentar fazer login.' });
+        console.error("ERRO NO LOGIN:", error);
+        res.status(500).json({ message: 'Erro interno no servidor.' });
     }
 };
+
 // @desc    Gerar CÓDIGO de reset de senha e enviar por e-mail
 // @route   POST /api/auth/forgot-password
 export const forgotPassword = async (req, res) => {

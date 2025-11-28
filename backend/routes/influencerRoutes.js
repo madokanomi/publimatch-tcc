@@ -6,22 +6,35 @@ import {
     getMyInfluencers, 
     deleteInfluencer,
     getInfluencerById,
-    updateInfluencer, // ✅ 1. IMPORTAR A NOVA FUNÇÃO DE UPDATE
-       getPublicInfluencerProfile,
-      getAllInfluencers,
-       getInfluencerCampaigns,
-       getInfluencersByAgent
+    updateInfluencer,
+    getPublicInfluencerProfile,
+    getAllInfluencers,
+    getInfluencerCampaigns,
+    getInfluencersByAgent
 } from '../controllers/influencerController.js';
 
 const router = express.Router();
 
-router.route('/all') // ✅ 2. CRIAR A ROTA ESPECÍFICA
+// ==============================================================================
+// ⚠️ REGRAS DE OURO: 
+// 1. Rotas específicas (como /all, /by-agent) devem vir PRIMEIRO.
+// 2. Rotas genéricas com IDs (como /:id) devem vir POR ÚLTIMO.
+// ==============================================================================
+
+// 1. Rota para listar todos (somente Admin ou uso interno)
+router.route('/all')
     .get(getAllInfluencers); 
 
-    router.route('/:id/campaigns')
-    .get(protect, getInfluencerCampaigns);
+// 2. Rota para buscar influenciadores por Agente (Ajustei para /by-agent para bater com o frontend)
+// Esta rota precisa vir ANTES de /:id
+router.route('/by-agent/:agentId')
+    .get(getInfluencersByAgent); // Removi o protect para testar (ou use protect se for privado)
 
-// Rota para criar (POST) e buscar (GET) os influenciadores do agente logado
+// 3. Rota para Perfil Público (sem login)
+router.route('/public/:id')
+    .get(getPublicInfluencerProfile);
+
+// 4. Rota Raiz (Meus Influenciadores / Cadastro)
 router.route('/')
     .post(
         protect,
@@ -34,29 +47,22 @@ router.route('/')
     )
     .get(protect, authorize('INFLUENCER_AGENT'), getMyInfluencers);
 
-// Rota para buscar, apagar e ATUALIZAR um influenciador específico por ID
+// 5. Rotas Específicas de um ID (Campanhas)
+router.route('/:id/campaigns')
+    .get(protect, getInfluencerCampaigns);
+
+// 6. Rota Genérica por ID (GET, PUT, DELETE) - DEIXE ESTA POR ÚLTIMO
 router.route('/:id')
     .get(protect, authorize('INFLUENCER_AGENT', 'INFLUENCER', 'ADMIN'), getInfluencerById)
     .delete(protect, authorize('INFLUENCER_AGENT'), deleteInfluencer)
-    // ✅ 2. ADICIONAR A ROTA PUT PARA ATUALIZAR O INFLUENCIADOR
     .put(
         protect,
-        authorize('INFLUENCER_AGENT'), // Apenas o agente pode editar
-        upload.fields([ // Precisa do multer para processar possíveis novas imagens
+        authorize('INFLUENCER_AGENT'),
+        upload.fields([
             { name: 'profileImage', maxCount: 1 },
             { name: 'backgroundImage', maxCount: 1 }
         ]),
         updateInfluencer
     );
 
-    router.route('/:id')
-    .get(protect, authorize('INFLUENCER_AGENT', 'INFLUENCER', 'ADMIN'), getInfluencerById)
-    // ... (restante da rota)
-
-    
-    router.route('/public/:id').get(getPublicInfluencerProfile);
-
-    router.route('/agente/:agentId')
-    .get(protect, getInfluencersByAgent);
-    
 export default router;

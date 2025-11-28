@@ -513,6 +513,13 @@ const handleConfirmHire = async () => {
     }
   };
 
+const handleNavigateToAgent = () => {
+      if (influencer?.agent?._id) {
+          // Redireciona para a rota de visualização de perfil de usuário
+          // Certifique-se de ter uma rota no App.js como: <Route path="/profile/:id" element={<UserProfile />} />
+          navigate(`/perfil/${influencer.agent._id}`);
+      }
+  };
 
 const {
     name: nome = 'Nome não disponível',
@@ -566,16 +573,26 @@ const {
             backgroundSize: "cover", backgroundPosition: "center", backdropFilter: "blur(20px)", overflow: "hidden",
           }}
         >
-          <Box
-            sx={{ position: 'absolute', top: 16, right: 16, display: 'flex', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '20px', px: 2, py: 0.5, backdropFilter: 'blur(5px)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}
-          >
-            <Business sx={{ fontSize: 16, color: '#6a1b9a', mr: 1 }} />
-           <Typography variant="caption" sx={{ color: '#6a1b9a' }}>
-    Agenciado por <Typography component="span" variant="caption" fontWeight="bold">
-        {influencer?.agent?.name || 'Agente não informado'}
-    </Typography>
-</Typography>
-          </Box>
+        <Box
+                    onClick={handleNavigateToAgent}
+                    sx={{ 
+                        position: 'absolute', top: 16, right: 16, 
+                        display: 'flex', alignItems: 'center', 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                        borderRadius: '20px', px: 2, py: 0.5, 
+                        backdropFilter: 'blur(5px)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                        cursor: influencer?.agent?._id ? 'pointer' : 'default', // Cursor pointer se tiver ID
+                        transition: 'transform 0.2s',
+                        '&:hover': influencer?.agent?._id ? { transform: 'scale(1.05)', backgroundColor: '#fff' } : {}
+                    }}
+                >
+                    <Business sx={{ fontSize: 16, color: '#6a1b9a', mr: 1 }} />
+                    <Typography variant="caption" sx={{ color: '#6a1b9a' }}>
+                        Agenciado por <Typography component="span" variant="caption" fontWeight="bold">
+                            {influencer?.agent?.name || 'Agente não informado'}
+                        </Typography>
+                    </Typography>
+                </Box>
 
           <Box p={4}>
             <Box display="flex" alignItems="flex-start" justifyContent="space-between">

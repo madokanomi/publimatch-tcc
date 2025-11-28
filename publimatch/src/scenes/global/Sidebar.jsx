@@ -1,8 +1,7 @@
 import { useState } from "react";
-// 1. Adicionado SidebarFooter aos imports
 import { ProSidebar, Menu, MenuItem, SubMenu, SidebarFooter } from "react-pro-sidebar";
 import 'react-pro-sidebar/dist/css/styles.css';
-import { Box, IconButton, Typography, useTheme, Tooltip } from '@mui/material'; // Adicionei Tooltip opcionalmente
+import { Box, IconButton, Typography, useTheme, Tooltip } from '@mui/material'; 
 import { Link } from "react-router-dom";
 import { tokens } from "../../theme";
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
@@ -17,14 +16,16 @@ import HotelClassIcon from '@mui/icons-material/HotelClass';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import ChatIcon from '@mui/icons-material/Chat';
 import ThreePIcon from '@mui/icons-material/ThreeP';
-import foto from "../../assets/user.png";
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 
-// 2. Novos ícones para identificar os cargos
+// Imagem padrão caso o usuário não tenha foto
+import userDefault from "../../assets/user.png";
+
+// Ícones de Cargo
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import BusinessCenterIcon from '@mui/icons-material/BusinessCenter'; // Para Agente Publi
-import SupportAgentIcon from '@mui/icons-material/SupportAgent'; // Para Agente Influencer
-import FaceIcon from '@mui/icons-material/Face'; // Para Influencer
+import BusinessCenterIcon from '@mui/icons-material/BusinessCenter'; 
+import SupportAgentIcon from '@mui/icons-material/SupportAgent'; 
+import FaceIcon from '@mui/icons-material/Face'; 
 
 export const ROLES = {
     AD_AGENT: 'AD_AGENT',
@@ -33,7 +34,6 @@ export const ROLES = {
     ADMIN: 'ADMIN',
 };
 
-// 3. Objeto para mapear o ícone de acordo com o cargo
 const roleIcons = {
     [ROLES.AD_AGENT]: <BusinessCenterIcon sx={{ fontSize: "28px" }} />,
     [ROLES.INFLUENCER_AGENT]: <SupportAgentIcon sx={{ fontSize: "28px" }} />,
@@ -195,12 +195,10 @@ const Sidebar = () => {
                     overflow: "hidden",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
                     background: "linear-gradient(0deg, rgba(34, 22, 164, 0.15), rgba(34, 22, 164, 0.15)), url(image.png)",
-                    // Removido overflow: "auto" daqui pois ele conflitava com o layout flex do footer
                     display: "flex", 
                     flexDirection: "column"
                 }}
             >
-                {/* Envolvemos o Menu em um Box flex-grow para empurrar o footer para baixo */}
                 <Box style={{ flexGrow: 1, overflowY: "auto", overflowX: "hidden" }}>
                     <Menu iconShape="square">
                         <MenuItem
@@ -220,26 +218,27 @@ const Sidebar = () => {
                             )}
                         </MenuItem>
 
+                        {/* --- PERFIL DO USUÁRIO NA SIDEBAR --- */}
                         {!isCollapsed && user && (
                             <Box mb="25px">
                                 <Box display="flex" justifyContent="center" alignItems="center" flexDirection="column">
                                     <img
                                         alt="profile-user"
-                                        width="180px"
-                                        height="180px"
-                                        src={foto}
-                                        style={{ cursor: "pointer", borderRadius: "50%", objectFit: "cover" }}
+                                        width="150px" // Ajustei levemente o tamanho para caber melhor
+                                        height="150px"
+                                        // ✅ AQUI: Usa a imagem do banco, ou a padrão se não tiver
+                                        src={user.profileImageUrl || userDefault}
+                                        style={{ cursor: "pointer", borderRadius: "50%", objectFit: "cover", border: "3px solid rgba(255,255,255,0.2)" }}
                                     />
                                 </Box>
                                 <Box textAlign="center">
                                     <Typography variant="h4" color={colors.grey[100]} fontWeight="bold" sx={{ m: "10px 0 0 0" }}>
+                                        {/* ✅ O nome deve vir do contexto atualizado */}
                                         {user.name}
                                     </Typography>
-                                    <Typography variant="h6" fontWeight="bold" color={"#ffffff"}>
+                                
+                                    <Typography variant="h6" color={colors.greenAccent[500]} sx={{ mt: "5px" }}>
                                         {roleDisplayNames[user.role]}
-                                    </Typography>
-                                    <Typography variant="h7" color={colors.grey[100]}>
-                                        {user.email}
                                     </Typography>
                                 </Box>
                             </Box>
@@ -324,7 +323,7 @@ const Sidebar = () => {
                     </Menu>
                 </Box>
 
-                {/* 4. IMPLEMENTAÇÃO DO RODAPÉ COM INDICADOR DE CARGO */}
+                {/* RODAPÉ COM INDICADOR DE CARGO */}
                 {user && (
                     <SidebarFooter style={{ textAlign: 'center', padding: '20px 0', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                         <Tooltip title={isCollapsed ? roleDisplayNames[user.role] : ""} placement="right">

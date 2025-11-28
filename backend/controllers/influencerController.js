@@ -338,17 +338,19 @@ export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     res.status(200).json(campaign.participatingInfluencers);
 });
 
+// controllers/influencerController.js
+
 export const getInfluencersByAgent = asyncHandler(async (req, res) => {
-    // Pega o ID do agente a partir do parâmetro da URL
-    const { agentId } = req.params;
+    const { agentId } = req.params;
 
-    // Busca todos os influenciadores onde o campo 'agent' é igual ao agentId
-    const influencers = await Influencer.find({ agent: agentId })
-        .select('name profileImageUrl'); // Seleciona apenas os campos necessários para a lista
+    const influencers = await Influencer.find({ agent: agentId })
+        // ADICIONE 'social' AQUI 👇
+        .select('name profileImageUrl realName social'); 
 
-    if (influencers) {
-        res.status(200).json(influencers);
-    } else {
-        res.status(404).json({ message: 'Nenhum influenciador encontrado para este agente.' });
-    }
+    if (influencers) {
+        res.status(200).json(influencers);
+    } else {
+        res.status(404).json({ message: 'Nenhum influenciador encontrado para este agente.' });
+    }
 });
+

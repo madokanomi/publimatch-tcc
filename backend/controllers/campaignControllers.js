@@ -74,7 +74,25 @@ export const createCampaign = async (req, res) => {
 
 export const getCampaigns = async (req, res) => {
     try {
-        const campaigns = await Campaign.find({ createdBy: req.user._id }).sort({ createdAt: -1 });
+        let query = {};
+
+        // 1. Verifica se foi passado um criador na URL (Ex: ?creator=ID_DO_USUARIO)
+        // Isso é usado quando visitamos o perfil público de outro agente
+        if (req.query.creator) {
+            query.createdBy = req.query.creator;
+            
+            // Opcional: Se for visualização pública, talvez você queira esconder campanhas canceladas/rascunhos
+            // query.status = { $ne: 'Cancelada' }; 
+        } 
+        // 2. Se não tem query, assume que é o usuário logado (comportamento padrão)
+        else if (req.user && req.user._id) {
+            query.createdBy = req.user._id;
+        } else {
+            // Se chegou aqui sem autenticação e sem query param
+            return res.status(400).json({ message: "Filtro de campanhas não especificado." });
+        }
+
+        const campaigns = await Campaign.find(query).sort({ createdAt: -1 });
         res.status(200).json(campaigns);
     } catch (error) {
         res.status(500).json({ message: 'Erro no servidor ao buscar campanhas', error: error.message });

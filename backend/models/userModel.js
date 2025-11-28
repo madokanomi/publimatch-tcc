@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: 'URL_DA_SUA_IMAGEM_PADRAO.png' // Coloque uma URL de avatar padrão
     },
+    bio: { type: String, default: '' },
+    backgroundImageUrl: { type: String, default: '' }, // Capa do perfil
+    telefone: { type: String },
     role: {
         type: String,
         required: true,
@@ -37,6 +40,11 @@ const userSchema = new mongoose.Schema({
     // 👇 NOVOS CAMPOS PARA O TOKEN DE CRIAÇÃO DE CONTA
     passwordSetupToken: String,
     passwordSetupExpires: Date,
+    privacySettings: {
+        showEmail: { type: Boolean, default: false },
+        showPhone: { type: Boolean, default: false },
+        isProfilePublic: { type: Boolean, default: true }
+    }
 }, { timestamps: true });
 
 // Hook para criptografar a senha antes de salvar
