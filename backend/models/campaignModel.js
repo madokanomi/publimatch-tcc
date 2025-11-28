@@ -19,6 +19,8 @@ const campaignSchema = new mongoose.Schema({
     paymentValueExact: { type: Number, default: 0 },
     paymentValueMin: { type: Number, default: 0 },
     paymentValueMax: { type: Number, default: 0 },
+    vagas: { 
+        type: Number, required: [true, 'A quantidade de vagas é obrigatória'], min: [1, 'Deve haver pelo menos 1 vaga'] },
     startDate: { type: Date },
     endDate: { type: Date },
     views: { type: Number, default: 0 },

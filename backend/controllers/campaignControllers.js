@@ -1,9 +1,11 @@
 import Notification from '../models/notificationModel.js';
 import Campaign from '../models/campaignModel.js';
 import User from '../models/userModel.js';
+import Influencer from '../models/influencerModel.js';
 import cloudinary from '../config/cloudinaryConfig.js';
 import asyncHandler from 'express-async-handler';
 import Invite from '../models/inviteModel.js';
+
 
 const uploadToCloudinary = (file) => {
     return new Promise((resolve, reject) => {
@@ -27,7 +29,7 @@ export const createCampaign = async (req, res) => {
         const {
             title, privacy, minFollowers, minViews,
             startDate, endDate, paymentType, paymentValueExact,
-            paymentValueMin, paymentValueMax
+            paymentValueMin, paymentValueMax, vagas
         } = req.body;
 
         let logoUrl = '';
@@ -43,14 +45,18 @@ export const createCampaign = async (req, res) => {
         const categories = JSON.parse(req.body.categories);
         const requiredSocials = JSON.parse(req.body.requiredSocials);
 
-        if (!title || !description || !paymentType) {
-            return res.status(400).json({ message: 'Título, Descrição e Tipo de Pagamento são obrigatórios.' });
-        }
+        if (!title || !description || !paymentType || !vagas) {
+            return res.status(400).json({ message: 'Título, Descrição, Tipo de Pagamento e Vagas são obrigatórios.' });
+        }
+
+        if (Number(vagas) <= 0) {
+            return res.status(400).json({ message: 'A quantidade de vagas deve ser pelo menos 1.' });
+        }
         
         const campaignData = {
             title, description, privacy, categories,
             minFollowers, minViews, requiredSocials,
-            startDate, endDate, paymentType,
+            startDate, endDate, paymentType, vagas: Number(vagas),
             logo: logoUrl,
             brandName: req.user.name,
             createdBy: req.user._id
@@ -204,6 +210,32 @@ export const searchCampaigns = async (req, res) => {
         const { title, category, platform, minFollowers, openSlots, minViews } = req.query;
         const query = { status: { $nin: ['Concluída', 'Cancelada'] } };
 
+        if (req.user.role === 'INFLUENCER_AGENT') {
+            // 1. Encontrar todos os influenciadores gerenciados pelo agente
+            const agentInfluencers = await Influencer.find({ agent: req.user._id })
+                .select('niches'); // Seleciona apenas os nichos
+
+            // 2. Se o agente tiver influenciadores, agrega seus nichos
+            if (agentInfluencers && agentInfluencers.length > 0) {
+                // 3. Agregar todos os nichos (categorias) do time do agente
+                const allTeamNiches = new Set();
+                for (const influencer of agentInfluencers) {
+                    influencer.niches.forEach(niche => allTeamNiches.add(niche));
+                }
+
+                // 4. Injetar o filtro de categorias na query base
+                // "Mostre-me campanhas que tenham PELO MENOS UMA das categorias do meu time"
+                if (allTeamNiches.size > 0) {
+                    query.categories = { $in: [...allTeamNiches] };
+                } else {
+                    // Se o time não tem nichos, só pode ver campanhas que não exigem nicho
+                    query.categories = { $exists: true, $eq: [] };
+                }
+            }
+            // Se o agente não tiver influenciadores, nenhum pré-filtro é aplicado.
+        }
+        // ✨ --- FIM DA LÓGICA DE PRÉ-FILTRAGEM --- ✨
+
         if (title) {
             query.title = { $regex: title, $options: 'i' };
         }
@@ -306,6 +338,15 @@ export const applyToCampaign = async (req, res) => {
         if (!campaign) {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
         }
+
+        if (campaign.status !== 'Aberta' && campaign.status !== 'Ativa') {
+            return res.status(400).json({ message: 'Esta campanha não está mais aceitando inscrições.' });
+        }
+
+        // 2. Verifica se o número de participantes atual é MAIOR OU IGUAL ao total de vagas
+        if (campaign.participatingInfluencers.length >= campaign.vagas) {
+            return res.status(400).json({ message: 'Esta campanha não possui mais vagas disponíveis.' });
+        }
 
         if (campaign.participatingInfluencers.includes(influencerId)) {
             return res.status(400).json({ message: 'Este influenciador já está participando da campanha.' });
