@@ -1,3 +1,5 @@
+// backend/controllers/campaignControllers.js
+
 import Notification from '../models/notificationModel.js';
 import Campaign from '../models/campaignModel.js';
 import User from '../models/userModel.js';
@@ -52,8 +54,8 @@ export const createCampaign = async (req, res) => {
         }
 
         if (Number(vagas) <= 0) {
-            return res.status(400).json({ message: 'A quantidade de vagas deve ser pelo menos 1.' });
-        }
+            return res.status(400).json({ message: 'A quantidade de vagas deve ser pelo menos 1.' });
+        }
         
         const campaignData = {
             title, description, privacy, categories,
@@ -110,7 +112,10 @@ export const getCampaigns = async (req, res) => {
 
 export const getCampaignById = async (req, res) => {
     try {
-        const campaign = await Campaign.findById(req.params.id).populate('createdBy', 'name email');
+        // ✨ MUDANÇA AQUI: Adicionado 'profileImageUrl' e '_id' para exibir no banner ✨
+        const campaign = await Campaign.findById(req.params.id)
+            .populate('createdBy', 'name email profileImageUrl _id');
+            
         if (!campaign) {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
         }
@@ -214,30 +219,30 @@ export const searchCampaigns = async (req, res) => {
         const query = { status: { $nin: ['Concluída', 'Cancelada'] } };
 
         if (req.user.role === 'INFLUENCER_AGENT') {
-            // 1. Encontrar todos os influenciadores gerenciados pelo agente
-            const agentInfluencers = await Influencer.find({ agent: req.user._id })
-                .select('niches'); // Seleciona apenas os nichos
+            // 1. Encontrar todos os influenciadores gerenciados pelo agente
+            const agentInfluencers = await Influencer.find({ agent: req.user._id })
+                .select('niches'); // Seleciona apenas os nichos
 
-            // 2. Se o agente tiver influenciadores, agrega seus nichos
-            if (agentInfluencers && agentInfluencers.length > 0) {
-                // 3. Agregar todos os nichos (categorias) do time do agente
-                const allTeamNiches = new Set();
-                for (const influencer of agentInfluencers) {
-                    influencer.niches.forEach(niche => allTeamNiches.add(niche));
-                }
+            // 2. Se o agente tiver influenciadores, agrega seus nichos
+            if (agentInfluencers && agentInfluencers.length > 0) {
+                // 3. Agregar todos os nichos (categorias) do time do agente
+                const allTeamNiches = new Set();
+                for (const influencer of agentInfluencers) {
+                    influencer.niches.forEach(niche => allTeamNiches.add(niche));
+                }
 
-                // 4. Injetar o filtro de categorias na query base
-                // "Mostre-me campanhas que tenham PELO MENOS UMA das categorias do meu time"
-                if (allTeamNiches.size > 0) {
-                    query.categories = { $in: [...allTeamNiches] };
-                } else {
-                    // Se o time não tem nichos, só pode ver campanhas que não exigem nicho
-                    query.categories = { $exists: true, $eq: [] };
-                }
-            }
+                // 4. Injetar o filtro de categorias na query base
+                // "Mostre-me campanhas que tenham PELO MENOS UMA das categorias do meu time"
+                if (allTeamNiches.size > 0) {
+                    query.categories = { $in: [...allTeamNiches] };
+                } else {
+                    // Se o time não tem nichos, só pode ver campanhas que não exigem nicho
+                    query.categories = { $exists: true, $eq: [] };
+                }
+            }
             // Se o agente não tiver influenciadores, nenhum pré-filtro é aplicado.
-        }
-        // ✨ --- FIM DA LÓGICA DE PRÉ-FILTRAGEM --- ✨
+        }
+        // ✨ --- FIM DA LÓGICA DE PRÉ-FILTRAGEM --- ✨
 
         if (title) {
             query.title = { $regex: title, $options: 'i' };
@@ -343,13 +348,13 @@ export const applyToCampaign = async (req, res) => {
         }
 
         if (campaign.status !== 'Aberta' && campaign.status !== 'Ativa') {
-            return res.status(400).json({ message: 'Esta campanha não está mais aceitando inscrições.' });
-        }
+            return res.status(400).json({ message: 'Esta campanha não está mais aceitando inscrições.' });
+        }
 
-        // 2. Verifica se o número de participantes atual é MAIOR OU IGUAL ao total de vagas
-        if (campaign.participatingInfluencers.length >= campaign.vagas) {
-            return res.status(400).json({ message: 'Esta campanha não possui mais vagas disponíveis.' });
-        }
+        // 2. Verifica se o número de participantes atual é MAIOR OU IGUAL ao total de vagas
+        if (campaign.participatingInfluencers.length >= campaign.vagas) {
+            return res.status(400).json({ message: 'Esta campanha não possui mais vagas disponíveis.' });
+        }
 
         if (campaign.participatingInfluencers.includes(influencerId)) {
             return res.status(400).json({ message: 'Este influenciador já está participando da campanha.' });
