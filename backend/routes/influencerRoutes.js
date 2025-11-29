@@ -25,10 +25,9 @@ const router = express.Router();
 router.route('/all')
     .get(getAllInfluencers); 
 
-// 2. Rota para buscar influenciadores por Agente (Ajustei para /by-agent para bater com o frontend)
-// Esta rota precisa vir ANTES de /:id
+// 2. Rota para buscar influenciadores por Agente
 router.route('/by-agent/:agentId')
-    .get(getInfluencersByAgent); // Removi o protect para testar (ou use protect se for privado)
+    .get(getInfluencersByAgent); 
 
 // 3. Rota para Perfil Público (sem login)
 router.route('/public/:id')
@@ -48,8 +47,10 @@ router.route('/')
     .get(protect, authorize('INFLUENCER_AGENT'), getMyInfluencers);
 
 // 5. Rotas Específicas de um ID (Campanhas)
+// ✅ ALTERAÇÃO: Removido 'protect' para permitir visualização pública do histórico.
+// O Controller já gerencia a segurança (mostra só histórico se não for dono).
 router.route('/:id/campaigns')
-    .get(protect, getInfluencerCampaigns);
+    .get(getInfluencerCampaigns);
 
 // 6. Rota Genérica por ID (GET, PUT, DELETE) - DEIXE ESTA POR ÚLTIMO
 router.route('/:id')
