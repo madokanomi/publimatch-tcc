@@ -1,3 +1,5 @@
+// src/components/CampaignAbout.jsx
+
 import { useState } from "react";
 import {
     Box,
@@ -129,9 +131,25 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
                     </Button>
                 </Box>
             )}
-            <Dialog open={openCandidacyDialog} onClose={handleCloseCandidacyDialog} sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(20, 1, 19, 0.6)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", color: "white" } }}>
+            
+            {/* ✨ MODAL AGORA COM FUNDO BRANCO E INPUTS ESCUROS ✨ */}
+            <Dialog 
+                open={openCandidacyDialog} 
+                onClose={handleCloseCandidacyDialog} 
+                sx={{ 
+                    "& .MuiPaper-root": { 
+                        backgroundColor: "white", 
+                        borderRadius: "16px", 
+                        color: "#333", // Texto escuro
+                        boxShadow: "0 10px 40px rgba(0,0,0,0.2)"
+                    } 
+                }}
+            >
                 <DialogTitle sx={{ textAlign: 'center', color: '#b32fff', fontWeight: 'bold' }}>Selecione o Influenciador que deseja participar da campanha</DialogTitle>
                 <DialogContent>
+                    <DialogContentText sx={{ textAlign: 'center', mb: 2, color: '#555' }}>
+                        Escolha um dos seus influenciadores cadastrados para aplicar.
+                    </DialogContentText>
                     <Autocomplete
                         key={autocompleteKey}
                         options={availableInfluencers}
@@ -145,20 +163,31 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
                                 InputProps={{ ...params.InputProps, endAdornment: (<>{loadingInfluencers ? <CircularProgress color="inherit" size={20} /> : null}{params.InputProps.endAdornment}</>),
                                     startAdornment: (
                                         <Box sx={{ pr: 1, display: 'flex', alignItems: 'center' }}>
-                                            <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.2)', width: 32, height: 32 }}>
+                                            <Avatar sx={{ bgcolor: '#eee', width: 32, height: 32 }}>
                                                 {selectedInfluencer && selectedInfluencer.profileImageUrl ? (
                                                     <img src={selectedInfluencer.profileImageUrl} alt={selectedInfluencer.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}/>
-                                                ) : (<Star sx={{ color: 'white' }} />)}
+                                                ) : (<Star sx={{ color: '#bbb' }} />)}
                                             </Avatar>
                                         </Box>
                                     ),
                                 }}
-                                sx={{ "& .MuiOutlinedInput-root": { backgroundColor: "rgba(255, 255, 255, 0.1)", borderRadius: "16px", "& fieldset": { borderColor: "rgba(255, 255, 255, 0.2)" }, "&:hover fieldset": { borderColor: "rgba(255, 255, 255, 0.4)" }, "&.Mui-focused fieldset": { borderColor: "#FF37EB" }, color: "white" }, "& .MuiInputLabel-root": { color: "rgba(255, 255, 255, 0.7)" }, "& .MuiInputBase-input::placeholder": { color: "rgba(255, 255, 255, 0.6)" } }}
+                                // Estilos adaptados para o fundo branco
+                                sx={{ 
+                                    "& .MuiOutlinedInput-root": { 
+                                        backgroundColor: "#f5f5f5", 
+                                        borderRadius: "16px", 
+                                        "& fieldset": { borderColor: "#e0e0e0" }, 
+                                        "&:hover fieldset": { borderColor: "#bdbdbd" }, 
+                                        "&.Mui-focused fieldset": { borderColor: "#FF37EB" }, 
+                                        color: "#333" 
+                                    }, 
+                                    "& .MuiInputBase-input::placeholder": { color: "#999" } 
+                                }}
                             />
                         )}
                         renderOption={(props, option) => (
-                            <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Avatar src={option.profileImageUrl} alt={option.name} />
+                            <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#333' }}>
+                                <Avatar src={option.profileImageUrl} alt={option.name} sx={{ width: 32, height: 32 }} />
                                 <Typography>{option.name}</Typography>
                             </Box>
                         )}
@@ -166,13 +195,38 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
                     />
                 </DialogContent>
                 <DialogActions sx={{ justifyContent: 'center', p: 3, gap: 2 }}>
-                    <Button onClick={handleCloseCandidacyDialog} variant="contained" startIcon={<Close />} sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', color: 'white', borderRadius: '16px', '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.2)' } }}>Cancelar</Button>
-                    <Button onClick={handleConfirmCandidacy} variant="contained" startIcon={<Check />} disabled={!selectedInfluencer} sx={{ background: "linear-gradient(90deg, #FF37EB 0%, #B32FFF 100%)", color: 'white', borderRadius: '16px', '&:disabled': { opacity: 0.5, color: 'white' } }}>Confirmar</Button>
+                    <Button 
+                        onClick={handleCloseCandidacyDialog} 
+                        variant="outlined" 
+                        startIcon={<Close />} 
+                        sx={{ 
+                            borderColor: "#ddd", 
+                            color: "#666", 
+                            borderRadius: '16px', 
+                            '&:hover': { backgroundColor: "#f5f5f5", borderColor: "#ccc" } 
+                        }}
+                    >
+                        Cancelar
+                    </Button>
+                    <Button 
+                        onClick={handleConfirmCandidacy} 
+                        variant="contained" 
+                        startIcon={<Check />} 
+                        disabled={!selectedInfluencer} 
+                        sx={{ 
+                            background: "linear-gradient(90deg, #FF37EB 0%, #B32FFF 100%)", 
+                            color: 'white', 
+                            borderRadius: '16px', 
+                            '&:disabled': { opacity: 0.5, background: "#ccc", boxShadow: "none" } 
+                        }}
+                    >
+                        Confirmar
+                    </Button>
                 </DialogActions>
             </Dialog>
-            <Dialog open={openSuccessDialog} onClose={handleCloseSuccessDialog} sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(20, 1, 19, 0.6)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", color: "white", textAlign: "center" } }}>
-                <DialogTitle><Typography variant="h6" fontWeight="bold">Candidatura Enviada!</Typography></DialogTitle>
-                <DialogContent><DialogContentText sx={{ color: 'rgba(255,255,255,0.8)' }}>Sua candidatura foi enviada com sucesso para análise.</DialogContentText></DialogContent>
+            <Dialog open={openSuccessDialog} onClose={handleCloseSuccessDialog} sx={{ "& .MuiPaper-root": { backgroundColor: "white", borderRadius: "16px", color: "#333", textAlign: "center" } }}>
+                <DialogTitle><Typography variant="h6" fontWeight="bold" color="#2e7d32">Candidatura Enviada!</Typography></DialogTitle>
+                <DialogContent><DialogContentText sx={{ color: '#666' }}>Sua candidatura foi enviada com sucesso para análise.</DialogContentText></DialogContent>
                 <DialogActions sx={{ justifyContent: 'center' }}><Button onClick={handleCloseSuccessDialog} variant="contained" sx={{ background: "linear-gradient(90deg, #FF37EB 0%, #B32FFF 100%)", color: 'white', borderRadius: '16px' }}>OK</Button></DialogActions>
             </Dialog>
             <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
