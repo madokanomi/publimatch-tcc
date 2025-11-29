@@ -9,7 +9,7 @@ import Campaign from '../models/campaignModel.js';
 import Application from '../models/applicationModel.js';
 import { getYoutubeStats } from '../config/youtubeHelper.js';
 import { getInstagramStats } from '../config/instagramHelper.js';
-import Review from '../models/reviewModel.js';
+import Review from '../models/reviewModel.js'; // ✅ Importante para as tags
 
 const uploadToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -29,114 +29,84 @@ const uploadToCloudinary = (file) => {
 };
 
 export const registerInfluencer = asyncHandler(async (req, res) => {
-    const { 
-        exibitionName, realName, age, description, aboutMe, 
-        categories, social, wantsAccount, email 
-    } = req.body;
+    const { 
+        exibitionName, realName, age, description, aboutMe, 
+        categories, social, wantsAccount, email 
+    } = req.body;
 
-    // Validações (como no original)
-    if (!exibitionName || !realName) {
-        res.status(400);
-        throw new Error('Nome de exibição e nome real são obrigatórios.');
-    }
+    if (!exibitionName || !realName) {
+        res.status(400);
+        throw new Error('Nome de exibição e nome real são obrigatórios.');
+    }
 
-    // Verificação de email (como no original)
-    if (wantsAccount === 'true' && email) {
-        const userExists = await User.findOne({ email });
-        if (userExists) {
-            res.status(409);
-            throw new Error('Este e-mail já está cadastrado na plataforma.');
-        }
-    }
+    if (wantsAccount === 'true' && email) {
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            res.status(409);
+            throw new Error('Este e-mail já está cadastrado na plataforma.');
+        }
+    }
 
-    // Lógica de upload de imagens (como no original)
-    let profileImageUrl = '';
-    let backgroundImageUrl = '';
+    let profileImageUrl = '';
+    let backgroundImageUrl = '';
 
-    if (req.files) {
-      if (req.files.profileImage) {
-        const result = await uploadToCloudinary(req.files.profileImage[0]);
-        profileImageUrl = result.secure_url;
-      }
-      if (req.files.backgroundImage) {
-        const result = await uploadToCloudinary(req.files.backgroundImage[0]);
-        backgroundImageUrl = result.secure_url;
-      }
-    }
-    
-    // Criação do perfil do influenciador (como no original)
-    const influencer = await Influencer.create({
-        name: exibitionName,
-        realName,
-        age,
-        description,
-        aboutMe,
-        niches: typeof categories === 'string' ? categories.split(',') : categories,
-        social: typeof social === 'string' ? JSON.parse(social) : social, 
-        agent: req.user._id,
-        profileImageUrl,
-        backgroundImageUrl,
-    });
+    if (req.files) {
+      if (req.files.profileImage) {
+        const result = await uploadToCloudinary(req.files.profileImage[0]);
+        profileImageUrl = result.secure_url;
+      }
+      if (req.files.backgroundImage) {
+        const result = await uploadToCloudinary(req.files.backgroundImage[0]);
+        backgroundImageUrl = result.secure_url;
+      }
+    }
+    
+    const influencer = await Influencer.create({
+        name: exibitionName,
+        realName,
+        age,
+        description,
+        aboutMe,
+        niches: typeof categories === 'string' ? categories.split(',') : categories,
+        social: typeof social === 'string' ? JSON.parse(social) : social, 
+        agent: req.user._id,
+        profileImageUrl,
+        backgroundImageUrl,
+    });
 
-    if (!influencer) {
-        res.status(400);
-        throw new Error('Dados inválidos, não foi possível criar o perfil do influenciador.');
-    }
+    if (!influencer) {
+        res.status(400);
+        throw new Error('Dados inválidos, não foi possível criar o perfil do influenciador.');
+    }
 
-    // --- ⚠️ AQUI ESTÁ A MUDANÇA ---
-    if (wantsAccount === 'true' && email) {
-        
-        // 1. Cria o usuário com a senha padrão que você definiu
-        const user = await User.create({
-            name: realName,
-            email: email,
-            password: 'senhaForte123', // ✅ SENHA PADRÃO APLICADA
-            role: 'INFLUENCER',
-        });
-        
-        // 2. Vincula a conta de usuário ao perfil (como no original)
-        // O hook 'pre-save' no userModel vai hashear a senha automaticamente
-        influencer.userAccount = user._id;
-        await influencer.save();
+    if (wantsAccount === 'true' && email) {
+        const user = await User.create({
+            name: realName,
+            email: email,
+            password: 'senhaForte123', 
+            role: 'INFLUENCER',
+        });
+        
+        influencer.userAccount = user._id;
+        await influencer.save();
+    }
 
-        // 3. Lógica de enviar email e token foi REMOVIDA
-        /*             const setupToken = user.getPasswordSetupToken();
-            await user.save({ validateBeforeSave: false });
-            const setupUrl = `${process.env.FRONTEND_URL}/criar-senha/${setupToken}`;
-            try {
-                await sendWelcomeEmail(user.email, user.name, setupUrl);
-            } catch (error) {
-                console.error("Falha CRÍTICA ao enviar e-mail de boas-vindas:", error);
-            }
-        */
-    }
-    // --- FIM DA MUDANÇA ---
-
-    // Resposta final (como no original)
-    res.status(201).json({
-        _id: influencer._id,
-        name: influencer.name,
-        message: "Influenciador cadastrado com sucesso!"
-    });
+    res.status(201).json({
+        _id: influencer._id,
+        name: influencer.name,
+        message: "Influenciador cadastrado com sucesso!"
+    });
 });
 
 export const getMyInfluencers = asyncHandler(async (req, res) => {
     const { campaignId } = req.query;
-
-    // Passo 1: Busca todos os influenciadores do agente logado
     let agentInfluencers = await Influencer.find({ agent: req.user._id });
 
-    // Passo 2: Se um campaignId foi fornecido, filtra a lista
     if (campaignId) {
-        // Busca todas as candidaturas para a campanha, selecionando o campo 'influencer'
         const applications = await Application.find({ campaign: campaignId }).select('influencer');
-        
-        // Cria um conjunto (Set) com os IDs dos perfis de influenciador que já se candidataram
         const appliedInfluencerIds = new Set(
             applications.map(app => app.influencer.toString())
         );
-
-        // Filtra a lista, mantendo apenas aqueles cujo _id NÃO está no conjunto de candidaturas
         agentInfluencers = agentInfluencers.filter(
             influencer => !appliedInfluencerIds.has(influencer._id.toString())
         );
@@ -159,7 +129,6 @@ export const deleteInfluencer = asyncHandler(async (req, res) => {
     }
 
     await influencer.deleteOne();
-
     res.status(200).json({ message: 'Influenciador removido com sucesso.' });
 });
 
@@ -177,12 +146,9 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
     const isAdAgent = req.user.role === 'AD_AGENT';
 
     if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
-        
-        // --- BUSCA DE DADOS EXTERNOS ---
         let youtubePromise = Promise.resolve(null);
         let instagramPromise = Promise.resolve(null);
 
-        // Prepara Promises se existirem links
         if (influencer.social?.youtube) {
             youtubePromise = getYoutubeStats(influencer.social.youtube);
         }
@@ -190,7 +156,6 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
             instagramPromise = getInstagramStats(influencer.social.instagram);
         }
 
-        // Executa em paralelo (uma não trava a outra)
         const [youtubeResult, instagramResult] = await Promise.allSettled([
             youtubePromise,
             instagramPromise
@@ -198,11 +163,9 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
 
         const responseData = influencer.toObject();
 
-        // Anexa resultados se deram certo (status 'fulfilled')
         if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
             responseData.youtubeStats = youtubeResult.value;
         }
-        
         if (instagramResult.status === 'fulfilled' && instagramResult.value) {
             responseData.instagramStats = instagramResult.value;
         }
@@ -246,41 +209,34 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
   influencer.age = age || influencer.age;
   influencer.description = description || influencer.description;
   
-  if (aboutMe) {
-    influencer.aboutMe = aboutMe;
-  }
-
-  if (niches) {
-    influencer.niches = typeof niches === 'string' ? niches.split(',') : niches;
-  }
-  if (social) {
-    influencer.social = typeof social === 'string' ? JSON.parse(social) : social;
-  }
+  if (aboutMe) { influencer.aboutMe = aboutMe; }
+  if (niches) { influencer.niches = typeof niches === 'string' ? niches.split(',') : niches; }
+  if (social) { influencer.social = typeof social === 'string' ? JSON.parse(social) : social; }
 
   const updatedInfluencer = await influencer.save();
-
   res.status(200).json(updatedInfluencer);
 });
 
+// ✅ ATUALIZADO: Lógica para calcular tags e avaliação média na listagem geral
 export const getAllInfluencers = asyncHandler(async (req, res) => {
-    // Usamos .lean() para poder modificar o objeto JSON facilmente
+    // Usamos .lean() para modificar o objeto JSON
     const influencers = await Influencer.find({}).lean(); 
     
     if (influencers && influencers.length > 0) {
-        // Processamos cada influenciador para buscar suas reviews e calcular tags
+        // Processa cada influenciador para buscar reviews e calcular tags
         const influencersWithData = await Promise.all(influencers.map(async (inf) => {
             const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
 
             // 1. Calcular Média de Avaliação Real
             const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
-            const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
+            const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0; // Se não houver reviews, 0 ou valor padrão do model
 
             // 2. Contar frequência das Tags
             const tagCounts = {};
             reviews.forEach(review => {
                 if (review.tags && Array.isArray(review.tags)) {
                     review.tags.forEach(tag => {
-                        const normalizedTag = tag.trim(); // Remove espaços extras
+                        const normalizedTag = tag.trim(); 
                         tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
                     });
                 }
@@ -288,14 +244,14 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
 
             // 3. Pegar as top 3 tags mais recorrentes
             const topTags = Object.entries(tagCounts)
-                .sort(([, countA], [, countB]) => countB - countA) // Ordena descrescente pela contagem
-                .slice(0, 3) // Pega as 3 primeiras
-                .map(([tag]) => tag); // Retorna só o nome da tag
+                .sort(([, countA], [, countB]) => countB - countA) 
+                .slice(0, 3) 
+                .map(([tag]) => tag); 
 
             return {
                 ...inf,
-                calculatedRating: avgRating,
-                topTags: topTags // Retorna array vazio se não tiver reviews
+                avaliacao: avgRating || inf.avaliacao || 4.5, // Usa a média real, ou fallback
+                tags: topTags // ✅ Mapeado para 'tags' para o InfluencerCard usar diretamente
             };
         }));
 
@@ -306,63 +262,80 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
 });
 
 export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
-  const influencer = await Influencer.findById(req.params.id)
-    // ✅ Adicione 'agent' à lista de campos selecionados
-    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl agent')
-    // ✅ Popule o campo 'agent' para obter o nome
+  const influencer = await Influencer.findById(req.params.id)
+    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl agent')
     .populate('agent', 'name');
 
-  if (influencer) {
-    res.json(influencer);
-  } else {
-    res.status(404);
-    throw new Error('Perfil de influenciador não encontrado.');
-  }
+  if (influencer) {
+    res.json(influencer);
+  } else {
+    res.status(404);
+    throw new Error('Perfil de influenciador não encontrado.');
+  }
 });
 
+// ✅ ATUALIZADO: Mantém a segurança do perfil público (histórico vs tudo)
 export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
   const { id: influencerId } = req.params;
+  const userRequesting = req.user; // Pode ser undefined se não houver middleware protect, ou o usuário logado
 
   if (!influencerId) {
     res.status(400);
     throw new Error('O ID do influenciador é necessário.');
   }
 
-  const [invites, participating, history] = await Promise.all([
-    Invite.find({ influencer: influencerId, status: 'PENDING' })
-      .populate({
-        path: 'campaign',
-        select: 'title logo endDate createdBy',
-      })
-      .populate('adAgent', 'name'),
+  const influencerProfile = await Influencer.findById(influencerId);
+  if (!influencerProfile) {
+      res.status(404);
+      throw new Error('Influenciador não encontrado');
+  }
 
-    Campaign.find({
-      participatingInfluencers: influencerId,
-      status: { $in: ['Aberta', 'Planejamento', 'Ativa'] },
-    }),
+  // Verifica permissões (Dono, Agente ou Admin vê tudo)
+  let hasFullAccess = false;
+  if (userRequesting) {
+      const isOwner = influencerProfile.userAccount && influencerProfile.userAccount.toString() === userRequesting._id.toString();
+      const isAgent = influencerProfile.agent && influencerProfile.agent.toString() === userRequesting._id.toString();
+      const isAdmin = userRequesting.role === 'ADMIN';
+      hasFullAccess = isOwner || isAgent || isAdmin;
+  }
 
-    Campaign.find({
-      participatingInfluencers: influencerId,
-      status: 'Concluída',
-    }),
-  ]);
+  if (hasFullAccess) {
+      const [invites, participating, history] = await Promise.all([
+        Invite.find({ influencer: influencerId, status: 'PENDING' })
+          .populate({ path: 'campaign', select: 'title logo endDate createdBy' })
+          .populate('adAgent', 'name'),
 
-  res.status(200).json({ invites, participating, history });
+        Campaign.find({
+          participatingInfluencers: influencerId,
+          status: { $in: ['Aberta', 'Planejamento', 'Ativa'] },
+        }),
+
+        Campaign.find({
+          participatingInfluencers: influencerId,
+          status: 'Concluída',
+        }),
+      ]);
+      res.status(200).json({ invites, participating, history });
+  } else {
+      // VISITANTE PÚBLICO: Vê apenas campanhas CONCLUÍDAS (Histórico)
+      const history = await Campaign.find({
+          participatingInfluencers: influencerId,
+          status: 'Concluída',
+      }).select('title logo endDate conversion views engagement'); 
+
+      res.status(200).json({ invites: [], participating: [], history });
+  }
 });
 
-// @desc    Buscar os influenciadores participantes de uma campanha
-// @route   GET /api/campaigns/:id/participants
-// @access  Privado (AD_AGENT)
 export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     const campaign = await Campaign.findById(req.params.id)
-        .populate('participatingInfluencers', 'name email profileImageUrl agent'); // Popula os dados dos usuários
+        .populate('participatingInfluencers', 'name email profileImageUrl agent');
 
     if (!campaign) {
         res.status(404);
         throw new Error('Campanha não encontrada.');
     }
 
-    // Segurança: Apenas o criador da campanha pode ver os participantes
     if (campaign.createdBy.toString() !== req.user._id.toString()) {
         res.status(403);
         throw new Error('Não autorizado a ver os participantes desta campanha.');
@@ -371,13 +344,9 @@ export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     res.status(200).json(campaign.participatingInfluencers);
 });
 
-// controllers/influencerController.js
-
 export const getInfluencersByAgent = asyncHandler(async (req, res) => {
     const { agentId } = req.params;
-
     const influencers = await Influencer.find({ agent: agentId })
-        // ADICIONE 'social' AQUI 👇
         .select('name profileImageUrl realName social'); 
 
     if (influencers) {
@@ -386,4 +355,3 @@ export const getInfluencersByAgent = asyncHandler(async (req, res) => {
         res.status(404).json({ message: 'Nenhum influenciador encontrado para este agente.' });
     }
 });
-
