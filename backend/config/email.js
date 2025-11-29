@@ -1,24 +1,19 @@
-// 1. Mude o 'import' para 'require' para usar CommonJS
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
 // Configura o "transportador" de e-mail.
-// Lembre-se de adicionar EMAIL_USER e EMAIL_PASS no seu arquivo .env
+// Certifique-se de que EMAIL_USER e EMAIL_PASS estão no .env
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // Para desenvolvimento. Em produção, use um serviço como SendGrid ou Amazon SES.
+    service: 'gmail', 
     auth: {
-        user: process.env.EMAIL_USER, // Seu e-mail completo do Gmail
-        pass: process.env.EMAIL_PASS, // A "Senha de App" que você gerou no Google
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
     },
 });
 
 /**
- * Envia um e-mail de boas-vindas com um link para o usuário criar sua senha.
- * @param {string} to - O e-mail do destinatário.
- * @param {string} name - O nome do destinatário.
- * @param {string} setupLink - O link completo para a página de criação de senha.
+ * Envia um e-mail de boas-vindas.
  */
-// 2. Mude 'export const' para 'exports.'
-exports.sendWelcomeEmail = async (to, name, setupLink) => {
+export const sendWelcomeEmail = async (to, name, setupLink) => {
     const mailOptions = {
         from: `"PubliMatch" <${process.env.EMAIL_USER}>`,
         to: to,
@@ -32,8 +27,6 @@ exports.sendWelcomeEmail = async (to, name, setupLink) => {
                     Criar Minha Senha
                 </a>
                 <p>Este link é válido por 24 horas.</p>
-                <p>Se você não solicitou este cadastro, por favor, ignore este e-mail.</p>
-                <p>Atenciosamente,<br>Equipe PubliMatch</p>
             </div>
         `,
     };
@@ -47,15 +40,10 @@ exports.sendWelcomeEmail = async (to, name, setupLink) => {
     }
 };
 
-
 /**
  * Envia um e-mail de redefinição de senha com um CÓDIGO numérico.
- * Esta função é a que o seu authController atual precisa.
- * @param {string} to - O e-mail do destinatário.
- * @param {string} name - O nome do destinatário.
- * @param {string} code - O código de 6 dígitos para redefinir a senha.
  */
-exports.sendPasswordResetCodeEmail = async (to, name, code) => {
+export const sendPasswordResetCodeEmail = async (to, name, code) => {
     const mailOptions = {
         from: `"PubliMatch" <${process.env.EMAIL_USER}>`,
         to: to,
@@ -82,3 +70,7 @@ exports.sendPasswordResetCodeEmail = async (to, name, code) => {
         throw new Error('Falha ao enviar o e-mail de redefinição.');
     }
 };
+
+// Adiciona uma exportação padrão vazia ou com as funções para compatibilidade, se necessário, 
+// mas o ideal é usar as importações nomeadas (com chaves {}) no controlador.
+export default { sendWelcomeEmail, sendPasswordResetCodeEmail };
