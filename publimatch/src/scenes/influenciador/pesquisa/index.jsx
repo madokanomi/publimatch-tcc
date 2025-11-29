@@ -128,30 +128,27 @@ const token = localStorage.getItem('token') || sessionStorage.getItem('token');
           
             return {
               // --- Dados diretos do Backend ---
-              id: inf._id,
-              _id: inf._id,
-              name: inf.name,
-              realName: inf.realName,
-              profileImageUrl: inf.profileImageUrl || '/default-avatar.png',
-              backgroundImageUrl: inf.backgroundImageUrl || '',
-              niches: inf.niches || [],
-              tags: inf.niches || [], // Usando niches como tags
-              social: inf.social || {},
-              description: inf.description || '',
+         id: inf._id,
+        _id: inf._id,
+        name: inf.name,
+        realName: inf.realName,
+        profileImageUrl: inf.profileImageUrl || '/default-avatar.png',
+        backgroundImageUrl: inf.backgroundImageUrl || '',
+        niches: inf.niches || [],
+        social: inf.social || {},
+        description: inf.description || '',
+        
+        // AQUI: Usamos as Top 3 Tags calculadas no controller
+        tags: inf.topTags || [], 
 
-              // --- Métricas como NÚMEROS ---
-              followersCount: randomFollowers,
-              engagementRate: randomEngagement,
-              avaliacao: randomAvaliacao,
+        // AQUI: Usamos a avaliação real calculada no controller
+        avaliacao: inf.calculatedRating || 0,
 
-              // --- Propriedades para o Card e Comparação (também como NÚMEROS) ---
-              nome: inf.name,
-              imagem: inf.profileImageUrl || '/default-avatar.png',
-              redes: Object.keys(inf.social || {}).filter(k => inf.social[k]),
-                   seguidores: randomLikes, // Usado para Curtidas
-              engajamento: randomEngagement,
-              views: randomViews,
-              inscritos: randomInscritos,
+        // --- Dados Simulados (pois o backend ainda não tem integração com API do youtube/insta para isso) ---
+        followersCount: randomFollowers,
+        engagementRate: 4.5, // Exemplo fixo ou random
+        views: 1.2,
+        inscritos: 0.5,
           };
         });
 

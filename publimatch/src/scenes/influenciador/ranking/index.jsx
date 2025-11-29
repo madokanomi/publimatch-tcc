@@ -64,7 +64,7 @@ export default function RankingInfluenciadores() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const userInfo = JSON.parse(localStorage.getItem('user'));
+      const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
         const token = userInfo?.token;
         const config = { headers: { Authorization: `Bearer ${token}` } };
 

@@ -9,7 +9,7 @@ import Campaign from '../models/campaignModel.js';
 import Application from '../models/applicationModel.js';
 import { getYoutubeStats } from '../config/youtubeHelper.js';
 import { getInstagramStats } from '../config/instagramHelper.js';
-
+import Review from '../models/reviewModel.js';
 
 const uploadToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -263,10 +263,43 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
 });
 
 export const getAllInfluencers = asyncHandler(async (req, res) => {
-    const influencers = await Influencer.find({}); 
+    // Usamos .lean() para poder modificar o objeto JSON facilmente
+    const influencers = await Influencer.find({}).lean(); 
     
-   if (influencers && influencers.length > 0) {
-        res.status(200).json(influencers);
+    if (influencers && influencers.length > 0) {
+        // Processamos cada influenciador para buscar suas reviews e calcular tags
+        const influencersWithData = await Promise.all(influencers.map(async (inf) => {
+            const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
+
+            // 1. Calcular Média de Avaliação Real
+            const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
+            const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
+
+            // 2. Contar frequência das Tags
+            const tagCounts = {};
+            reviews.forEach(review => {
+                if (review.tags && Array.isArray(review.tags)) {
+                    review.tags.forEach(tag => {
+                        const normalizedTag = tag.trim(); // Remove espaços extras
+                        tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
+                    });
+                }
+            });
+
+            // 3. Pegar as top 3 tags mais recorrentes
+            const topTags = Object.entries(tagCounts)
+                .sort(([, countA], [, countB]) => countB - countA) // Ordena descrescente pela contagem
+                .slice(0, 3) // Pega as 3 primeiras
+                .map(([tag]) => tag); // Retorna só o nome da tag
+
+            return {
+                ...inf,
+                calculatedRating: avgRating,
+                topTags: topTags // Retorna array vazio se não tiver reviews
+            };
+        }));
+
+        res.status(200).json(influencersWithData);
     } else {
         res.status(404).json({ message: 'Nenhum influenciador encontrado na plataforma.' });
     }
