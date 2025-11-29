@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-
   Box, Typography, Avatar, Button, Chip, Divider, IconButton, Card,
   CardContent, Grid, Rating, LinearProgress, Dialog, DialogActions,
   DialogContent, DialogContentText, DialogTitle, FormControl,
@@ -20,13 +19,10 @@ import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import { useParams, useNavigate } from "react-router-dom";
 import Estatisticas from "../../../components/Estatisticas.jsx";
 import TiptapContent from "../../../components/TiptapContent.jsx";
-// 1. IMPORTS DE ANIMAÇÃO
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import axiosInstance from '../../../auth/axios.jsx';
-// Importar o hook de autenticação e as ROLES
-import { useAuth } from '../../../auth/AuthContext'; // Ajuste o caminho se necessário
-
+import { useAuth } from '../../../auth/AuthContext'; 
 import { SiTwitch } from 'react-icons/si';
 
 export const ROLES = {
@@ -37,56 +33,61 @@ export const ROLES = {
 };
 
 const InfluencerProfile = () => {
-  // Acessar os dados do usuário logado
-   const { user } = useAuth();
-  const { id } = useParams();
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { id } = useParams();
+  const navigate = useNavigate();
 
-    const [influencer, setInfluencer] = useState(null); // Começa como nulo
-      const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true); // Começa carregando
-    const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [influencer, setInfluencer] = useState(null); 
+  const [reviews, setReviews] = useState([]);
+  // ✅ NOVO: Estado para histórico de campanhas reais
+  const [campaignHistory, setCampaignHistory] = useState([]);
+
+  const [loading, setLoading] = useState(true); 
+  const [reviewsLoading, setReviewsLoading] = useState(true);
   const [userCampaigns, setUserCampaigns] = useState([]);
   const [dialogLoading, setDialogLoading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState("Sobre");
-  const [openHireDialog, setOpenHireDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("Sobre");
+  const [openHireDialog, setOpenHireDialog] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
- const [error, setError] = useState(null); 
+  const [error, setError] = useState(null); 
 
-  
-  // Condição para exibir o botão de contratar
   const canHire = user && user.role === ROLES.AD_AGENT;
-
-  // MODIFICAÇÃO 1: Criar nova condição para ver detalhes das avaliações
   const canSeeDetailedReviews = user && user.role === ROLES.AD_AGENT;
-useEffect(() => {
+
+  useEffect(() => {
     const fetchData = async () => {
         if (!id) return;
 
-        // Prepara a chamada para os dados públicos do influenciador
+        // Busca dados públicos
         const publicInfluencerPromise = axios.get(`http://localhost:5001/api/influencers/public/${id}`);
         
-        // Prepara a chamada para as avaliações, mas só se o usuário estiver logado
+        const config = (user && user.token) ? { headers: { Authorization: `Bearer ${user.token}` } } : {};
+
+        // Busca avaliações (se logado)
         let reviewsPromise;
         if (user && user.token) {
-            const config = { headers: { Authorization: `Bearer ${user.token}` } };
             reviewsPromise = axios.get(`http://localhost:5001/api/reviews/influencer/${id}`, config);
         } else {
-            // Se não estiver logado, resolve com um array vazio para não dar erro
             reviewsPromise = Promise.resolve({ data: [] });
         }
 
+        // ✅ Busca histórico de campanhas (Real)
+        const campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${id}/campaigns`, config);
+
         try {
-            // Executa as duas chamadas em paralelo para ganhar tempo
-            const [influencerResponse, reviewsResponse] = await Promise.all([
+            const [influencerResponse, reviewsResponse, campaignsResponse] = await Promise.all([
                 publicInfluencerPromise,
-                reviewsPromise
+                reviewsPromise,
+                campaignsPromise
             ]);
             
             setInfluencer(influencerResponse.data);
             setReviews(reviewsResponse.data);
+            
+            // ✅ Salva o histórico real no estado
+            setCampaignHistory(campaignsResponse.data.history || []);
 
         } catch (err) {
             console.error("Erro ao buscar dados do perfil:", err.response);
@@ -98,15 +99,11 @@ useEffect(() => {
     };
 
     fetchData();
-}, [id, user]);
+  }, [id, user]);
 
-const stats = useMemo(() => {
+  const stats = useMemo(() => {
     if (!reviews || reviews.length === 0) {
-        return {
-            averageRating: 0,
-            ratingText: "Sem Avaliações",
-            topTags: [],
-        };
+        return { averageRating: 0, ratingText: "Sem Avaliações", topTags: [] };
     }
     const totalRating = reviews.reduce((acc, review) => acc + review.rating, 0);
     const averageRating = totalRating / reviews.length;
@@ -114,46 +111,27 @@ const stats = useMemo(() => {
     if (averageRating >= 4.5) ratingText = "Excelente!";
     else if (averageRating >= 4.0) ratingText = "Muito Bom!";
     else if (averageRating >= 3.0) ratingText = "Bom";
+    
     const tagCounts = reviews.flatMap(r => r.tags).reduce((acc, tag) => {
         acc[tag] = (acc[tag] || 0) + 1;
         return acc;
     }, {});
     const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(item => item[0]);
     return { averageRating, ratingText, topTags };
-}, [reviews]);
+  }, [reviews]);
 
-  // ALTERADO: Tratamento de loading e erro, igual ao do Sobrespec
-  if (loading) {
-    return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><CircularProgress /></Box>;
-  }
+  if (loading) return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><CircularProgress /></Box>;
+  if (error) return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><Typography color="error">{error}</Typography></Box>;
+  if (!influencer) return <Typography sx={{ m: 3 }}>Influenciador não encontrado.</Typography>;
 
-  if (error) {
-    return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><Typography color="error">{error}</Typography></Box>;
-  }
-
-  if (!influencer) {
-    return <Typography sx={{ m: 3 }}>Influenciador não encontrado.</Typography>;
-  }
-
-
-  // 2. DEFINIÇÃO DAS VARIANTES DE ANIMAÇÃO
   const staggerContainer = {
     hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
   };
 
   const staggerItem = {
     hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: { type: 'spring', stiffness: 120 },
-    },
+    visible: { y: 0, opacity: 1, transition: { type: 'spring', stiffness: 120 } },
   };
   
   const tabContentVariant = {
@@ -162,117 +140,56 @@ const stats = useMemo(() => {
       exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } }
   };
 
-
-  if (!influencer) {
-    return <Typography>Influenciador não encontrado.</Typography>;
-  }
-
-const handleOpenHireDialog = async () => {
-    // 1. Abre o diálogo e ativa o estado de loading
+  const handleOpenHireDialog = async () => {
     setOpenHireDialog(true);
     setDialogLoading(true);
-
     try {
-        // 2. Pega o token do usuário logado (assumindo que está no objeto 'user')
         const token = user?.token; 
         if (!token) {
-            console.error("Usuário não autenticado para buscar campanhas.");
-            // Opcional: Adicionar um feedback de erro para o usuário
             setDialogLoading(false);
             return;
         }
-
-        // 3. Configura o header de autorização para a requisição
-        const config = {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        };
-
-        // 4. Faz a chamada à API para buscar as campanhas do usuário logado
-        //    (Ajuste a URL se necessário para corresponder à sua rota no backend)
+        const config = { headers: { Authorization: `Bearer ${token}` } };
         const { data } = await axios.get('http://localhost:5001/api/campaigns/my-campaigns', config);
-        
-        // 5. Atualiza o estado com as campanhas recebidas
         setUserCampaigns(data);
-
     } catch (err) {
         console.error("Erro ao buscar as campanhas do usuário:", err);
-        // Limpa as campanhas em caso de erro e informa o usuário
         setUserCampaigns([]); 
-        // Você pode também usar o estado de 'error' para mostrar uma mensagem no Snackbar
         setError("Não foi possível carregar suas campanhas. Tente novamente.");
     } finally {
-        // 6. Desativa o estado de loading, independentemente do resultado
         setDialogLoading(false);
     }
-};
+  };
 
-
-const handleCloseHireDialog = () => {
+  const handleCloseHireDialog = () => {
     setOpenHireDialog(false);
     setSelectedCampaign('');
-    // Limpa a lista para buscar novamente da próxima vez
     setUserCampaigns([]); 
-};
+  };
 
-const handleConfirmHire = async () => {
-    // Verifica se uma campanha foi selecionada
+  const handleConfirmHire = async () => {
     if (!selectedCampaign) {
         setError("Por favor, selecione uma campanha antes de enviar o convite.");
         return;
     }
-
-       console.log('FRONTEND: Enviando convite para o Influencer ID:', id);
-
-       
     try {
-        // Pega o token para autenticação
         const token = user?.token;
-        if (!token) {
-            throw new Error("Usuário não autenticado.");
-        }
-
-        // Prepara os dados para enviar à API
-        const inviteData = {
-            campaignId: selectedCampaign, // ID da campanha selecionada
-            influencerId: id,             // ID do influenciador (da URL)
-        };
-
-        // Configura o header da requisição
-        const config = {
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-        };
-
-        // Rota da API para criar um convite (que gera a notificação)
-        // Certifique-se de que essa rota exista no seu backend
+        if (!token) throw new Error("Usuário não autenticado.");
+        const inviteData = { campaignId: selectedCampaign, influencerId: id };
+        const config = { headers: { Authorization: `Bearer ${token}` } };
         await axios.post('http://localhost:5001/api/invites', inviteData, config);
-
-        // Se a requisição for bem-sucedida:
         handleCloseHireDialog();
-        setShowConfirmation(true); // Mostra o Snackbar de sucesso
-
+        setShowConfirmation(true);
     } catch (err) {
         console.error("Erro ao enviar convite:", err);
-        // Mostra uma mensagem de erro para o usuário
         setError(err.response?.data?.message || "Não foi possível enviar o convite. Tente novamente.");
-        // Você pode usar um Snackbar de erro aqui também
     }
-};
+  };
 
   const handleCloseConfirmation = (event, reason) => {
     if (reason === 'clickaway') return;
     setShowConfirmation(false);
   };
-
-  const availableCampaigns = [
-    { id: 1, name: "Campanha Lançamento iPhone 17" },
-    { id: 2, name: "Campanha Antigos 2" },
-    { id: 3, name: "Divulgação - Nintendo Switch 3" },
-    { id: 4, name: "Ação de Marketing - Insider" },
-  ];
 
   const tabs = [
     { name: 'Sobre', icon: PersonOutlined },
@@ -281,247 +198,167 @@ const handleConfirmHire = async () => {
     { name: 'Estatísticas', icon: BarChart }
   ];
 
-  
   const renderTabContent = () => {
     switch(activeTab) {
       case "Sobre":
         return (
-          <Box
-            display="flex"
-            gap={4}
-            pl={5}
-            pr={5}
-            sx={{
-              backgroundColor: "rgba(27, 27, 27, 0.26)",
-              borderRadius: "20px",
-              p: 3,
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
+          <Box display="flex" gap={4} pl={5} pr={5} sx={{ backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius: "20px", p: 3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}>
             <Box flex={2}>
-              <Typography variant="h4" fontWeight="bold" mb={3} color="white">
-                Sobre Mim
-              </Typography>
-              {sobreMim ? (
-                <TiptapContent content={JSON.parse(sobreMim)} />
-              ) : (
-                <Typography
-                  variant="body1"
-                  lineHeight={1.8}
-                  fontSize="16px"
-                  color="white"
-                >
-                  {descricao || 'Informação não disponível'}
-                </Typography>
-              )}
+              <Typography variant="h4" fontWeight="bold" mb={3} color="white">Sobre Mim</Typography>
+              {sobreMim ? <TiptapContent content={JSON.parse(sobreMim)} /> : <Typography variant="body1" lineHeight={1.8} fontSize="16px" color="white">{descricao || 'Informação não disponível'}</Typography>}
             </Box>
           </Box>
         );
 
       case 'Avaliações':
-    return (
-        <Box 
-            component={motion.div} 
-            key="avaliacoes" 
-            variants={tabContentVariant} 
-            initial="hidden" 
-            animate="visible" 
-            exit="exit" 
-            pl={5} pr={5} 
-            sx={{backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}
-        >
-            {reviewsLoading ? (
-                 <Box display="flex" justifyContent="center" alignItems="center" height="40vh"><CircularProgress /></Box>
-            ) : reviews.length === 0 ? (
-                <Box textAlign="center">
-                    <Typography variant="h6" color="white">Nenhuma Avaliação Encontrada</Typography>
-                    <Typography variant="body2" color="rgba(255,255,255,0.7)">Este influenciador ainda não recebeu avaliações.</Typography>
-                </Box>
-            ) : (
-                <Box display="flex" gap={4}>
-                    <Box flex={1} display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{ p: 4, textAlign: "center" }}>
-                        <Typography variant="h1" fontWeight="bold" color="white" sx={{ fontSize: "120px", lineHeight: 1 }}>{stats.averageRating.toFixed(1)}</Typography>
-                        <Rating value={stats.averageRating} readOnly precision={0.5} emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} icon={<StarIcon style={{ color: '#FFD700' }} fontSize="inherit" />} sx={{ fontSize: 32, mb: 2 }} />
-                        <Typography variant="h4" fontWeight="bold" color="white" mb={1}>{stats.ratingText}</Typography>
-                        <Box display="flex" gap={1} flexWrap="wrap" justifyContent="center">
-                            {stats.topTags.map((tag, i) => (
-                                <Chip key={i} label={tag} size="small" sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: "bold", borderRadius: "15px" }}/>
+        return (
+            <Box component={motion.div} key="avaliacoes" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit" pl={5} pr={5} sx={{backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}>
+                {reviewsLoading ? (
+                     <Box display="flex" justifyContent="center" alignItems="center" height="40vh"><CircularProgress /></Box>
+                ) : reviews.length === 0 ? (
+                    <Box textAlign="center">
+                        <Typography variant="h6" color="white">Nenhuma Avaliação Encontrada</Typography>
+                        <Typography variant="body2" color="rgba(255,255,255,0.7)">Este influenciador ainda não recebeu avaliações.</Typography>
+                    </Box>
+                ) : (
+                    <Box display="flex" gap={4}>
+                        <Box flex={1} display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{ p: 4, textAlign: "center" }}>
+                            <Typography variant="h1" fontWeight="bold" color="white" sx={{ fontSize: "120px", lineHeight: 1 }}>{stats.averageRating.toFixed(1)}</Typography>
+                            <Rating value={stats.averageRating} readOnly precision={0.5} emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} icon={<StarIcon style={{ color: '#FFD700' }} fontSize="inherit" />} sx={{ fontSize: 32, mb: 2 }} />
+                            <Typography variant="h4" fontWeight="bold" color="white" mb={1}>{stats.ratingText}</Typography>
+                            <Box display="flex" gap={1} flexWrap="wrap" justifyContent="center">
+                                {stats.topTags.map((tag, i) => (
+                                    <Chip key={i} label={tag} size="small" sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: "bold", borderRadius: "15px" }}/>
+                                ))}
+                            </Box>
+                        </Box>
+                        <Box flex={1.2}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}><Typography variant="h6" color="white">Mais Recentes</Typography></Box>
+                            {reviews.slice(0, 2).map((review) => (
+                                <Box key={review._id} mb={3} p={3} sx={{ backgroundColor: "rgba(255,255,255,0.08)", borderRadius: "15px", border: "1px solid rgba(255,255,255,0.1)" }}>
+                                     <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                                        <Box>
+                                            {review.campaign?.title && (
+                                                <Typography variant="caption" color="rgba(255,255,255,0.7)" fontWeight="medium" mb={0.2} display="block">Campanha: {review.campaign.title}</Typography>
+                                            )}
+                                            <Typography variant="body1" color="white" fontWeight="bold" mb={0.5}>{review.title}</Typography>
+                                            <Typography variant="caption" color="rgba(255,255,255,0.6)">{new Date(review.createdAt).toLocaleDateString('pt-BR')}</Typography>
+                                        </Box>
+                                        <Box sx={{ mt: review.campaign?.title ? 2.5 : 0 }}>
+                                            <Tooltip title={review.campaign?.title || 'Campanha'}>
+                                                <Avatar src={review.campaign?.logo} sx={{ width: 32, height: 32 }}>{review.campaign?.title ? review.campaign.title.charAt(0).toUpperCase() : 'C'}</Avatar>
+                                            </Tooltip>
+                                        </Box>
+                                    </Box>
+                                    <Box display="flex" alignItems="center" gap={0.5} mb={2}>
+                                        <Rating value={review.rating} readOnly size="small" emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} />
+                                        <Typography variant="body2" color="white" fontWeight="bold" ml={1}>{review.rating.toFixed(1)}</Typography>
+                                        <Box ml={2} display="flex" gap={1}>
+                                            {review.tags.slice(0, 3).map((tag, i) => (
+                                                <Chip key={i} label={tag} size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
+                                            ))}
+                                        </Box>
+                                    </Box>
+                                    {canSeeDetailedReviews ? (
+                                        <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>{review.comment || "Nenhum comentário adicional."}</Typography>
+                                    ) : (
+                                        <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.</Typography>
+                                    )}
+                                </Box>
                             ))}
                         </Box>
                     </Box>
-                    <Box flex={1.2}>
-                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}><Typography variant="h6" color="white">Mais Recentes</Typography></Box>
-                        {reviews.slice(0, 2).map((review) => (
-                            <Box key={review._id} mb={3} p={3} sx={{ backgroundColor: "rgba(255,255,255,0.08)", borderRadius: "15px", border: "1px solid rgba(255,255,255,0.1)" }}>
-                                 <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                                    <Box>
-                                        {/* Novo: "Campanha: [Nome da Campanha]" */}
-                                        {review.campaign?.title && (
-                                            <Typography variant="caption" color="rgba(255,255,255,0.7)" fontWeight="medium" mb={0.2} display="block">
-                                                Campanha: {review.campaign.title}
-                                            </Typography>
-                                        )}
-                                        <Typography variant="body1" color="white" fontWeight="bold" mb={0.5}>
-                                            {review.title}
-                                        </Typography>
-                                        <Typography variant="caption" color="rgba(255,255,255,0.6)">
-                                            {new Date(review.createdAt).toLocaleDateString('pt-BR')}
-                                        </Typography>
-                                    </Box>
-                                    {/* Adicionado um Box para envolver o Tooltip/Avatar e controlar o posicionamento */}
-                                    <Box sx={{ mt: review.campaign?.title ? 2.5 : 0 }}> {/* Ajuste de margem top se tiver o título da campanha */}
-                                        <Tooltip title={review.campaign?.title || 'Campanha'}>
-                                            <Avatar 
-                                                src={review.campaign?.logo}
-                                                sx={{ width: 32, height: 32 }}
-                                            >
-                                                {review.campaign?.title ? review.campaign.title.charAt(0).toUpperCase() : 'C'}
-                                            </Avatar>
-                                        </Tooltip>
-                                    </Box>
-                                </Box>
-                                <Box display="flex" alignItems="center" gap={0.5} mb={2}>
-                                    <Rating value={review.rating} readOnly size="small" emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} />
-                                    <Typography variant="body2" color="white" fontWeight="bold" ml={1}>{review.rating.toFixed(1)}</Typography>
-                                    <Box ml={2} display="flex" gap={1}>
-                                        {review.tags.slice(0, 3).map((tag, i) => (
-                                            <Chip key={i} label={tag} size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
-                                        ))}
-                                    </Box>
-                                </Box>
-                                {canSeeDetailedReviews ? (
-                                    <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>{review.comment || "Nenhum comentário adicional."}</Typography>
-                                ) : (
-                                    <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.</Typography>
-                                )}
-                            </Box>
-                        ))}
+                )}
+            </Box>
+        );
+
+      case 'Campanhas':
+        return (
+          <Box 
+            component={motion.div} key="campanhas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit"
+            pl={5} pr={5} sx={{backgroundColor: "rgba(27, 27, 27, 0.17)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}
+          >
+            <Typography variant="h4" fontWeight="bold" mb={3} color="white">
+              Histórico de Campanhas
+            </Typography>
+            
+            {/* ✅ LÓGICA ATUALIZADA: Usa dados reais (campaignHistory) */}
+            {campaignHistory && campaignHistory.length > 0 ? (
+            <Box component={motion.div} variants={staggerContainer} initial="hidden" animate="visible" display="flex" flexDirection="column" gap={2}>
+              {campaignHistory.map((campanha, index) => (
+                <Box 
+                  component={motion.div} variants={staggerItem} key={campanha._id || index}
+                  display="flex" alignItems="center" p={3} 
+                  sx={{
+                    backgroundColor: "rgba(255,255,255,0.08)", borderRadius: "15px", border: "1px solid rgba(255,255,255,0.1)",
+                    transition: "all 0.3s ease", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)", transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }
+                  }}
+                >
+                  {/* Logo da Campanha */}
+                  <Box 
+                    sx={{
+                      width: 60, height: 60, borderRadius: "12px", mr: 3, flexShrink: 0,
+                      backgroundImage: `url(${campanha.logo})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat",
+                      backgroundColor: "rgba(0,0,0,0.5)"
+                    }}
+                  />
+                  
+                  {/* Informações da Campanha */}
+                  <Box flex={1} display="flex" justifyContent="space-between" alignItems="center">
+                    <Box>
+                      <Typography variant="h6" color="white" fontWeight="bold" mb={0.5}>Campanha</Typography>
+                      <Typography variant="h5" color="white" fontWeight="bold" mb={0.5}>{campanha.title}</Typography>
+                      <Typography variant="h6" color="rgba(255,255,255,0.6)">{new Date(campanha.endDate).toLocaleDateString('pt-BR')}</Typography>
                     </Box>
+                    
+                    {/* Métricas Reais */}
+                    <Box textAlign="center" mx={3}>
+                      <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Conversão</Typography>
+                      <Typography variant="body1" fontWeight="bold" sx={{ color: '#4caf50' }}>{campanha.conversion || 'N/A'}</Typography>
+                    </Box>
+                    <Box textAlign="center" mx={3}>
+                      <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Visualizações</Typography>
+                      <Typography variant="h6" color="white" fontWeight="bold">{campanha.views?.toLocaleString('pt-BR') || '-'}</Typography>
+                    </Box>
+                    <Box textAlign="center" mx={3}>
+                      <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Engajamento</Typography>
+                      <Typography variant="h6" color="white" fontWeight="bold">{campanha.engagement?.toLocaleString('pt-BR') || '-'}</Typography>
+                    </Box>
+                    
+                    {/* Status */}
+                    <Box textAlign="center">
+                       <Chip label="Concluída" size="small" color="success" variant="outlined" />
+                    </Box>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+            ) : (
+                <Box textAlign="center" py={5}>
+                     <Typography variant="h6" color="rgba(255,255,255,0.6)">Nenhuma campanha concluída encontrada no histórico.</Typography>
                 </Box>
             )}
-        </Box>
-    );
+          </Box>
+        );
 
-
- case 'Campanhas':
-    const campanhas = [
-      { logo: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/Nintendo.svg/2560px-Nintendo.svg.png", nome: "Nintendo Switch 3", data: "02/06/2025", avaliacao: 5.0, conversao: "93% - Excelente", conversaoColor: "#4caf50", visualizacoes: "18.234.910", engajamento: "450.250", tempo: "2 Dias", bgColor: "#e60012" },
-      { logo: "https://play-lh.googleusercontent.com/nO6_gaqx-ZMCL5qhHIk1If5UAe2VDDJpb8jh0KSUwQYYGZgJuJaltsOfwaLKOOrEq49l", nome: "Divulgação - LOCO", data: "01/02/2025", avaliacao: 4.0, conversao: "62% - Aceitável", conversaoColor: "#ff9800", visualizacoes: "123.420", engajamento: "450.250", tempo: "27 Dias", bgColor: "#ff6600" },
-      { logo: "https://www.insiderstore.com.br/cdn/shop/files/Foto-03_a44bf6d3-e366-42d3-a459-e0668f7a002e.png?v=1756219633&width=600", nome: "Divulgação - Insider", data: "07/10/2024", avaliacao: 4.8, conversao: "83% - Bom", conversaoColor: "#2196f3", visualizacoes: "1.425.095", engajamento: "450.250", tempo: "34 Dias", bgColor: "#000000" },
-      { logo: "https://cdn.awsli.com.br/800x800/2122/2122929/produto/179971951/1be1261942.jpg", nome: "iPhone 17 - Lançamento", data: "18/06/2025", avaliacao: 5.0, conversao: "100% - Excelente", conversaoColor: "#4caf50", visualizacoes: "44.124.750", engajamento: "450.250", tempo: "72 Dias", bgColor: "#007aff" }
-    ];
-
-    return (
-      <Box 
-        component={motion.div}
-        key="campanhas"
-        variants={tabContentVariant}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        pl={5} pr={5} sx={{backgroundColor: "rgba(27, 27, 27, 0.17)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}>
-        <Typography variant="h4" fontWeight="bold" mb={3} color="white">
-          Participou em:
-        </Typography>
-        
-        {/* 6. ANIMAÇÃO ESCALONADA NA LISTA DE CAMPANHAS */}
-        <Box 
-          component={motion.div}
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          display="flex" 
-          flexDirection="column" 
-          gap={2}
-        >
-          {campanhas.map((campanha, index) => (
-            <Box 
-              component={motion.div}
-              variants={staggerItem}
-              key={index}
-              display="flex" alignItems="center" p={3} 
-              sx={{
-                backgroundColor: "rgba(255,255,255,0.08)",
-                borderRadius: "15px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  backgroundColor: "rgba(255,255,255,0.12)",
-                  transform: "translateY(-2px)",
-                  boxShadow: "0 8px 25px rgba(0,0,0,0.3)"
-                }
-              }}
-            >
-              <Box 
-                sx={{
-                  width: 60, height: 60, borderRadius: "12px", backgroundColor: campanha.bgColor, mr: 3, flexShrink: 0,
-                  backgroundImage: `url(${campanha.logo})`, backgroundSize: "contain", backgroundPosition: "center", backgroundRepeat: "no-repeat",
-                }}
-              />
-              <Box flex={1} display="flex" justifyContent="space-between" alignItems="center">
-                <Box>
-                  <Typography variant="h6" color="white" fontWeight="bold" mb={0.5}>Campanha</Typography>
-                  <Typography variant="h5" color="white" fontWeight="bold" mb={0.5}>{campanha.nome}</Typography>
-                  <Typography variant="h6" color="rgba(255,255,255,0.6)">{campanha.data}</Typography>
-                </Box>
-                <Box textAlign="center" mx={3}>
-                  <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Avaliação média</Typography>
-                  <Box display="flex" gap={0.3} justifyContent="center" mb={0.5}>
-                    {[...Array(5)].map((_, i) => (<StarIcon key={i} sx={{ color: i < Math.floor(campanha.avaliacao) ? "#FFD700" : "rgba(255,255,255,0.3)", fontSize: 20, }} />))}
-                  </Box>
-                  <Typography variant="body2" color="white" fontWeight="bold">{campanha.avaliacao.toFixed(1)}</Typography>
-                </Box>
-                <Box textAlign="center" mx={3}>
-                  <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Conversão</Typography>
-                  <Typography variant="body1" fontWeight="bold" sx={{ color: campanha.conversaoColor }}>{campanha.conversao}</Typography>
-                </Box>
-                <Box textAlign="center" mx={3}>
-                  <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Visualizações Atingidas</Typography>
-                  <Typography variant="h6" color="white" fontWeight="bold">{campanha.visualizacoes}</Typography>
-                </Box>
-                <Box textAlign="center" mx={3}>
-                  <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Engajamento</Typography>
-                  <Typography variant="h6" color="white" fontWeight="bold">{campanha.engajamento}</Typography>
-                </Box>
-                <Box textAlign="center">
-                  <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Tempo desde a publicação</Typography>
-                  <Typography variant="body1" color="white" fontWeight="bold">{campanha.tempo}</Typography>
-                </Box>
-              </Box>
+      case 'Estatísticas':
+        return (
+            <Box component={motion.div} key="estatisticas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit">
+                <Estatisticas />
             </Box>
-          ))}
-        </Box>
-      </Box>
-    );
-
- case 'Estatísticas':
-  return (
-    <Box
-        component={motion.div}
-        key="estatisticas"
-        variants={tabContentVariant}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-    >
-        <Estatisticas />
-    </Box>
-  );
+        );
       default:
         return null;
     }
   };
 
-const handleNavigateToAgent = () => {
+  const handleNavigateToAgent = () => {
       if (influencer?.agent?._id) {
-          // Redireciona para a rota de visualização de perfil de usuário
-          // Certifique-se de ter uma rota no App.js como: <Route path="/profile/:id" element={<UserProfile />} />
           navigate(`/perfil/${influencer.agent._id}`);
       }
   };
 
-const {
+  const {
     name: nome = 'Nome não disponível',
     realName: nomeReal = '',
     age: idade = 0,
@@ -533,13 +370,11 @@ const {
     profileImageUrl: imagem = '',
     backgroundImageUrl: imagemFundo = '',
     social = {},
-    // Adicionamos a avaliação aqui com um valor padrão
     avaliacao = stats.averageRating,
-    // Adicionamos os outros campos aqui também
     views = 150,
     seguidores = 80,
     curtidas = 40,
-} = influencer || {};
+  } = influencer || {};
 
   return (
       <Box pr={3} pl={3}>
@@ -558,11 +393,10 @@ const {
     overflow="auto"
     transition="all 0.3s ease-in-out"  
     pb={10}
- sx={{ transition:"all 0.3s ease-in-out", willChange: "width", "&::-webkit-scrollbar": { width: "10px", marginRight:"10px", }, "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px", }, "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px", }, "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)", }, }}
->
+    sx={{ transition:"all 0.3s ease-in-out", willChange: "width", "&::-webkit-scrollbar": { width: "10px", marginRight:"10px", }, "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px", }, "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px", }, "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)", }, }}
+  >
      {/* HEADER PERFIL */}
         <Box
-          // 3. ANIMAÇÃO DE ENTRADA DO CABEÇALHO
           component={motion.div}
           variants={staggerContainer}
           initial="hidden"
@@ -574,29 +408,28 @@ const {
           }}
         >
         <Box
-                    onClick={handleNavigateToAgent}
-                    sx={{ 
-                        position: 'absolute', top: 16, right: 16, 
-                        display: 'flex', alignItems: 'center', 
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                        borderRadius: '20px', px: 2, py: 0.5, 
-                        backdropFilter: 'blur(5px)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-                        cursor: influencer?.agent?._id ? 'pointer' : 'default', // Cursor pointer se tiver ID
-                        transition: 'transform 0.2s',
-                        '&:hover': influencer?.agent?._id ? { transform: 'scale(1.05)', backgroundColor: '#fff' } : {}
-                    }}
-                >
-                    <Business sx={{ fontSize: 16, color: '#6a1b9a', mr: 1 }} />
-                    <Typography variant="caption" sx={{ color: '#6a1b9a' }}>
-                        Agenciado por <Typography component="span" variant="caption" fontWeight="bold">
-                            {influencer?.agent?.name || 'Agente não informado'}
-                        </Typography>
-                    </Typography>
-                </Box>
+            onClick={handleNavigateToAgent}
+            sx={{ 
+                position: 'absolute', top: 16, right: 16, 
+                display: 'flex', alignItems: 'center', 
+                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                borderRadius: '20px', px: 2, py: 0.5, 
+                backdropFilter: 'blur(5px)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+                cursor: influencer?.agent?._id ? 'pointer' : 'default', 
+                transition: 'transform 0.2s',
+                '&:hover': influencer?.agent?._id ? { transform: 'scale(1.05)', backgroundColor: '#fff' } : {}
+            }}
+        >
+            <Business sx={{ fontSize: 16, color: '#6a1b9a', mr: 1 }} />
+            <Typography variant="caption" sx={{ color: '#6a1b9a' }}>
+                Agenciado por <Typography component="span" variant="caption" fontWeight="bold">
+                    {influencer?.agent?.name || 'Agente não informado'}
+                </Typography>
+            </Typography>
+        </Box>
 
           <Box p={4}>
             <Box display="flex" alignItems="flex-start" justifyContent="space-between">
-              {/* LADO ESQUERDO - PERFIL */}
               <Box component={motion.div} variants={staggerItem} display="flex" gap={2} flex={1}>
                 <Avatar src={imagem} sx={{ width: 120, height: 120, border: "4px solid white" }} />
                 <Box>
@@ -614,76 +447,26 @@ const {
                   </Box>
                  <Box display="flex" gap={1}>
                     {social.youtube && (
-                      <Box
-                        sx={{
-                          width: 32, height: 32, borderRadius: "50%",
-                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
-                          alignItems: "center", justifyContent: "center", cursor: "pointer",
-                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
-                        }}
-                        onClick={() => window.open(social.youtube, '_blank')}
-                      >
-                        <YouTubeIcon sx={{ fontSize: 16 }} />
-                      </Box>
+                      <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.youtube, '_blank')}> <YouTubeIcon sx={{ fontSize: 16 }} /> </Box>
                     )}
                     {social.instagram && (
-                      <Box
-                        sx={{
-                          width: 32, height: 32, borderRadius: "50%",
-                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
-                          alignItems: "center", justifyContent: "center", cursor: "pointer",
-                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
-                        }}
-                        onClick={() => window.open(social.instagram, '_blank')}
-                      >
-                        <InstagramIcon sx={{ fontSize: 16 }} />
-                      </Box>
+                      <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.instagram, '_blank')}> <InstagramIcon sx={{ fontSize: 16 }} /> </Box>
                     )}
                     {social.twitch && (
-                      <Box
-                        sx={{
-                          width: 32, height: 32, borderRadius: "50%",
-                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
-                          alignItems: "center", justifyContent: "center", cursor: "pointer",
-                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
-                        }}
-                        onClick={() => window.open(social.twitch, '_blank')}
-                      >
-                        <SiTwitch size={14} />
-                      </Box>
+                      <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.twitch, '_blank')}> <SiTwitch size={14} /> </Box>
                     )}
                     {social.tiktok && (
-                      <Box
-                        sx={{
-                          width: 32, height: 32, borderRadius: "50%",
-                          backgroundColor: "rgba(255,255,255,0.2)", display: "flex",
-                          alignItems: "center", justifyContent: "center", cursor: "pointer",
-                          "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
-                        }}
-                        onClick={() => window.open(social.tiktok, '_blank')}
-                      >
-                        <MusicNoteIcon sx={{ fontSize: 16 }} />
-                      </Box>
+                      <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.tiktok, '_blank')}> <MusicNoteIcon sx={{ fontSize: 16 }} /> </Box>
                     )}
                   </Box>
-                  {/* Renderização condicional do botão */}
                   {canHire && (
                     <Box mt={1.2}>
-                      <Button
-                        variant="contained" startIcon={<Favorite />} onClick={handleOpenHireDialog}
-                        sx={{ background: "#f9f1f1ff", px: 4, py: 1.5, color:"#ff00a6ff", borderRadius: "25px", fontWeight: "bold", fontSize: "16px", transition: "0.2s all ease-in-out", textTransform: "none", boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)", "&:hover": { background: "#ffffffff", transform: "scale(1.05)", borderRadius:"10px", boxShadow: "0px 0px 15px 4px rgba(255, 55, 235, 0.53)", }, }}
-                      >
-                        Contratar
-                      </Button>
+                      <Button variant="contained" startIcon={<Favorite />} onClick={handleOpenHireDialog} sx={{ background: "#f9f1f1ff", px: 4, py: 1.5, color:"#ff00a6ff", borderRadius: "25px", fontWeight: "bold", fontSize: "16px", transition: "0.2s all ease-in-out", textTransform: "none", boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)", "&:hover": { background: "#ffffffff", transform: "scale(1.05)", borderRadius:"10px", boxShadow: "0px 0px 15px 4px rgba(255, 55, 235, 0.53)", }, }}> Contratar </Button>
                     </Box>
                   )}
                 </Box>
               </Box>
-              {/* LADO DIREITO - MÉTRICAS */}
-              <Box 
-                component={motion.div} variants={staggerItem}
-                display="flex" flexDirection="column" gap={3} mt={3} alignItems="center" sx={{ minWidth: "300px" }}
-              >
+              <Box component={motion.div} variants={staggerItem} display="flex" flexDirection="column" gap={3} mt={3} alignItems="center" sx={{ minWidth: "300px" }}>
               <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <Favorite sx={{ fontSize: 24, color: "#ff1493" }} />
                   <Box><Typography variant="h4" fontWeight="bold">{curtidas}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Curtidas</Typography></Box>
@@ -705,88 +488,43 @@ const {
           </Box>
         </Box>
 
-        {/* MENU TABS */}
-         <Box 
-          display="flex" justifyContent="center" gap={2} my={2}
-          sx={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: "20px", p:1 , backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
+         <Box display="flex" justifyContent="center" gap={2} my={2} sx={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: "20px", p:1 , backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}>
           {tabs.map((tab) => {
             const IconComponent = tab.icon;
             return (
-              <Button
-                key={tab.name} startIcon={<IconComponent />} onClick={() => setActiveTab(tab.name)}
-                sx={{ color: activeTab === tab.name ? "#ffffffff" : "rgba(255,255,255,0.7)", fontWeight: activeTab === tab.name ? "bold" : "normal", fontSize: "14px", textTransform: "none", backgroundColor: activeTab === tab.name ? "rgba(58, 0, 151, 0.1)" : "transparent", borderRadius: "15px", px: 3, py: 1.5, transition: "all 0.3s ease", border: activeTab === tab.name ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid transparent", "&:hover": { backgroundColor: activeTab === tab.name ? "rgba(255, 0, 166, 0.15)" : "rgba(255,255,255,0.05)", color: activeTab === tab.name ? "#dfdbfaff" : "white", }, }}
-              >
-                {tab.name}
-              </Button>
+              <Button key={tab.name} startIcon={<IconComponent />} onClick={() => setActiveTab(tab.name)} sx={{ color: activeTab === tab.name ? "#ffffffff" : "rgba(255,255,255,0.7)", fontWeight: activeTab === tab.name ? "bold" : "normal", fontSize: "14px", textTransform: "none", backgroundColor: activeTab === tab.name ? "rgba(58, 0, 151, 0.1)" : "transparent", borderRadius: "15px", px: 3, py: 1.5, transition: "all 0.3s ease", border: activeTab === tab.name ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid transparent", "&:hover": { backgroundColor: activeTab === tab.name ? "rgba(255, 0, 166, 0.15)" : "rgba(255,255,255,0.05)", color: activeTab === tab.name ? "#dfdbfaff" : "white", }, }}> {tab.name} </Button>
             );
           })}
         </Box>
 
-        {/* CONTEÚDO DAS ABAS */}
         <Box mb={4}>
-            {/* 4. ANIMAÇÃO DAS TRANSIÇÕES DE ABAS */}
             <AnimatePresence mode="wait">
               {renderTabContent()}
             </AnimatePresence>
         </Box>
       </Box>
 
-        {/* DIÁLOGO DE CONTRATAÇÃO */}
-        <Dialog
-            open={openHireDialog} onClose={handleCloseHireDialog}
-            aria-labelledby="hire-dialog-title" aria-describedby="hire-dialog-description"
-            sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(225, 225, 225, 0.33)", color: "#FFFFFF", backdropFilter: "blur(10px)", borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.2)' } }}
-        >
+        <Dialog open={openHireDialog} onClose={handleCloseHireDialog} aria-labelledby="hire-dialog-title" aria-describedby="hire-dialog-description" sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(225, 225, 225, 0.33)", color: "#FFFFFF", backdropFilter: "blur(10px)", borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.2)' } }}>
             <DialogTitle id="hire-dialog-title" sx={{ fontWeight: 'bold' }}>{"Convidar Influenciador"}</DialogTitle>
             <DialogContent>
-                <DialogContentText id="hire-dialog-description" sx={{ color: "rgba(255, 255, 255, 0.8)" }}>
-                    Selecione a campanha para a qual você deseja convidar <strong>{influencer.nome}</strong>.
-                </DialogContentText>
-                {dialogLoading ? (
-            <Box display="flex" justifyContent="center" alignItems="center" height={80}>
-                <CircularProgress color="inherit" />
-            </Box>
-        ) : (
-            <FormControl fullWidth variant="filled" sx={{ mt: 3, /* ...outros sx */ }}>
+                <DialogContentText id="hire-dialog-description" sx={{ color: "rgba(255, 255, 255, 0.8)" }}> Selecione a campanha para a qual você deseja convidar <strong>{influencer.nome}</strong>. </DialogContentText>
+                {dialogLoading ? ( <Box display="flex" justifyContent="center" alignItems="center" height={80}> <CircularProgress color="inherit" /> </Box> ) : (
+            <FormControl fullWidth variant="filled" sx={{ mt: 3 }}>
                 <InputLabel id="campaign-select-label">Campanha</InputLabel>
-                <Select
-                    labelId="campaign-select-label"
-                    id="campaign-select"
-                    value={selectedCampaign}
-                    onChange={(e) => setSelectedCampaign(e.target.value)}
-                    label="Campanha"
-                    sx={{ color: 'white' }}
-                >
-                    {userCampaigns.length > 0 ? (
-                        userCampaigns.map((campaign) => (
-                            // Agora o value é o ID da campanha
-                            <MenuItem key={campaign._id} value={campaign._id}> 
-                                {campaign.title}
-                            </MenuItem>
-                        ))
-                    ) : (
-                        <MenuItem disabled>Nenhuma campanha criada por você foi encontrada.</MenuItem>
-                    )}
+                <Select labelId="campaign-select-label" id="campaign-select" value={selectedCampaign} onChange={(e) => setSelectedCampaign(e.target.value)} label="Campanha" sx={{ color: 'white' }}>
+                    {userCampaigns.length > 0 ? ( userCampaigns.map((campaign) => ( <MenuItem key={campaign._id} value={campaign._id}> {campaign.title} </MenuItem> )) ) : ( <MenuItem disabled>Nenhuma campanha criada por você foi encontrada.</MenuItem> )}
                 </Select>
             </FormControl>
         )}
             </DialogContent>
             <DialogActions sx={{ p: '0 24px 16px' }}>
                 <Button onClick={handleCloseHireDialog} sx={{ color: "rgba(255, 255, 255, 0.7)", textTransform:'none', fontSize: '15px' }}>Cancelar</Button>
-                <Button onClick={handleConfirmHire} sx={{ fontWeight: 'bold', color: "#d900c7ff", backgroundColor: '#ffffffff', textTransform:'none', fontSize: '15px', px: 2, borderRadius: '10px', "&:hover": { backgroundColor: '#e9e9e9ff' } }} autoFocus disabled={!selectedCampaign}>
-                    Enviar Convite
-                </Button>
+                <Button onClick={handleConfirmHire} sx={{ fontWeight: 'bold', color: "#d900c7ff", backgroundColor: '#ffffffff', textTransform:'none', fontSize: '15px', px: 2, borderRadius: '10px', "&:hover": { backgroundColor: '#e9e9e9ff' } }} autoFocus disabled={!selectedCampaign}> Enviar Convite </Button>
             </DialogActions>
         </Dialog>
         
-        {/* SNACKBAR DE CONFIRMAÇÃO */}
-        <Snackbar
-          open={showConfirmation} autoHideDuration={6000} onClose={handleCloseConfirmation} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert onClose={handleCloseConfirmation} severity="success" sx={{ width: '100%', backgroundColor: '#2e7d32', color: 'white', fontWeight: 'bold' }}>
-            Convite enviado, esperando resposta do influenciador!
-          </Alert>
+        <Snackbar open={showConfirmation} autoHideDuration={6000} onClose={handleCloseConfirmation} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+          <Alert onClose={handleCloseConfirmation} severity="success" sx={{ width: '100%', backgroundColor: '#2e7d32', color: 'white', fontWeight: 'bold' }}> Convite enviado, esperando resposta do influenciador! </Alert>
         </Snackbar>
       </Box>
   );
