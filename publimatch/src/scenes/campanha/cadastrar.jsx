@@ -69,6 +69,7 @@ const CampaignsRegister = () => {
     const [paymentValueMin, setPaymentValueMin] = useState('');
     const [paymentValueMax, setPaymentValueMax] = useState('');
     const [vagas, setVagas] = useState('');
+    const [hashtag, setHashtag] = useState('');
     const [errors, setErrors] = useState({});
     const allSocials = ['instagram', 'youtube', 'twitch', 'tiktok'];
     
@@ -175,6 +176,7 @@ const CampaignsRegister = () => {
     const validateForm = () => {
         const newErrors = {};
         if (!title.trim()) newErrors.title = true;
+        if (!hashtag.trim()) newErrors.hashtag = true;
         if (!campaignImageFile) newErrors.image = true;
         if (!startDate) {
             newErrors.startDate = true;
@@ -222,6 +224,7 @@ const CampaignsRegister = () => {
         const formData = new FormData();
         
         formData.append('title', title);
+        formData.append('hashtag', hashtag.replace('#', '').trim());
         formData.append('privacy', privacy ? "Privada" : "Pública");
         formData.append('minFollowers', minFollowers);
         formData.append('minViews', minViews);
@@ -269,6 +272,13 @@ const CampaignsRegister = () => {
                 handleEndDateChange(e);
                 return;
             }
+
+            let value = e.target.value;
+
+            if (fieldName === 'hashtag') {
+                value = value.replace(/\s/g, ''); // Remove todos os espaços (global)
+            }
+
             const stateSetter = {
                 title: setTitle,
                 paymentValueExact: setPaymentValueExact,
@@ -277,6 +287,7 @@ const CampaignsRegister = () => {
                 minFollowers: setMinFollowers,
                 minViews: setMinViews,
                 vagas: setVagas,
+                hashtag: setHashtag
             };
             stateSetter[fieldName](e.target.value);
             if (errors[fieldName]) {
@@ -570,8 +581,59 @@ const CampaignsRegister = () => {
                 />
             </Box>
 
-            <Box sx={{ textAlign: 'center', pb: 4 }}>
-                <Button onClick={handleRegisterCampaign} sx={{ mt: 2, borderRadius: "30px", transition: "all 0.2s ease-in-out", background: "#FFFFFF", boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)", color: "#BF28B0", fontWeight: "900", fontSize: "18px", px: 6, py: 1.5, textTransform: "none", "&:hover": { borderRadius: "10px", background: "#ffffff", color: "#a9239d", boxShadow: "none" }, }} >
+            <Box sx={{ 
+                position: 'relative', // 1. O container do botão agora é relativo
+                textAlign: 'center',  // 2. Isso mantém o botão centralizado
+                pb: 4, 
+                // 3. Mais padding-top no mobile para dar espaço para a hashtag
+                pt: { xs: 12, md: 4 }, 
+            }}>
+                
+                {/* 4. CAIXA DA HASHTAG */}
+                <Box sx={{ 
+                    // Em telas de celular (xs), é um bloco normal
+                    position: { xs: 'relative', md: 'absolute' }, 
+                    width: { xs: '100%', md: '30%' }, // <-- "menos comprida" (30%)
+                    mb: { xs: 3, md: 0 }, // Margem abaixo só no mobile
+
+                    // Em telas de desktop (md), é absoluto
+                    left: { md: 0 },         // Canto esquerdo
+                    bottom: { md: '32px' },   // Alinhado na base (32px = 8 * 4 (pb: 4))
+                }}>
+                    <Typography sx={{ color: 'rgba(255,255,255,0.8)', mb: 1 }}>
+                        Hashtag Oficial
+                    </Typography>
+                    <TextField
+                        fullWidth
+                        size="small" // Mantém pequeno
+                        variant="outlined"
+                        placeholder="ex: macdonalds100anos"
+                        value={hashtag}
+                        {...getTextFieldProps('hashtag')}
+                        InputProps={{
+                            ...getTextFieldProps('hashtag').InputProps,
+                            startAdornment: (
+                                <InputAdornment position="start" sx={{ color: 'white' }}>
+                                    #
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                </Box>
+                
+                {/* 5. SEU BOTÃO (EXATAMENTE COMO ESTAVA) */}
+                <Button onClick={handleRegisterCampaign} sx={{ 
+                    borderRadius: "30px", 
+                    transition: "all 0.2s ease-in-out", 
+                    background: "#FFFFFF", 
+                    boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)", 
+                    color: "#BF28B0", 
+                    fontWeight: "900", 
+                    fontSize: "18px", 
+                    px: 6, py: 1.5, 
+                    textTransform: "none", 
+                    "&:hover": { borderRadius: "10px", background: "#ffffff", color: "#a9239d", boxShadow: "none" }, 
+                }} >
                     Cadastrar Campanha
                 </Button>
             </Box>

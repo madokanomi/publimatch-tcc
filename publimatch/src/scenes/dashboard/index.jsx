@@ -149,8 +149,8 @@ const Dashboard = () => {
                     headerAlign: "center",
                     valueGetter: (params) => {
                         // Tratamento defensivo para evitar crash
-                        if (Array.isArray(params.row.applications)) return params.row.applications.length;
-                        return params.row.applications || 0;
+                        
+                        return params.row?.applications?.length || 0;
                     }
                 },
                 { 

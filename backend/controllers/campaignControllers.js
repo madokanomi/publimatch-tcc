@@ -29,7 +29,7 @@ export const createCampaign = async (req, res) => {
         const {
             title, privacy, minFollowers, minViews,
             startDate, endDate, paymentType, paymentValueExact,
-            paymentValueMin, paymentValueMax, vagas
+            paymentValueMin, paymentValueMax, vagas, hashtag
         } = req.body;
 
         let logoUrl = '';
@@ -45,9 +45,11 @@ export const createCampaign = async (req, res) => {
         const categories = JSON.parse(req.body.categories);
         const requiredSocials = JSON.parse(req.body.requiredSocials);
 
-        if (!title || !description || !paymentType || !vagas) {
-            return res.status(400).json({ message: 'Título, Descrição, Tipo de Pagamento e Vagas são obrigatórios.' });
-        }
+        
+
+        if (!title || !description || !paymentType || !vagas || !hashtag) {
+            return res.status(400).json({ message: 'Título, Descrição, Tipo de Pagamento, Vagas e Hashtag são obrigatórios.' });
+        }
 
         if (Number(vagas) <= 0) {
             return res.status(400).json({ message: 'A quantidade de vagas deve ser pelo menos 1.' });
@@ -59,7 +61,8 @@ export const createCampaign = async (req, res) => {
             startDate, endDate, paymentType, vagas: Number(vagas),
             logo: logoUrl,
             brandName: req.user.name,
-            createdBy: req.user._id
+            createdBy: req.user._id,
+            hashtag
         };
 
         if (paymentType === 'Exato') {

@@ -9,6 +9,11 @@ const campaignSchema = new mongoose.Schema({
     minFollowers: { type: Number, default: 0 },
     minViews: { type: Number, default: 0 },
     requiredSocials: [{ type: String }],
+    hashtag: {
+        type: String,
+        required: [true, 'A hashtag da campanha é obrigatória.'],
+        trim: true, // Remove espaços em branco antes/depois
+    },
     brandName: { type: String },
     paymentType: {
         type: String,
