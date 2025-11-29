@@ -1,9 +1,9 @@
 // src/scenes/campanha/CampaignProfile.jsx
 
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Box, Typography, Button, Menu, MenuItem, IconButton, CircularProgress } from "@mui/material";
-import { ArrowBack, InfoOutlined, People, GroupAdd, BarChart, ExpandMore, Visibility, GroupWork, TrendingUp } from "@mui/icons-material";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
+import { Box, Typography, Button, Menu, MenuItem, IconButton, CircularProgress, Avatar } from "@mui/material";
+import { ArrowBack, InfoOutlined, People, GroupAdd, BarChart, ExpandMore, Person } from "@mui/icons-material"; // Removido TrendingUp
 import { motion, AnimatePresence } from "framer-motion";
 import axios from 'axios';
 import { useAuth } from "../../auth/AuthContext";
@@ -74,7 +74,6 @@ const CampaignProfile = () => {
             case "aberta": return "#A8E349";
             case "planejamento": return "#f5d44d";
             case "cancelada": return "#DF3A3A";
-            // A cor para "Concluída" agora é branca, "Finalizada" foi removido
             case "concluída": return "white"; 
             default: return "white";
         }
@@ -87,6 +86,10 @@ const CampaignProfile = () => {
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
     if (error) return <Typography color="error" sx={{ p: 4, textAlign: 'center' }}>{error}</Typography>;
     if (!campaign) return null;
+
+    // Cálculos de Vagas e Participantes Reais
+    const participantesCount = campaign.participatingInfluencers?.length || 0;
+    const vagasDisponiveis = Math.max(0, (campaign.vagas || 0) - participantesCount);
 
     const tabs = [
         { name: "Detalhes", icon: InfoOutlined },
@@ -122,40 +125,64 @@ const CampaignProfile = () => {
                 <motion.div variants={containerVariants} initial="hidden" animate="visible">
                     <motion.div variants={itemVariants}>
                         <Box sx={{ position: "relative", borderRadius: 3, p: 4, color: "white", background: `linear-gradient(135deg, rgba(40, 2, 39, 0.85) 0%, rgba(24, 1, 38, 0.9) 100%), url(${campaign.logo || defaultBackgroundImageUrl})`, backgroundSize: "cover", backgroundPosition: "center", backdropFilter: "blur(20px)", overflow: "hidden", border: "1px solid rgba(255, 255, 255, 0.1)" }}>
-                            <Box display="flex" alignItems="center" justifyContent="space-between">
+                            
+                            <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={2}>
                                 <Box>
                                     <Typography variant="h3" fontWeight="bold" mb={1}>{campaign.name || campaign.title}</Typography>
                                     
-                                    {isAboutOnlyView ? (
-                                        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', backgroundColor: 'rgba(255, 255, 255, 0.1)', px: 2, py: 1, borderRadius: '20px', display: 'inline-block' }}>
-                                            <span style={{ color: 'white' }}>Status: </span>
-                                            <span style={{ color: getStatusColor(campaign.status) }}>{campaign.status}</span>
-                                        </Typography>
-                                    ) : (
-                                        <>
-                                            <Button
-                                                variant="contained" onClick={(e) => setAnchorEl(e.currentTarget)} endIcon={<ExpandMore />}
-                                                sx={{ backgroundColor: "rgba(255, 255, 255, 0.2)", borderRadius: "20px", fontWeight: "bold", textTransform: "none", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.3)" } }}
-                                            >
-                                                Status: {campaign.status}
-                                            </Button>
-                                            <Menu
-                                                anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}
-                                                MenuListProps={{ sx: { backgroundColor: "#333", color: "white" } }}
-                                            >
-                                                {/* MODIFICADO AQUI */}
-                                                {['Aberta', 'Planejamento', 'Concluída', 'Cancelada'].map((s) => (
-                                                    <MenuItem key={s} onClick={() => handleStatusChange(s)}>{s}</MenuItem>
-                                                ))}
-                                            </Menu>
-                                        </>
-                                    )}
+                                    <Box display="flex" alignItems="center" gap={2} mb={2}>
+                                        {/* Status */}
+                                        {isAboutOnlyView ? (
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', backgroundColor: 'rgba(255, 255, 255, 0.1)', px: 2, py: 0.5, borderRadius: '20px', display: 'inline-block' }}>
+                                                <span style={{ color: 'white' }}>Status: </span>
+                                                <span style={{ color: getStatusColor(campaign.status) }}>{campaign.status}</span>
+                                            </Typography>
+                                        ) : (
+                                            <>
+                                                <Button
+                                                    variant="contained" onClick={(e) => setAnchorEl(e.currentTarget)} endIcon={<ExpandMore />}
+                                                    sx={{ backgroundColor: "rgba(255, 255, 255, 0.2)", borderRadius: "20px", fontWeight: "bold", textTransform: "none", "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.3)" } }}
+                                                >
+                                                    Status: {campaign.status}
+                                                </Button>
+                                                <Menu
+                                                    anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}
+                                                    MenuListProps={{ sx: { backgroundColor: "#333", color: "white" } }}
+                                                >
+                                                    {['Aberta', 'Planejamento', 'Concluída', 'Cancelada'].map((s) => (
+                                                        <MenuItem key={s} onClick={() => handleStatusChange(s)}>{s}</MenuItem>
+                                                    ))}
+                                                </Menu>
+                                            </>
+                                        )}
+
+                                        {/* BLOCO PUBLICADO POR */}
+                                        {campaign.createdBy && (
+                                            <Box display="flex" alignItems="center" gap={1} sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', px: 1.5, py: 0.5, borderRadius: '8px' }}>
+                                                <Avatar 
+                                                    src={campaign.createdBy.profileImageUrl} 
+                                                    sx={{ width: 24, height: 24, border: '1px solid rgba(255,255,255,0.5)' }}
+                                                >
+                                                    <Person sx={{ fontSize: 16 }} />
+                                                </Avatar>
+                                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+                                                    Publicado por <Link to={`/perfil/${campaign.createdBy._id}`} style={{ color: 'white', fontWeight: 'bold', textDecoration: 'none', marginLeft: '4px' }}>{campaign.createdBy.name}</Link>
+                                                </Typography>
+                                            </Box>
+                                        )}
+                                    </Box>
+
                                     {updateError && <Typography color="error" variant="caption" sx={{ display: 'block', mt: 1 }}>{updateError}</Typography>}
                                 </Box>
-                                <Box display="flex" gap={5} alignItems="center">
-                                    <motion.div variants={itemVariants}><Box textAlign="center"><Visibility sx={{ fontSize: 32, color: "#2196f3" }} /><Typography variant="h5" fontWeight="bold">{campaign.views}</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Visualizações</Typography></Box></motion.div>
-                                    <motion.div variants={itemVariants}><Box textAlign="center"><GroupWork sx={{ fontSize: 32, color: "#9c27b0" }} /><Typography variant="h5" fontWeight="bold">{campaign.influencers}</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Influenciadores</Typography></Box></motion.div>
-                                    <motion.div variants={itemVariants}><Box textAlign="center"><TrendingUp sx={{ fontSize: 32, color: "#ff1493" }} /><Typography variant="h5" fontWeight="bold">{campaign.engagement}</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Engajamento</Typography></Box></motion.div>
+                                
+                                <Box display="flex" gap={4} alignItems="center" sx={{ backgroundColor: "rgba(0,0,0,0.2)", p: 2, borderRadius: "16px" }}>
+                                    
+                                    {/* ESTATÍSTICA DE PARTICIPANTES */}
+                                    <motion.div variants={itemVariants}><Box textAlign="center"><People sx={{ fontSize: 32, color: "#9c27b0" }} /><Typography variant="h5" fontWeight="bold">{participantesCount}</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Participantes</Typography></Box></motion.div>
+                                    
+                                    {/* ESTATÍSTICA DE VAGAS RESTANTES */}
+                                    <motion.div variants={itemVariants}><Box textAlign="center"><GroupAdd sx={{ fontSize: 32, color: "#A8E349" }} /><Typography variant="h5" fontWeight="bold">{vagasDisponiveis}</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Vagas</Typography></Box></motion.div>
+                                    
                                 </Box>
                             </Box>
                         </Box>
