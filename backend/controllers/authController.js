@@ -2,19 +2,17 @@
 
 import User from '../models/userModel.js';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto'; // Módulo nativo do Node.js para criptografia
-import sendPasswordResetCodeEmail from '../config/email.js' // Supondo que você tenha um utilitário de e-mail
+import crypto from 'crypto'; 
+// ✅ CORREÇÃO: Usar chaves { } para importar a função específica
+import { sendPasswordResetCodeEmail } from '../config/email.js';
 
 // Função auxiliar para gerar o token
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, {
-        expiresIn: '30d', // O token expira em 30 dias
+        expiresIn: '30d',
     });
 };
 
-// @desc    Registrar um novo usuário
-// @route   POST /api/auth/register
-// @access  Público
 // @desc    Registrar um novo usuário
 // @route   POST /api/auth/register
 export const register = async (req, res) => {
@@ -35,7 +33,6 @@ export const register = async (req, res) => {
       email,
       password,
       role,
-      // O profileImageUrl padrão será definido pelo Schema do Mongoose se não for passado
     });
 
     if (user) {
@@ -44,7 +41,6 @@ export const register = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        // ✅ CORREÇÃO: Retornar campos extras
         profileImageUrl: user.profileImageUrl,
         isCompanyAdmin: user.isCompanyAdmin,
         empresaId: user.empresaId,
@@ -57,7 +53,7 @@ export const register = async (req, res) => {
     res.status(500).json({ message: 'Erro no servidor', error: error.message });
   }
 };
-// A função login começa AQUI, do lado de fora.
+
 // @desc    Login
 // @route   POST /api/auth/login
 export const login = async (req, res) => {
@@ -84,7 +80,6 @@ export const login = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
-                // ✅ CORREÇÃO CRÍTICA: Adicionado envio da imagem e dados da empresa
                 profileImageUrl: user.profileImageUrl, 
                 isCompanyAdmin: user.isCompanyAdmin,
                 empresaId: user.empresaId,
@@ -108,39 +103,73 @@ export const forgotPassword = async (req, res) => {
         const user = await User.findOne({ email });
 
         if (!user) {
-            // Ainda respondemos com sucesso para não revelar se um e-mail existe
+            // Retorna sucesso por segurança
             return res.status(200).json({ message: 'Se um usuário com este e-mail existir, um código foi enviado.' });
         }
 
-        // Gera um código numérico de 6 dígitos
+        // Gera código de 6 dígitos
         const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
         
-        // Salva o HASH do código no banco (nunca salve códigos/tokens em texto puro)
+        // Salva hash no banco
         user.passwordResetToken = crypto.createHash('sha256').update(resetCode).digest('hex');
-        user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // Válido por 10 minutos
+        user.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 min
         await user.save();
 
-        // Envia o e-mail com o CÓDIGO original
-        await sendPasswordResetCodeEmail(user.email, user.name, resetCode);
+        // Envia email
+        try {
+            await sendPasswordResetCodeEmail(user.email, user.name, resetCode);
+        } catch (emailError) {
+            console.error("Erro ao enviar email:", emailError);
+            // Limpa o token se o email falhar para permitir nova tentativa limpa
+            user.passwordResetToken = undefined;
+            user.passwordResetExpires = undefined;
+            await user.save();
+            throw new Error("Falha no envio de email");
+        }
 
         res.status(200).json({ message: 'Se um usuário com este e-mail existir, um código foi enviado.' });
 
     } catch (error) {
+        console.error("ERRO NO FORGOT PASSWORD:", error); // ✅ LOG DE ERRO ADICIONADO
         res.status(500).json({ message: "Erro no servidor" });
     }
 };
 
-// @desc    Redefinir a senha usando o CÓDIGO
+// @desc    Verificar se o código é válido
+// @route   POST /api/auth/verify-code
+export const verifyResetCode = async (req, res) => {
+    try {
+        const { email, code } = req.body;
+
+        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
+
+        const user = await User.findOne({
+            email: email,
+            passwordResetToken: hashedCode,
+            passwordResetExpires: { $gt: Date.now() } 
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Código inválido ou expirado.' });
+        }
+
+        res.status(200).json({ message: 'Código verificado com sucesso.' });
+
+    } catch (error) {
+        res.status(500).json({ message: "Erro no servidor", error: error.message });
+    }
+};
+
+// @desc    Redefinir a senha usando o CÓDIGO validado
 // @route   PUT /api/auth/reset-password
 export const resetPassword = async (req, res) => {
     try {
         const { email, code, password } = req.body;
 
-        // Faz o hash do código recebido para comparar com o do banco
         const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
 
         const user = await User.findOne({
-            email: email, // Precisamos do email para encontrar o usuário
+            email: email,
             passwordResetToken: hashedCode,
             passwordResetExpires: { $gt: Date.now() }
         });
@@ -149,7 +178,7 @@ export const resetPassword = async (req, res) => {
             return res.status(400).json({ message: 'Código inválido ou expirado.' });
         }
 
-        user.password = password;
+        user.password = password; 
         user.passwordResetToken = undefined;
         user.passwordResetExpires = undefined;
         await user.save();
@@ -157,32 +186,7 @@ export const resetPassword = async (req, res) => {
         res.status(200).json({ message: 'Senha redefinida com sucesso!' });
 
     } catch (error) {
+        console.error("ERRO NO RESET PASSWORD:", error);
         res.status(500).json({ message: "Erro no servidor" });
-    }
-};
-
-export const verifyResetCode = async (req, res) => {
-    try {
-        const { email, code } = req.body;
-
-        // Faz o hash do código recebido para comparar com o do banco
-        const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
-
-        const user = await User.findOne({
-            email: email,
-            passwordResetToken: hashedCode,
-            passwordResetExpires: { $gt: Date.now() } // Verifica se não expirou
-        });
-
-        if (!user) {
-            // Se não encontrou, o código é inválido ou expirado
-            return res.status(400).json({ message: 'Código inválido ou expirado.' });
-        }
-
-        // Se encontrou, o código é válido
-        res.status(200).json({ message: 'Código verificado com sucesso.' });
-
-    } catch (error) {
-        res.status(500).json({ message: "Erro no servidor", error: error.message });
     }
 };
