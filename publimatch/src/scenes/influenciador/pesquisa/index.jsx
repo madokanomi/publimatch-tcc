@@ -3,10 +3,8 @@ import {
   DialogContent, Avatar, IconButton, Fade, Skeleton
 } from "@mui/material";
 import { forwardRef, useMemo, useState, useEffect } from "react";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
 import Header from "../../../components/Header";
 import InfluencerCard from "../../../components/InfluencerCard";
-import { influencers } from "../../../data/mockInfluencer";
 import { Autocomplete } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { Star, Favorite, Visibility, Groups } from "@mui/icons-material";
@@ -14,15 +12,19 @@ import { SiTwitch } from "react-icons/si";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 import InstagramIcon from "@mui/icons-material/Instagram";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
-import axios from 'axios';
 import { motion, AnimatePresence } from "framer-motion";
 
-// Componente auxiliar (sem alterações)
+// Componente auxiliar de comparação
 const StatComparator = ({ icon, label, value1, value2, unit = "" }) => {
-  const isValue1Winner = value1 > value2;
-  const isValue2Winner = value2 > value1;
+  const v1 = parseFloat(value1 || 0);
+  const v2 = parseFloat(value2 || 0);
+  // Lógica simples para destacar o maior valor
+  const isValue1Winner = v1 > v2;
+  const isValue2Winner = v2 > v1;
+  
   const winnerStyle = { color: "#00ff95", fontWeight: "bold", transform: "scale(1.1)" };
   const defaultStyle = { color: "white" };
+
   return (
     <Box display="flex" justifyContent="space-between" alignItems="center" width="100%" py={1.5} px={2} my={0.5} sx={{ background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)" }}>
       <Typography sx={{ transition: "all 0.3s ease", ...(isValue1Winner ? winnerStyle : defaultStyle) }}>{value1}{unit}</Typography>
@@ -64,11 +66,12 @@ const AnimatedDialogPaper = forwardRef((props, ref) => (
   />
 ));
 
-
 const Influenciadores = () => {
   const [influencers, setInfluencers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Filtros
   const [search, setSearch] = useState("");
   const [categoria, setCategoria] = useState("");
   const [inputValueCategoria, setInputValueCategoria] = useState("");
@@ -78,20 +81,18 @@ const Influenciadores = () => {
   const [tagsSelecionadas, setTagsSelecionadas] = useState([]);
   const [searchTag, setSearchTag] = useState("");
   const [showAllTags, setShowAllTags] = useState(false);
+  
+  // Controle de Comparação e Ocultos
   const [influencersParaComparar, setInfluencersParaComparar] = useState([]);
   const [ocultos, setOcultos] = useState([]);
 
   // Buscar influenciadores do backend
   useEffect(() => {
-     const fetchInfluencers = async () => {
+    const fetchInfluencers = async () => {
       try {
         setLoading(true);
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         
-        // A busca de 'todos' pode não precisar de token, mas é boa prática enviar
-        // caso a rota se torne protegida no futuro.
-const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-        
-        // 🎯 AQUI ESTÁ A MUDANÇA PRINCIPAL: Usar a rota '/api/influencers/all'
         const response = await fetch('/api/influencers/all', {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -100,56 +101,43 @@ const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         });
 
         if (!response.ok) {
-          // Tenta ler a mensagem de erro do backend, se houver
           const errorData = await response.json().catch(() => ({ message: 'Erro ao buscar influenciadores' }));
           throw new Error(errorData.message || 'Erro de rede');
         }
 
-
         const data = await response.json();
         
-        // Transformar dados do backend para o formato esperado pelo frontend
         const transformedData = data.map(inf => {
-            // Se o backend não fornecer esses dados, podemos simular ou deixar 0.
-            // O ideal é que o backend envie esses valores.
-            const followersInMillions = (inf.followersCount || 0) / 1000000;
-            const engagement = parseFloat(inf.engagementRate || 0);
-            
-    
-               const randomFollowers = parseFloat((Math.random() * (50 - 0.1) + 0.1).toFixed(1));
-            const randomEngagement = parseFloat((Math.random() * (100 - 0.5) + 0.5).toFixed(1));
-            const randomAvaliacao = parseFloat((Math.random() * (5 - 3.5) + 3.5).toFixed(1));
-            
-   
-            const randomViews = parseFloat((randomFollowers * (Math.random() * 3 + 0.5)).toFixed(1));
-            const randomInscritos = parseFloat((randomFollowers * (Math.random() * 0.9 + 0.2)).toFixed(1));
-    
-            const randomLikes = parseFloat((randomFollowers * (Math.random() * 0.7 + 0.1)).toFixed(1));
-          
+            // Gera números aleatórios apenas para dados que o backend ainda não fornece
+            const randomFollowers = parseFloat((Math.random() * (50 - 0.1) + 0.1).toFixed(1));
+
+            // CRIAÇÃO SEGURA DA LISTA DE REDES (Converte para minúsculo para garantir compatibilidade)
+            const socialObj = inf.social || {};
+            const redesArray = Object.keys(socialObj)
+                .filter(key => socialObj[key]) // Verifica se tem link
+                .map(key => key.toLowerCase()); // Transforma 'YouTube' em 'youtube'
+
             return {
-              // --- Dados diretos do Backend ---
-         id: inf._id,
-        _id: inf._id,
-        name: inf.name,
-        realName: inf.realName,
-        profileImageUrl: inf.profileImageUrl || '/default-avatar.png',
-        backgroundImageUrl: inf.backgroundImageUrl || '',
-        niches: inf.niches || [],
-        social: inf.social || {},
-        description: inf.description || '',
-        
-        // AQUI: Usamos as Top 3 Tags calculadas no controller
-        tags: inf.topTags || [], 
+              // Dados padronizados
+              id: inf._id,
+              _id: inf._id,
+              name: inf.name,
+              realName: inf.realName,
+              profileImageUrl: inf.profileImageUrl || '/default-avatar.png',
+              backgroundImageUrl: inf.backgroundImageUrl || '',
+              niches: inf.niches || [],
+              social: socialObj,
+              redes: redesArray, // Array pronto para uso nos filtros e ícones
+              description: inf.description || '',
+              tags: inf.topTags || [], 
+              avaliacao: inf.calculatedRating || 0, // Nota real ou 0
 
-        // AQUI: Usamos a avaliação real calculada no controller
-        avaliacao: inf.calculatedRating || 0,
-
-        // --- Dados Simulados (pois o backend ainda não tem integração com API do youtube/insta para isso) ---
-        followersCount: randomFollowers,
-        engagementRate: 4.5, // Exemplo fixo ou random
-        views: 1.2,
-        inscritos: 0.5,
-          };
+              // Dados Simulados (Substituir quando tiver no backend)
+              followersCount: randomFollowers,
+              engagementRate: 4.5,
+              views: 1.2,
+              inscritos: 0.5,
+            };
         });
 
         setInfluencers(transformedData);
@@ -178,16 +166,14 @@ const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 120 }},
   };
 
- const todasCategorias = useMemo(() => {
-  console.log("Recalculando categorias...");
- return Array.from(new Set(influencers.flatMap((inf) => inf.niches)));
-}, [influencers]);
+  // Memoização das opções de filtros
+  const todasCategorias = useMemo(() => {
+    return Array.from(new Set(influencers.flatMap((inf) => inf.niches || [])));
+  }, [influencers]);
 
-
- const todasTags = useMemo(() => {
-  console.log("Recalculando tags...");
-  return Array.from(new Set(influencers.flatMap((inf) => inf.tags)));
-}, [influencers]);
+  const todasTags = useMemo(() => {
+    return Array.from(new Set(influencers.flatMap((inf) => inf.tags || [])));
+  }, [influencers]);
 
 
   const handleSelecionarParaComparar = (influencer) => {
@@ -199,31 +185,33 @@ const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     });
   };
 
-
   const handleFecharComparacao = () => {
     setInfluencersParaComparar([]);
   };
 
-const filtrados = useMemo(() => {
-  console.log("REFILTRANDO A LISTA de", influencers.length, "influenciadores...");
-  return influencers.filter((inf) => {
-    // ✅ CORREÇÃO: Acessar 'followersCount' diretamente, sem parseFloat
-    const seg = inf.followersCount; 
-    return (
-      !ocultos.includes(inf._id) && // Usar _id que vem do backend
-      inf.name.toLowerCase().includes(search.toLowerCase()) && // Usar 'name'
-      (categoria ? inf.niches.includes(categoria) : true) && // Usar 'niches'
-      // O filtro de plataforma precisa de uma correção para verificar o objeto 'social'
-      (plataforma ? inf.social[plataforma] : true) &&
-      seg >= seguidores[0] &&
-      seg <= seguidores[1] &&
-      inf.avaliacao >= avaliacao &&
-      (tagsSelecionadas.length > 0
-        ? tagsSelecionadas.every((tag) => inf.tags.includes(tag))
-        : true)
-    );
-  });
-}, [influencers, search, categoria, plataforma, seguidores, avaliacao, tagsSelecionadas, ocultos]);
+  // Filtragem
+  const filtrados = useMemo(() => {
+    return influencers.filter((inf) => {
+      const seg = inf.followersCount; 
+      
+      const matchPlataforma = plataforma 
+        ? (inf.redes && inf.redes.includes(plataforma.toLowerCase())) 
+        : true;
+
+      return (
+        !ocultos.includes(inf._id) &&
+        inf.name.toLowerCase().includes(search.toLowerCase()) &&
+        (categoria ? inf.niches.includes(categoria) : true) &&
+        matchPlataforma &&
+        seg >= seguidores[0] &&
+        seg <= seguidores[1] &&
+        inf.avaliacao >= avaliacao &&
+        (tagsSelecionadas.length > 0
+          ? tagsSelecionadas.every((tag) => inf.tags.includes(tag))
+          : true)
+      );
+    });
+  }, [influencers, search, categoria, plataforma, seguidores, avaliacao, tagsSelecionadas, ocultos]);
 
 
   const inf1 = influencersParaComparar[0];
@@ -328,50 +316,65 @@ const filtrados = useMemo(() => {
             {inf1 && inf2 && (
               <DialogContent sx={{ p: 0, position: "relative" }}>
                 <Box display="flex" alignItems="stretch" sx={{ overflow: 'hidden' }}>
+                  {/* ESQUERDA (Inf 1) - CORRIGIDO AS VARIÁVEIS */}
                   <Box flex={1} p={4} display="flex" flexDirection="column" alignItems="center" gap={1.5}>
-                    <Avatar src={inf1.imagem} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
-                    <Typography variant="h4" fontWeight="bold" textAlign="center">{inf1.nome}</Typography>
-                    <Typography variant="body1" color="rgba(255,255,255,0.7)" textAlign="center">{inf1.nomeReal}</Typography>
+                    <Avatar src={inf1.profileImageUrl} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
+                    <Typography variant="h4" fontWeight="bold" textAlign="center">{inf1.name}</Typography>
+                    <Typography variant="body1" color="rgba(255,255,255,0.7)" textAlign="center">{inf1.realName}</Typography>
                     <Box display="flex" gap={1.5} mt={1}>
-                      {inf1.redes.includes("tiktok") && <MusicNoteIcon />} {inf1.redes.includes("twitch") && <SiTwitch style={{ fontSize: 22 }} />} {inf1.redes.includes("instagram") && <InstagramIcon />} {inf1.redes.includes("youtube") && <YouTubeIcon />}
+                      {inf1.redes?.includes("tiktok") && <MusicNoteIcon />}
+                      {inf1.redes?.includes("twitch") && <SiTwitch style={{ fontSize: 22 }} />}
+                      {inf1.redes?.includes("instagram") && <InstagramIcon />}
+                      {inf1.redes?.includes("youtube") && <YouTubeIcon />}
                     </Box>
                   </Box>
+
+                  {/* MEIO (VS) */}
                   <Box display="flex" alignItems="center" px={2}>
                     <Box display="flex" alignItems="center" justifyContent="center" sx={{ width: 80, height: 80, borderRadius: '50%', background: '#ffffff0b', color: 'white', border: '3px solid white', boxShadow: '0 0 25px #ff00d4', zIndex: 5 }}>
                       <Typography variant="h4" fontWeight="900" sx={{ textShadow: '0 0 5px rgba(0,0,0,0.5)'}}>VS</Typography>
                     </Box>
                   </Box>
+
+                  {/* DIREITA (Inf 2) - CORRIGIDO AS VARIÁVEIS */}
                   <Box flex={1} p={4} display="flex" flexDirection="column" alignItems="center" gap={1.5}>
-                    <Avatar src={inf2.imagem} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
-                    <Typography variant="h4" fontWeight="bold" textAlign="center">{inf2.nome}</Typography>
-                    <Typography variant="body1" color="rgba(255,255,255,0.7)" textAlign="center">{inf2.nomeReal}</Typography>
+                    <Avatar src={inf2.profileImageUrl} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
+                    <Typography variant="h4" fontWeight="bold" textAlign="center">{inf2.name}</Typography>
+                    <Typography variant="body1" color="rgba(255,255,255,0.7)" textAlign="center">{inf2.realName}</Typography>
                     <Box display="flex" gap={1.5} mt={1}>
-                      {inf2.redes.includes("tiktok") && <MusicNoteIcon />} {inf2.redes.includes("twitch") && <SiTwitch style={{ fontSize: 22 }} />} {inf2.redes.includes("instagram") && <InstagramIcon />} {inf2.redes.includes("youtube") && <YouTubeIcon />}
+                      {inf2.redes?.includes("tiktok") && <MusicNoteIcon />}
+                      {inf2.redes?.includes("twitch") && <SiTwitch style={{ fontSize: 22 }} />}
+                      {inf2.redes?.includes("instagram") && <InstagramIcon />}
+                      {inf2.redes?.includes("youtube") && <YouTubeIcon />}
                     </Box>
                   </Box>
                 </Box>
+
+                {/* ESTATÍSTICAS - VARIÁVEIS CORRIGIDAS */}
                 <Box px={5} pb={4} mt={-2}>
-                  <StatComparator icon={<Favorite />} label="Curtidas" value1={inf1.seguidores} value2={inf2.seguidores} unit="M" />
+                  <StatComparator icon={<Favorite />} label="Curtidas" value1={inf1.followersCount} value2={inf2.followersCount} unit="M" />
                   <StatComparator icon={<Visibility />} label="Views" value1={inf1.views} value2={inf2.views} unit="M" />
                   <StatComparator icon={<Groups />} label="Inscritos" value1={inf1.inscritos} value2={inf2.inscritos} unit="M" />
                   <StatComparator icon={<Star />} label="Avaliação" value1={inf1.avaliacao} value2={inf2.avaliacao} />
+                  
+                  {/* Barras de Engajamento */}
                   <Box mt={2}>
                     <Box>
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                        <Typography variant="body2" fontWeight="bold">{inf1.nome}</Typography>
-                        <Typography variant="body2" fontWeight="bold" color="#ff00d4">{inf1.engajamento}%</Typography>
+                        <Typography variant="body2" fontWeight="bold">{inf1.name}</Typography>
+                        <Typography variant="body2" fontWeight="bold" color="#ff00d4">{inf1.engagementRate}%</Typography>
                       </Box>
                       <Box sx={{ height: '10px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <Box sx={{ height: '100%', width: `${inf1.engajamento}%`, bgcolor: '#ff00d4', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #ff00d4' }}/>
+                        <Box sx={{ height: '100%', width: `${inf1.engagementRate}%`, bgcolor: '#ff00d4', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #ff00d4' }}/>
                       </Box>
                     </Box>
                     <Box mt={2}>
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                        <Typography variant="body2" fontWeight="bold">{inf2.nome}</Typography>
-                        <Typography variant="body2" fontWeight="bold" color="#00ff95">{inf2.engajamento}%</Typography>
+                        <Typography variant="body2" fontWeight="bold">{inf2.name}</Typography>
+                        <Typography variant="body2" fontWeight="bold" color="#00ff95">{inf2.engagementRate}%</Typography>
                       </Box>
                       <Box sx={{ height: '10px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <Box sx={{ height: '100%', width: `${inf2.engajamento}%`, bgcolor: '#00ff95', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #00ff95' }}/>
+                        <Box sx={{ height: '100%', width: `${inf2.engagementRate}%`, bgcolor: '#00ff95', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #00ff95' }}/>
                       </Box>
                     </Box>
                   </Box>
