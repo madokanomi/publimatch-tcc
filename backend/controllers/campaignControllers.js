@@ -112,9 +112,10 @@ export const getCampaigns = async (req, res) => {
 
 export const getCampaignById = async (req, res) => {
     try {
-        // ✨ MUDANÇA AQUI: Adicionado 'profileImageUrl' e '_id' para exibir no banner ✨
+        // ✨ CORREÇÃO AQUI: Adicionado populate para 'participatingInfluencers' ✨
         const campaign = await Campaign.findById(req.params.id)
-            .populate('createdBy', 'name email profileImageUrl _id');
+            .populate('createdBy', 'name email profileImageUrl _id')
+            .populate('participatingInfluencers', 'name profileImageUrl'); // Garante que a foto venha no JSON
             
         if (!campaign) {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
