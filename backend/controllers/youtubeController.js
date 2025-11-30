@@ -1,31 +1,52 @@
 // controllers/youtubeController.js
 
 import asyncHandler from 'express-async-handler';
-// Ajuste o caminho se necessário
 import { checkYoutubeHashtag } from '../config/youtubeHelper.js';
-// Não precisamos mais do model aqui
-// import Influencer from '../models/influencerModel.js'; 
+import { checkTiktokHashtag } from '../config/tiktokHelper.js'; // ✨ IMPORTAR AQUI
 
 export const checkCampaignHashtag = asyncHandler(async (req, res) => {
-    const { channelUrl, hashtag, influencerId } = req.body;
+    // ✨ Agora recebemos tiktokUrl também
+    const { channelUrl, tiktokUrl, hashtag, influencerId } = req.body;
 
-    if (!channelUrl || !hashtag || !influencerId) {
+    if (!hashtag || !influencerId) {
         res.status(400);
-        throw new Error('A URL do Canal, a Hashtag e o ID do Influenciador são obrigatórios.');
+        throw new Error('Hashtag e ID do Influenciador são obrigatórios.');
     }
 
-    // ✨ MUDANÇA AQUI: 'data' agora é um objeto { count, totalViews }
-    const data = await checkYoutubeHashtag(channelUrl, hashtag);
+    // Inicializa contadores
+    let finalCount = 0;
+    let finalViews = 0;
 
-    if (data === null) {
-        res.status(500);
-        throw new Error('Falha ao verificar o YouTube. Verifique a quota da API Key ou se a URL do canal é válida.');
+    // ✨ Executa as checagens em PARALELO (Promise.all) para ser rápido
+    const promises = [];
+
+    if (channelUrl) {
+        promises.push(checkYoutubeHashtag(channelUrl, hashtag)
+            .then(data => data || { count: 0, totalViews: 0 })
+            .catch(() => ({ count: 0, totalViews: 0 }))
+        );
     }
 
-    // ✨ MUDANÇA AQUI: Retornamos os dois valores para o frontend
+    if (tiktokUrl) {
+        promises.push(checkTiktokHashtag(tiktokUrl, hashtag)
+            .then(data => data || { count: 0, totalViews: 0 })
+            .catch(() => ({ count: 0, totalViews: 0 }))
+        );
+    }
+
+    const results = await Promise.all(promises);
+
+    // Soma tudo
+    results.forEach(result => {
+        finalCount += result.count;
+        finalViews += result.totalViews;
+    });
+
     res.status(200).json({ 
         influencerId: influencerId, 
-        count: data.count, 
-        totalViews: data.totalViews 
+        count: finalCount, 
+        totalViews: finalViews,
+        // Opcional: retornar detalhes por rede se quiser debug
+        details: { youtube: results[0], tiktok: results[1] } 
     });
 });

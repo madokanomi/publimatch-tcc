@@ -73,3 +73,43 @@ export const getTikTokStats = async (url) => {
         };
     }
 };
+
+export const checkTiktokHashtag = async (profileUrl, hashtag) => {
+    if (!profileUrl) return { count: 0, totalViews: 0 };
+
+    // Limpeza do username
+    let username = '';
+    if (profileUrl.includes('tiktok.com/')) {
+        const parts = profileUrl.split('tiktok.com/');
+        if (parts[1]) username = parts[1].split('?')[0].replace('/', '');
+    } else {
+        username = profileUrl;
+    }
+    if (!username.startsWith('@')) username = '@' + username;
+
+    try {
+        // Tenta pegar o HTML do perfil
+        const response = await axios.get(`https://www.tiktok.com/${username}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+            timeout: 5000
+        });
+
+        const html = response.data;
+
+        // AQUI SERIA A LÓGICA REAL DE SCRAPING DE HASHTAGS
+        // O TikTok dificulta muito buscar vídeos específicos por hashtag via axios simples.
+        // Como removemos o mock, se não conseguirmos ler especificamente a hashtag no HTML, retornamos 0.
+        
+        // Se você tiver uma lógica real de regex para contar vídeos com # no HTML, insira aqui.
+        // Caso contrário, sem a simulação, assumimos 0 para evitar dados falsos.
+        
+        return { count: 0, totalViews: 0 };
+
+    } catch (error) {
+        console.warn(`TikTok Hashtag check failed for ${username}.`);
+        // Retorna 0 reais em caso de erro
+        return { count: 0, totalViews: 0 };
+    }
+};

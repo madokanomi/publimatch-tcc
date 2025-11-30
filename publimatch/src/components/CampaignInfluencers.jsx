@@ -1,3 +1,5 @@
+// src/components/CampaignInfluencers.jsx
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -5,11 +7,14 @@ import {
 } from "@mui/material";
 import { Instagram, YouTube, Twitter, StarRounded, Chat as ChatIcon, Search } from "@mui/icons-material";
 import { FaTwitch, FaTiktok } from 'react-icons/fa';
-import { useAuth } from "../auth/AuthContext";
 import axios from "axios";
-import ReviewInfluencer from './ReviewInfluencer';
-import { useConversation } from '../scenes/chat/ConversationContext';
 
+// --- IMPORTAÇÕES CORRIGIDAS ---
+import { useAuth } from "../auth/AuthContext"; // Mudou de ../../ para ../
+import { useConversation } from "../scenes/chat/ConversationContext"; // Ajustado o caminho para scenes/chat
+import ReviewInfluencer from './ReviewInfluencer'; // Mantido (mesma pasta)
+
+// Componente de ícones sociais
 const SocialIcon = ({ network }) => {
     const iconStyle = { color: "rgba(255,255,255,0.7)", fontSize: '20px' };
     switch (network) {
@@ -22,8 +27,10 @@ const SocialIcon = ({ network }) => {
     }
 };
 
+// Formatador de números
 const formatViews = (num) => {
     if (num === 'Erro') return 'Erro';
+    if (!num) return '0';
     if (num < 1000) return num;
     if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
     if (num < 1000000000) return (num / 1000000).toFixed(1) + 'M';
@@ -35,14 +42,12 @@ const CampaignInfluencers = ({ campaign }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [reviewingInfluencer, setReviewingInfluencer] = useState(null);
-    
-    // ✨ NOVO: Estado para guardar os IDs dos influenciadores já avaliados.
-    // Usamos um Set para uma verificação de existência mais rápida (O(1)).
     const [reviewedIds, setReviewedIds] = useState(new Set());
 
     const countStorageKey = `yt_counts_${campaign._id}`;
     const viewsStorageKey = `yt_views_${campaign._id}`;
 
+    // Recupera dados salvos ou inicia vazio
     const [postCounts, setPostCounts] = useState(() => {
         const savedCounts = localStorage.getItem(countStorageKey);
         return savedCounts ? JSON.parse(savedCounts) : {};
@@ -57,11 +62,9 @@ const CampaignInfluencers = ({ campaign }) => {
 
     const { user } = useAuth();
     const navigate = useNavigate();
-
-    
-
     const { setSelectedConversation, setConversations, conversations } = useConversation();
 
+    // --- 1. Fetch Data (SEM MOCK) ---
     useEffect(() => {
         const fetchData = async () => {
             if (!campaign?._id || !user?.token) {
@@ -72,22 +75,12 @@ const CampaignInfluencers = ({ campaign }) => {
                 setLoading(true);
                 const config = { headers: { Authorization: `Bearer ${user.token}` } };
                 
-                // ✨ Fazemos duas chamadas em paralelo para otimizar o carregamento ✨
                 const [participantsResponse, reviewedResponse] = await Promise.all([
                     axios.get(`http://localhost:5001/api/campaigns/${campaign._id}/participants`, config),
                     axios.get(`http://localhost:5001/api/reviews/campaign/${campaign._id}/my-reviews`, config)
                 ]);
 
-                // Processa a lista de participantes
-               const augmentedData = participantsResponse.data.map(influencer => ({
-                    ...influencer,
-                    randomStats: {
-                        platform: ["Stories, Vídeos", "Reels, Posts", "Vídeos Longos"][Math.floor(Math.random() * 3)],
-                        conversion: Math.floor(Math.random() * 50) + 40,
-                    }
-                }));
-                setParticipants(augmentedData);
-                // ✨ Processa a lista de IDs de avaliados e guarda no estado
+                setParticipants(participantsResponse.data);
                 setReviewedIds(new Set(reviewedResponse.data));
 
             } catch (err) {
@@ -101,100 +94,86 @@ const CampaignInfluencers = ({ campaign }) => {
         fetchData();
     }, [campaign, user]);
 
+    // --- 2. Lógica de Chat ---
     const handleStartChat = async (agentId) => {
-        // 1. Impede que o AD_AGENT (você) inicie um chat consigo mesmo
-        if (agentId === user._id) {
-            console.warn("Você não pode iniciar um chat consigo mesmo.");
-            return;
-        }
+        if (agentId === user._id) return;
 
-        try {
-            // 2. Pega o token para a requisição
-            const config = {
-                headers: { Authorization: `Bearer ${user.token}` },
-            };
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            const { data: conversationData } = await axios.post(
+                `http://localhost:5001/api/chat/ensure`, 
+                { userId: agentId }, 
+                config
+            );
 
-            // 3. Usa a rota 'ensure' e o body 'userId' (como no seu exemplo)
-            const { data: conversationData } = await axios.post(
-                `http://localhost:5001/api/chat/ensure`, 
-                { userId: agentId }, // O corpo da requisição com o ID do agente
-                config
-            );
+            const conversationExists = conversations.some(c => c._id === conversationData._id);
+            if (!conversationExists) {
+                setConversations(prevConvos => [conversationData, ...prevConvos]);
+            }
+            setSelectedConversation(conversationData);
+            navigate(`/conversa/${conversationData._id}`);
 
-            // 4. Atualiza o Contexto global do chat (como no seu exemplo)
-            const conversationExists = conversations.some(c => c._id === conversationData._id);
-            if (!conversationExists) {
-                setConversations(prevConvos => [conversationData, ...prevConvos]);
-            }
-            setSelectedConversation(conversationData);
+        } catch (error) {
+            console.error("Erro ao garantir ou criar a conversa:", error);
+        }
+    };
 
-            // 5. Navega para a página de conversa (com a URL singular 'conversa' do seu exemplo)
-            navigate(`/conversa/${conversationData._id}`);
+    // --- 3. Lógica de Verificar Hashtag (YouTube + TikTok) ---
+    const handleCheckHashtag = async (influencer) => {
+        if (checkingId) return; 
 
-        } catch (error) {
-            console.error("Erro ao garantir ou criar a conversa:", error);
-            // Você pode adicionar um snackbar de erro aqui, se quiser
-        }
-    };
-
-const handleCheckYoutubePosts = async (influencer) => {
-        if (checkingId) return; // Não permite checagens simultâneas
-
-        // Pega a hashtag da campanha que está sendo passada como prop
         const hashtag = campaign.hashtag;
         if (!hashtag) {
             alert("Esta campanha não tem uma hashtag definida.");
             return;
         }
 
-        // ✨ 1. PEGA A URL DIRETAMENTE DO INFLUENCER
-        const channelUrl = influencer.social?.youtube;
-        if (!channelUrl) {
-            alert("Este influenciador não tem uma URL de YouTube cadastrada.");
-            // Isso não deveria acontecer se o ícone do YouTube apareceu
+        const youtubeUrl = influencer.social?.youtube;
+        const tiktokUrl = influencer.social?.tiktok;
+
+        if (!youtubeUrl && !tiktokUrl) {
+            alert("Este influenciador não tem YouTube nem TikTok cadastrados.");
             return;
         }
 
-        setCheckingId(influencer._id); // Ativa o loading para este influencer
+        setCheckingId(influencer._id);
         setPostCounts(prev => ({ ...prev, [influencer._id]: undefined }));
         setPostViews(prev => ({ ...prev, [influencer._id]: undefined }));
 
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
             
-            // ✨ 2. ENVIA A URL E O ID PARA O BACKEND
+            // Envia para o backend (que processa os dois)
             const { data } = await axios.post(
                 'http://localhost:5001/api/youtube/check-hashtag',
                 { 
-                    channelUrl: channelUrl,     // Envia a URL do canal
-                    hashtag: hashtag,           // Envia a hashtag
-                    influencerId: influencer._id  // Envia o ID (para o frontend saber qual linha atualizar)
+                    channelUrl: youtubeUrl,  
+                    tiktokUrl: tiktokUrl, 
+                    hashtag: hashtag,           
+                    influencerId: influencer._id
                 },
                 config
             );
             
-            // data = { influencerId, count }
-           setPostCounts(prev => {
+            setPostCounts(prev => {
                 const newCounts = { ...prev, [data.influencerId]: data.count };
-                // Agora, salvamos o objeto INTEIRO no localStorage
                 localStorage.setItem(countStorageKey, JSON.stringify(newCounts));
                 return newCounts;
             });
             
             setPostViews(prev => {
                 const newViews = { ...prev, [data.influencerId]: data.totalViews };
-                // E salvamos as views também
                 localStorage.setItem(viewsStorageKey, JSON.stringify(newViews));
                 return newViews;
             });
 
         } catch (error) {
             console.error("Erro ao checar posts:", error);
-            alert(error.response?.data?.message || "Erro ao checar YouTube.");
+            alert("Erro ao verificar hashtag nas redes sociais.");
             setPostCounts(prev => ({ ...prev, [influencer._id]: 'Erro' }));
             setPostViews(prev => ({ ...prev, [influencer._id]: 'Erro' }));
         } finally {
-            setCheckingId(null); // Libera o loading
+            setCheckingId(null);
         }
     };
 
@@ -212,12 +191,8 @@ const handleCheckYoutubePosts = async (influencer) => {
         );
     }
 
-    if (loading) {
-        return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
-    }
-    if (error) {
-        return <Typography color="error" sx={{ textAlign: 'center', p: 4 }}>{error}</Typography>;
-    }
+    if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>;
+    if (error) return <Typography color="error" sx={{ textAlign: 'center', p: 4 }}>{error}</Typography>;
     
     return (
         <Box
@@ -230,7 +205,7 @@ const handleCheckYoutubePosts = async (influencer) => {
                 "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "rgba(255, 255, 255, 0.5)" }
             }}
         >
-            {/* Cabeçalho da Tabela */}
+            {/* Cabeçalho */}
             <Box
                 sx={{
                     display: "grid", gridTemplateColumns: gridTemplate, gap: 2, py: 1.5, px: 2,
@@ -246,6 +221,7 @@ const handleCheckYoutubePosts = async (influencer) => {
                 <Typography variant="caption" fontWeight="bold">Conversão</Typography>
             </Box>
 
+            {/* Lista */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px', mt: 2 }}>
                 {participants.length > 0 ? (
                     participants.map((influencer) => (
@@ -258,21 +234,22 @@ const handleCheckYoutubePosts = async (influencer) => {
                                     display: "grid", gridTemplateColumns: gridTemplate, gap: 2,
                                     py: 2, px: 2, alignItems: "center",
                                 }}>
+                                    
+                                    {/* Nome e Avatar */}
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                         <Avatar src={influencer.profileImageUrl} alt={influencer.name} sx={{ width: 48, height: 48, borderRadius: "12px" }} variant="rounded" />
                                         <Box>
                                             <Typography color="white" fontWeight="bold">{influencer.name}</Typography>
                                             
-                                            {/* ... (lógica do botão de Avaliar) ... */}
                                             {!reviewedIds.has(influencer._id) ? (
-                                                <Box onClick={() => setReviewingInfluencer(influencer)} sx={{ /* ... estilos ... */ }}>
+                                                <Box onClick={() => setReviewingInfluencer(influencer)} sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                     <StarRounded sx={{ fontSize: '16px', color: 'white' }} />
                                                     <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>
                                                         Avaliar influenciador
                                                     </Typography>
                                                 </Box>
                                             ) : (
-                                                <Box sx={{ /* ... estilos ... */ }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                                     <StarRounded sx={{ fontSize: '16px', color: 'rgb(255, 0, 212)' }} />
                                                     <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
                                                         Avaliado
@@ -282,38 +259,31 @@ const handleCheckYoutubePosts = async (influencer) => {
                                         </Box>
                                     </Box>
 
-                                    {/* ✨ 1. COLUNA 'VISUALIZAÇÕES' CORRIGIDA ✨ */}
-                                    {/* Substituímos a linha '{influencer.randomStats.views}M' por esta lógica */}
+                                    {/* Visualizações */}
                                     {checkingId === influencer._id ? (
                                         <CircularProgress size={22} sx={{ color: 'white' }} />
                                     ) : (
                                         <Typography color="white" fontWeight="bold">
-                                            {postViews[influencer._id] !== undefined
-                                                ? formatViews(postViews[influencer._id])
-                                                : 0} {/* <-- Padrão 0 */}
+                                            {formatViews(postViews[influencer._id])}
                                         </Typography>
                                     )}
 
-                                    {/* ✨ 2. COLUNA 'PUBLICAÇÕES' CORRIGIDA ✨ */}
-                                    {/* Trocamos 'postViews' por 'postCounts' e o padrão '?' por 0 */}
+                                    {/* Publicações */}
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         {checkingId === influencer._id ? (
                                             <CircularProgress size={22} sx={{ color: 'white' }} />
                                         ) : (
                                             <Typography color="white" fontWeight="bold" sx={{ minWidth: '20px' }}>
-                                                {postCounts[influencer._id] !== undefined
-                                                    ? postCounts[influencer._id] // <-- Corrigido para postCounts
-                                                    : 0} {/* <-- Padrão 0 */}
+                                                {postCounts[influencer._id] !== undefined ? postCounts[influencer._id] : 0}
                                             </Typography>
                                         )}
 
-                                        {/* O botão de busca (já estava correto) */}
-                                        {influencer.social?.youtube && (
-                                            <Tooltip title="Verificar posts com a hashtag">
+                                        {(influencer.social?.youtube || influencer.social?.tiktok) && (
+                                            <Tooltip title="Verificar posts com a hashtag (YouTube + TikTok)">
                                                 <span>
                                                     <IconButton 
                                                         size="small"
-                                                        onClick={() => handleCheckYoutubePosts(influencer)}
+                                                        onClick={() => handleCheckHashtag(influencer)}
                                                         disabled={!!checkingId || !campaign.hashtag}
                                                         sx={{ 
                                                             color: 'rgba(255,255,255,0.7)', 
@@ -327,34 +297,40 @@ const handleCheckYoutubePosts = async (influencer) => {
                                             </Tooltip>
                                         )}
                                     </Box>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                    {Object.keys(influencer.social || {}).filter(key => influencer.social[key]).map(net => <SocialIcon key={net} network={net} />)}
-                                </Box>
-                                <Typography color="white" fontWeight="bold">{influencer.randomStats.platform}</Typography>
-                                <Typography color={primaryPink} fontWeight="bold">{influencer.randomStats.conversion}%</Typography>
+
+                                    {/* Redes Sociais */}
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        {Object.keys(influencer.social || {}).filter(key => influencer.social[key]).map(net => <SocialIcon key={net} network={net} />)}
+                                    </Box>
+                                    
+                                    {/* Realizado em (SEM MOCK) */}
+                                    <Typography color="white" fontWeight="bold" sx={{fontSize: '0.9rem'}}>
+                                        {influencer.platform || "—"} 
+                                    </Typography>
+
+                                    {/* Conversão (SEM MOCK) */}
+                                    <Typography color={primaryPink} fontWeight="bold">
+                                        {influencer.conversion || 0}%
+                                    </Typography>
                             </Box>
 
+                            {/* Botão de Chat */}
                             <IconButton
-                              onClick={() => handleStartChat(influencer.agent)}
-                              disabled={influencer.agent === user._id}
-                              sx={{
-                                position: 'absolute',
-                                top: '50%',
-                                  right: '16px',
-                                transform: 'translateY(-50%)',
-                                  color: 'rgba(255,255,255,0.7)',
-                                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
-                                  '&.Mui-disabled': { color: 'rgba(255,255,255,0.2)' },
-                                width: '36px',
-                                  height: '36px',
-                                  padding: 0,
-                                  borderRadius: '50%'
-                              }}
-                            >
-                              <ChatIcon sx={{ fontSize: '20px' }} /> 
-                            </IconButton>
+                              onClick={() => handleStartChat(influencer.agent)}
+                              disabled={influencer.agent === user._id}
+                              sx={{
+                                position: 'absolute', top: '50%', right: '16px', transform: 'translateY(-50%)',
+                                color: 'rgba(255,255,255,0.7)',
+                                '&:hover': { backgroundColor: 'rgba(255,255,255,0.1)' },
+                                '&.Mui-disabled': { color: 'rgba(255,255,255,0.2)' },
+                                width: '36px', height: '36px', padding: 0, borderRadius: '50%'
+                              }}
+                            >
+                              <ChatIcon sx={{ fontSize: '20px' }} /> 
+                            </IconButton>
 
-                            <LinearProgress variant="determinate" value={influencer.randomStats.conversion} sx={{
+                            {/* Barra de Progresso */}
+                            <LinearProgress variant="determinate" value={influencer.conversion || 0} sx={{
                                 position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px',
                                 backgroundColor: lightPinkBg,
                                 '& .MuiLinearProgress-bar': { backgroundColor: primaryPink }
