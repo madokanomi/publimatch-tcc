@@ -189,20 +189,54 @@ export const checkYoutubeHashtag = async (channelUrl, hashtag) => {
     const searchUrl = 'https://www.googleapis.com/youtube/v3/search';
     
     // 2. Buscar por vídeos com a hashtag E o channelId - Custo: 100 pontos
-    const params = {
-        part: 'id', // Só precisamos saber a contagem, 'id' é o mais leve
-        key: apiKey,
-        channelId: channelId, // Filtra por canal
-        q: hashtag, // Filtra pela hashtag
-        type: 'video', // Apenas vídeos
-    };
-
+    let searchResponse;
     try {
-        const response = await axios.get(searchUrl, { params });
-        // O totalResults nos dá a contagem de vídeos que deram "match"
-        return response.data.pageInfo.totalResults;
+        searchResponse = await axios.get(searchUrl, {
+            params: {
+                part: 'id', // Só precisamos dos IDs dos vídeos
+                key: apiKey,
+                channelId: channelId,
+                q: hashtag,
+                type: 'video',
+                maxResults: 50 // Limite da API
+            }
+        });
     } catch (error) {
         console.error('Erro ao buscar no YouTube (search.list):', error.message);
+        return null;
+    }
+
+    const videoItems = searchResponse.data.items;
+    const videoCount = videoItems.length; // Usamos length, 'totalResults' pode ser impreciso
+
+    if (videoCount === 0) {
+        return { count: 0, totalViews: 0 }; // Nenhum vídeo encontrado
+    }
+
+    // 3. Pegar os IDs de todos os vídeos encontrados
+    const videoIds = videoItems.map(item => item.id.videoId).join(',');
+
+    // 4. Fazer UMA chamada para pegar estatísticas de TODOS os vídeos - Custo: 1 ponto
+    try {
+        const statsUrl = 'https://www.googleapis.com/youtube/v3/videos';
+        const statsResponse = await axios.get(statsUrl, {
+            params: {
+                part: 'statistics',
+                id: videoIds,
+                key: apiKey
+            }
+        });
+
+        // 5. Somar as visualizações
+        let totalViews = 0;
+        statsResponse.data.items.forEach(video => {
+            totalViews += parseInt(video.statistics.viewCount, 10);
+        });
+
+        return { count: videoCount, totalViews: totalViews };
+
+    } catch (error) {
+        console.error('Erro ao buscar estatísticas dos vídeos (videos.list):', error.message);
         return null;
     }
 };

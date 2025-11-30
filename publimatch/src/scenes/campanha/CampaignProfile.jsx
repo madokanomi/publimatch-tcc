@@ -187,6 +187,27 @@ const CampaignProfile = () => {
                                     {updateError && <Typography color="error" variant="caption" sx={{ display: 'block', mt: 1 }}>{updateError}</Typography>}
                                 </Box>
                                 
+                                {/* HASHTAG ADICIONADA AQUI */}
+    {campaign.hashtag && (
+        <motion.div variants={itemVariants}>
+            <Box sx={{ 
+                backgroundColor: "rgba(0,0,0,0.3)", 
+                px: 2.5, 
+                py: 1, 
+                borderRadius: "16px",
+                border: "1px solid rgba(255, 255, 255, 0.1)"
+            }}>
+                <Typography 
+                    variant="h6" 
+                    fontWeight="bold" 
+                    sx={{ color: "#A8E349" }} // Cor verde para destacar
+                >
+                    {campaign.hashtag.startsWith('#') ? campaign.hashtag : `#${campaign.hashtag}`}
+                </Typography>
+            </Box>
+        </motion.div>
+    )}
+
                                 <Box display="flex" gap={4} alignItems="center" sx={{ backgroundColor: "rgba(0,0,0,0.2)", p: 2, borderRadius: "16px" }}>
                                     
                                     {/* ESTATÍSTICA DE PARTICIPANTES (FOTOS APARECENDO) */}

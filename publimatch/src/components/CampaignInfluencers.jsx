@@ -22,6 +22,14 @@ const SocialIcon = ({ network }) => {
     }
 };
 
+const formatViews = (num) => {
+    if (num === 'Erro') return 'Erro';
+    if (num < 1000) return num;
+    if (num < 1000000) return (num / 1000).toFixed(1) + 'K';
+    if (num < 1000000000) return (num / 1000000).toFixed(1) + 'M';
+    return (num / 1000000000).toFixed(1) + 'B';
+};
+
 const CampaignInfluencers = ({ campaign }) => {
     const [participants, setParticipants] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -32,11 +40,25 @@ const CampaignInfluencers = ({ campaign }) => {
     // Usamos um Set para uma verificação de existência mais rápida (O(1)).
     const [reviewedIds, setReviewedIds] = useState(new Set());
 
-    const [postCounts, setPostCounts] = useState({}); // Guarda { influencerId: 5 }
+    const countStorageKey = `yt_counts_${campaign._id}`;
+    const viewsStorageKey = `yt_views_${campaign._id}`;
+
+    const [postCounts, setPostCounts] = useState(() => {
+        const savedCounts = localStorage.getItem(countStorageKey);
+        return savedCounts ? JSON.parse(savedCounts) : {};
+    });
+    
+    const [postViews, setPostViews] = useState(() => {
+        const savedViews = localStorage.getItem(viewsStorageKey);
+        return savedViews ? JSON.parse(savedViews) : {};
+    });
+
     const [checkingId, setCheckingId] = useState(null);
 
     const { user } = useAuth();
     const navigate = useNavigate();
+
+    
 
     const { setSelectedConversation, setConversations, conversations } = useConversation();
 
@@ -60,8 +82,6 @@ const CampaignInfluencers = ({ campaign }) => {
                const augmentedData = participantsResponse.data.map(influencer => ({
                     ...influencer,
                     randomStats: {
-                        views: (Math.random() * (campaign.minViews / 100000 || 5) + 1).toFixed(1),
-                        // publications: Math.floor(Math.random() * 20) + 5, // REMOVIDO
                         platform: ["Stories, Vídeos", "Reels, Posts", "Vídeos Longos"][Math.floor(Math.random() * 3)],
                         conversion: Math.floor(Math.random() * 50) + 40,
                     }
@@ -136,6 +156,8 @@ const handleCheckYoutubePosts = async (influencer) => {
         }
 
         setCheckingId(influencer._id); // Ativa o loading para este influencer
+        setPostCounts(prev => ({ ...prev, [influencer._id]: undefined }));
+        setPostViews(prev => ({ ...prev, [influencer._id]: undefined }));
 
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
@@ -152,12 +174,25 @@ const handleCheckYoutubePosts = async (influencer) => {
             );
             
             // data = { influencerId, count }
-            setPostCounts(prev => ({ ...prev, [data.influencerId]: data.count }));
+           setPostCounts(prev => {
+                const newCounts = { ...prev, [data.influencerId]: data.count };
+                // Agora, salvamos o objeto INTEIRO no localStorage
+                localStorage.setItem(countStorageKey, JSON.stringify(newCounts));
+                return newCounts;
+            });
+            
+            setPostViews(prev => {
+                const newViews = { ...prev, [data.influencerId]: data.totalViews };
+                // E salvamos as views também
+                localStorage.setItem(viewsStorageKey, JSON.stringify(newViews));
+                return newViews;
+            });
 
         } catch (error) {
             console.error("Erro ao checar posts:", error);
             alert(error.response?.data?.message || "Erro ao checar YouTube.");
             setPostCounts(prev => ({ ...prev, [influencer._id]: 'Erro' }));
+            setPostViews(prev => ({ ...prev, [influencer._id]: 'Erro' }));
         } finally {
             setCheckingId(null); // Libera o loading
         }
@@ -220,74 +255,78 @@ const handleCheckYoutubePosts = async (influencer) => {
                             '&:hover': { backgroundColor: "rgba(255, 255, 255, 0.1)" }
                         }}>
                             <Box sx={{
-                                display: "grid", gridTemplateColumns: gridTemplate, gap: 2,
-                                py: 2, px: 2, alignItems: "center",
-                            }}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <Avatar src={influencer.profileImageUrl} alt={influencer.name} sx={{ width: 48, height: 48, borderRadius: "12px" }} variant="rounded" />
-                                    <Box>
-                                        <Typography color="white" fontWeight="bold">{influencer.name}</Typography>
-                                        
-                                        {/* ✨ LÓGICA CONDICIONAL PARA O BOTÃO ✨ */}
-                                        {/* O botão só aparece se o ID do influencer NÃO estiver na lista de avaliados */}
-                                        {!reviewedIds.has(influencer._id) ? (
-                                            <Box 
-                                                onClick={() => setReviewingInfluencer(influencer)}
-                                                sx={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: 0.5,
-                                                    backgroundColor: 'rgba(179, 105, 245, 0.15)', borderRadius: '6px',
-                                                    px: 1, py: 0.25, mt: 0.5, cursor: 'pointer',
-                                                    transition: 'background-color 0.3s',
-                                                    '&:hover': { backgroundColor: 'rgba(179, 105, 245, 0.3)' }
-                                                }}>
-                                                <StarRounded sx={{ fontSize: '16px', color: 'white' }} />
-                                                <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>
-                                                    Avaliar influenciador
-                                                </Typography>
-                                            </Box>
-                                        ) : (
-                                            // Opcional: Mostrar um feedback de que já foi avaliado
-                                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25, mt: 0.5 }}>
-                                                <StarRounded sx={{ fontSize: '16px', color: 'rgb(255, 0, 212)' }} />
-                                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
-                                                    Avaliado
-                                                </Typography>
-                                            </Box>
-                                        )}
+                                    display: "grid", gridTemplateColumns: gridTemplate, gap: 2,
+                                    py: 2, px: 2, alignItems: "center",
+                                }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <Avatar src={influencer.profileImageUrl} alt={influencer.name} sx={{ width: 48, height: 48, borderRadius: "12px" }} variant="rounded" />
+                                        <Box>
+                                            <Typography color="white" fontWeight="bold">{influencer.name}</Typography>
+                                            
+                                            {/* ... (lógica do botão de Avaliar) ... */}
+                                            {!reviewedIds.has(influencer._id) ? (
+                                                <Box onClick={() => setReviewingInfluencer(influencer)} sx={{ /* ... estilos ... */ }}>
+                                                    <StarRounded sx={{ fontSize: '16px', color: 'white' }} />
+                                                    <Typography variant="caption" sx={{ color: 'white', fontWeight: 500 }}>
+                                                        Avaliar influenciador
+                                                    </Typography>
+                                                </Box>
+                                            ) : (
+                                                <Box sx={{ /* ... estilos ... */ }}>
+                                                    <StarRounded sx={{ fontSize: '16px', color: 'rgb(255, 0, 212)' }} />
+                                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+                                                        Avaliado
+                                                    </Typography>
+                                                </Box>
+                                            )}
+                                        </Box>
                                     </Box>
-                                </Box>
 
-                                <Typography color="white" fontWeight="bold">{influencer.randomStats.views}M</Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    {/* ✨ 1. COLUNA 'VISUALIZAÇÕES' CORRIGIDA ✨ */}
+                                    {/* Substituímos a linha '{influencer.randomStats.views}M' por esta lógica */}
                                     {checkingId === influencer._id ? (
                                         <CircularProgress size={22} sx={{ color: 'white' }} />
                                     ) : (
-                                        <Typography color="white" fontWeight="bold" sx={{ minWidth: '20px' }}>
-                                            {/* Mostra a contagem, 'Erro', ou '?' se nunca foi checado */}
-                                            {postCounts[influencer._id] !== undefined ? postCounts[influencer._id] : '?'}
+                                        <Typography color="white" fontWeight="bold">
+                                            {postViews[influencer._id] !== undefined
+                                                ? formatViews(postViews[influencer._id])
+                                                : 0} {/* <-- Padrão 0 */}
                                         </Typography>
                                     )}
 
-                                    {/* O botão só aparece se o influenciador tiver YouTube cadastrado */}
-                                    {influencer.social?.youtube && (
-                                        <Tooltip title="Verificar posts com a hashtag no YouTube (Custo Alto)">
-                                            <span> {/* Span é necessário para o Tooltip em botões desabilitados */}
-                                                <IconButton 
-                                                    size="small"
-                                                    onClick={() => handleCheckYoutubePosts(influencer)}
-                                                    disabled={!!checkingId || !campaign.hashtag} // Desabilita se já estiver checando ou se a campanha não tiver hashtag
-                                                    sx={{ 
-                                                        color: 'rgba(255,255,255,0.7)', 
-                                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.1)'},
-                                                        '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' }
-                                                    }}
-                                                >
-                                                    <Search fontSize="inherit" />
-                                                </IconButton>
-                                            </span>
-                                        </Tooltip>
-                                    )}
-                                </Box>
+                                    {/* ✨ 2. COLUNA 'PUBLICAÇÕES' CORRIGIDA ✨ */}
+                                    {/* Trocamos 'postViews' por 'postCounts' e o padrão '?' por 0 */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                        {checkingId === influencer._id ? (
+                                            <CircularProgress size={22} sx={{ color: 'white' }} />
+                                        ) : (
+                                            <Typography color="white" fontWeight="bold" sx={{ minWidth: '20px' }}>
+                                                {postCounts[influencer._id] !== undefined
+                                                    ? postCounts[influencer._id] // <-- Corrigido para postCounts
+                                                    : 0} {/* <-- Padrão 0 */}
+                                            </Typography>
+                                        )}
+
+                                        {/* O botão de busca (já estava correto) */}
+                                        {influencer.social?.youtube && (
+                                            <Tooltip title="Verificar posts com a hashtag">
+                                                <span>
+                                                    <IconButton 
+                                                        size="small"
+                                                        onClick={() => handleCheckYoutubePosts(influencer)}
+                                                        disabled={!!checkingId || !campaign.hashtag}
+                                                        sx={{ 
+                                                            color: 'rgba(255,255,255,0.7)', 
+                                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.1)'},
+                                                            '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' }
+                                                        }}
+                                                    >
+                                                        <Search fontSize="inherit" />
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                        )}
+                                    </Box>
                                 <Box sx={{ display: 'flex', gap: 1 }}>
                                     {Object.keys(influencer.social || {}).filter(key => influencer.social[key]).map(net => <SocialIcon key={net} network={net} />)}
                                 </Box>
