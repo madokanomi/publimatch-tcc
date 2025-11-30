@@ -115,7 +115,7 @@ export const getCampaignById = async (req, res) => {
         // ✨ CORREÇÃO AQUI: Adicionado populate para 'participatingInfluencers' ✨
         const campaign = await Campaign.findById(req.params.id)
             .populate('createdBy', 'name email profileImageUrl _id')
-            .populate('participatingInfluencers', 'name profileImageUrl'); // Garante que a foto venha no JSON
+            .populate('participatingInfluencers', 'name profileImageUrl social agent'); // Garante que a foto venha no JSON
             
         if (!campaign) {
             return res.status(404).json({ message: 'Campanha não encontrada.' });
@@ -431,7 +431,7 @@ export const finalizeCampaign = asyncHandler(async (req, res) => {
 
 export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     const campaign = await Campaign.findById(req.params.id)
-        .populate('participatingInfluencers', 'name realName profileImageUrl social'); 
+        .populate('participatingInfluencers', 'name realName profileImageUrl social agent'); 
 
     if (!campaign) {
         res.status(404);

@@ -9,12 +9,10 @@ import { Instagram, YouTube, Twitter, StarRounded, Chat as ChatIcon, Search } fr
 import { FaTwitch, FaTiktok } from 'react-icons/fa';
 import axios from "axios";
 
-// --- IMPORTAÇÕES CORRIGIDAS ---
-import { useAuth } from "../auth/AuthContext"; // Mudou de ../../ para ../
-import { useConversation } from "../scenes/chat/ConversationContext"; // Ajustado o caminho para scenes/chat
-import ReviewInfluencer from './ReviewInfluencer'; // Mantido (mesma pasta)
+import { useAuth } from "../auth/AuthContext";
+import { useConversation } from "../scenes/chat/ConversationContext";
+import ReviewInfluencer from './ReviewInfluencer';
 
-// Componente de ícones sociais
 const SocialIcon = ({ network }) => {
     const iconStyle = { color: "rgba(255,255,255,0.7)", fontSize: '20px' };
     switch (network) {
@@ -27,7 +25,6 @@ const SocialIcon = ({ network }) => {
     }
 };
 
-// Formatador de números
 const formatViews = (num) => {
     if (num === 'Erro') return 'Erro';
     if (!num) return '0';
@@ -47,7 +44,6 @@ const CampaignInfluencers = ({ campaign }) => {
     const countStorageKey = `yt_counts_${campaign._id}`;
     const viewsStorageKey = `yt_views_${campaign._id}`;
 
-    // Recupera dados salvos ou inicia vazio
     const [postCounts, setPostCounts] = useState(() => {
         const savedCounts = localStorage.getItem(countStorageKey);
         return savedCounts ? JSON.parse(savedCounts) : {};
@@ -64,7 +60,7 @@ const CampaignInfluencers = ({ campaign }) => {
     const navigate = useNavigate();
     const { setSelectedConversation, setConversations, conversations } = useConversation();
 
-    // --- 1. Fetch Data (SEM MOCK) ---
+    // --- 1. Fetch Data ---
     useEffect(() => {
         const fetchData = async () => {
             if (!campaign?._id || !user?.token) {
@@ -79,6 +75,8 @@ const CampaignInfluencers = ({ campaign }) => {
                     axios.get(`http://localhost:5001/api/campaigns/${campaign._id}/participants`, config),
                     axios.get(`http://localhost:5001/api/reviews/campaign/${campaign._id}/my-reviews`, config)
                 ]);
+
+                console.log("Participantes com Agent?", participantsResponse.data); // Debug
 
                 setParticipants(participantsResponse.data);
                 setReviewedIds(new Set(reviewedResponse.data));
@@ -96,29 +94,42 @@ const CampaignInfluencers = ({ campaign }) => {
 
     // --- 2. Lógica de Chat ---
     const handleStartChat = async (agentId) => {
-        if (agentId === user._id) return;
+        // Se o agentId vier como objeto (ex: { _id: "..." }), pegamos o _id. Se for string, usa ela.
+        const targetUserId = (typeof agentId === 'object' && agentId !== null) ? agentId._id : agentId;
+
+        console.log("Iniciando chat com ID:", targetUserId);
+
+        if (!targetUserId) {
+            alert("Erro: Influenciador sem agente vinculado.");
+            return;
+        }
 
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            
+            // Rota ensure que criamos
             const { data: conversationData } = await axios.post(
                 `http://localhost:5001/api/chat/ensure`, 
-                { userId: agentId }, 
+                { userId: targetUserId }, 
                 config
             );
 
+            // Atualiza contexto local
             const conversationExists = conversations.some(c => c._id === conversationData._id);
             if (!conversationExists) {
                 setConversations(prevConvos => [conversationData, ...prevConvos]);
             }
+            
             setSelectedConversation(conversationData);
             navigate(`/conversa/${conversationData._id}`);
 
         } catch (error) {
-            console.error("Erro ao garantir ou criar a conversa:", error);
+            console.error("Erro ao iniciar chat:", error);
+            alert("Não foi possível iniciar o chat.");
         }
     };
 
-    // --- 3. Lógica de Verificar Hashtag (YouTube + TikTok) ---
+    // --- 3. Lógica de Verificar Hashtag ---
     const handleCheckHashtag = async (influencer) => {
         if (checkingId) return; 
 
@@ -143,7 +154,6 @@ const CampaignInfluencers = ({ campaign }) => {
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
             
-            // Envia para o backend (que processa os dois)
             const { data } = await axios.post(
                 'http://localhost:5001/api/youtube/check-hashtag',
                 { 
@@ -205,7 +215,6 @@ const CampaignInfluencers = ({ campaign }) => {
                 "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "rgba(255, 255, 255, 0.5)" }
             }}
         >
-            {/* Cabeçalho */}
             <Box
                 sx={{
                     display: "grid", gridTemplateColumns: gridTemplate, gap: 2, py: 1.5, px: 2,
@@ -221,7 +230,6 @@ const CampaignInfluencers = ({ campaign }) => {
                 <Typography variant="caption" fontWeight="bold">Conversão</Typography>
             </Box>
 
-            {/* Lista */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px', mt: 2 }}>
                 {participants.length > 0 ? (
                     participants.map((influencer) => (
@@ -303,21 +311,25 @@ const CampaignInfluencers = ({ campaign }) => {
                                         {Object.keys(influencer.social || {}).filter(key => influencer.social[key]).map(net => <SocialIcon key={net} network={net} />)}
                                     </Box>
                                     
-                                    {/* Realizado em (SEM MOCK) */}
+                                    {/* Realizado em */}
                                     <Typography color="white" fontWeight="bold" sx={{fontSize: '0.9rem'}}>
                                         {influencer.platform || "—"} 
                                     </Typography>
 
-                                    {/* Conversão (SEM MOCK) */}
+                                    {/* Conversão */}
                                     <Typography color={primaryPink} fontWeight="bold">
                                         {influencer.conversion || 0}%
                                     </Typography>
                             </Box>
 
-                            {/* Botão de Chat */}
+                            {/* ✨ BOTÃO DE CHAT (Habilitado se tiver 'agent') */}
                             <IconButton
+                              // Agora o backend manda o 'agent', então podemos passar aqui
                               onClick={() => handleStartChat(influencer.agent)}
-                              disabled={influencer.agent === user._id}
+                              
+                              // Habilita se existir 'agent' e não for eu mesmo
+                              disabled={!influencer.agent || influencer.agent === user._id}
+                              
                               sx={{
                                 position: 'absolute', top: '50%', right: '16px', transform: 'translateY(-50%)',
                                 color: 'rgba(255,255,255,0.7)',

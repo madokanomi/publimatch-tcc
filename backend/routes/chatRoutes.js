@@ -4,27 +4,26 @@ import {
     getMessages, 
     getConversations,
     deleteConversation,
-    ensureConversation // ✅ 1. IMPORTE A FUNÇÃO QUE FALTAVA
+    ensureConversation 
 } from '../controllers/chatController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Rota para buscar a lista de conversas do usuário logado
+// 1. Buscar todas as conversas do usuário
 router.get('/', protect, getConversations);
 
-// ✅ 2. ADICIONE A NOVA ROTA AQUI
-//    Esta rota deve vir ANTES da rota com parâmetro dinâmico para evitar conflitos.
-//    Recebe um POST para encontrar ou criar uma conversa.
+// 2. Garantir conversa (Buscar existente ou Criar nova)
+// ⚠️ IMPORTANTE: Esta rota deve vir ANTES de rotas com /:id
 router.post('/ensure', protect, ensureConversation);
 
-// Rota para buscar as mensagens de uma conversa específica com outro usuário
+// 3. Buscar mensagens de uma conversa específica (por ID do outro usuário)
 router.get('/:otherUserId', protect, getMessages);
 
-// Rota para enviar uma nova mensagem
+// 4. Enviar mensagem
 router.post('/send/:receiverId', protect, sendMessage);
 
-// Rota para deletar uma conversa
+// 5. Deletar conversa
 router.delete('/:conversationId', protect, deleteConversation);
 
 export default router;

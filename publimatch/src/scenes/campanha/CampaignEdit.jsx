@@ -1,6 +1,6 @@
 // src/scenes/campaigns/CampaignEdit.jsx
 
-import React, { useState, useEffect, useMemo } from 'react'; // Adicionado useMemo
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Box, Typography, Button, TextField, Chip, IconButton, Switch,
@@ -15,9 +15,15 @@ import { SiTwitch, SiTiktok } from 'react-icons/si';
 import axios from 'axios';
 import { useAuth } from '../../auth/AuthContext';
 import TiptapEditor from '../../components/TipTapEditor';
-import { influencers } from '../../data/mockInfluencer'; // Importa a fonte de dados
+import { influencers } from '../../data/mockInfluencer';
 
 const allSocials = ['instagram', 'youtube', 'twitch', 'tiktok'];
+
+const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+};
 
 const CampaignEdit = () => {
     const { id } = useParams();
@@ -44,7 +50,7 @@ const CampaignEdit = () => {
     
     const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' });
 
-    // Estados para a nova funcionalidade de categorias
+    // Estados para a funcionalidade de categorias
     const [categorySearch, setCategorySearch] = useState('');
     const [showAllCategories, setShowAllCategories] = useState(false);
 
@@ -65,11 +71,14 @@ const CampaignEdit = () => {
                     paymentValueExact: data.paymentValueExact || '',
                     paymentValueMin: data.paymentValueMin || '',
                     paymentValueMax: data.paymentValueMax || '',
-                    startDate: data.startDate ? new Date(data.startDate).toISOString().split('T')[0] : '',
-                    endDate: data.endDate ? new Date(data.endDate).toISOString().split('T')[0] : '',
+                    startDate: formatDate(data.startDate),
+                    endDate: formatDate(data.endDate),
                     description: typeof data.description === 'string' ? JSON.parse(data.description) : (data.description || null),
                     categories: data.categories || [],
                     requiredSocials: data.requiredSocials || [],
+                    vagas: data.vagas || 0, // Carrega vagas
+                    hashtag: data.hashtag || '', // Carrega hashtag
+                    participatingInfluencers: data.participatingInfluencers || [] // Necessário para validação
                 };
                 
                 setFormData(sanitizedData);
@@ -86,6 +95,23 @@ const CampaignEdit = () => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
+
+        // Validação especial para Vagas
+        if (name === 'vagas') {
+            const currentParticipants = formData.participatingInfluencers.length;
+            const newValue = parseInt(value, 10);
+
+            // Não permite diminuir para menos que o número de participantes atuais
+            if (!isNaN(newValue) && newValue < currentParticipants) {
+                setNotification({
+                    open: true,
+                    message: `Não é possível reduzir as vagas para menos de ${currentParticipants} (número de participantes atuais).`,
+                    severity: 'warning'
+                });
+                return; // Impede a atualização do estado
+            }
+        }
+
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
@@ -127,9 +153,12 @@ const CampaignEdit = () => {
         const dataToSend = new FormData();
         
         Object.keys(formData).forEach(key => {
-            if (key === 'createdBy' || key === 'participatingInfluencers') {
+            // Ignora campos que não devem ser enviados ou tratados separadamente
+            if (key === 'createdBy' || key === 'participatingInfluencers' || key === 'hashtag') { 
                 return;
             }
+            // A hashtag não é enviada pois não pode ser editada (ou pode ser enviada a original se o backend exigir)
+            
             if (key === 'privacy') {
                 dataToSend.append(key, formData[key] ? 'Privada' : 'Pública');
             } else if (key === 'description' || key === 'categories' || key === 'requiredSocials') {
@@ -139,6 +168,9 @@ const CampaignEdit = () => {
             }
         });
         
+        // Hashtag é somente leitura, mas se o backend precisar receber para validar, descomente:
+        dataToSend.append('hashtag', formData.hashtag);
+
         if (newImageFile) {
             dataToSend.append('logo', newImageFile);
         }
@@ -168,10 +200,26 @@ const CampaignEdit = () => {
             default: return null;
         }
     };
+
+    // Helper de estilo para inputs
+    const textFieldSx = {
+        borderRadius: '8px', 
+        backgroundColor: 'rgba(255,255,255,0.1)', 
+        '& fieldset': { border: 'none' }, 
+        '& input': { color: 'white' },
+        // Estilo para campo desabilitado (Hashtag)
+        '&.Mui-disabled': { opacity: 0.7 },
+        '& .MuiInputBase-input.Mui-disabled': { 
+            color: 'rgba(255,255,255,0.5)', 
+            WebkitTextFillColor: 'rgba(255,255,255,0.5)' 
+        }
+    };
     
     if (loading) return <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><CircularProgress /></Box>;
     if (error) return <Typography color="error" sx={{ p: 4, textAlign: 'center' }}>{error}</Typography>;
     if (!formData) return null;
+
+    const currentParticipantsCount = formData.participatingInfluencers ? formData.participatingInfluencers.length : 0;
 
     return (
         <Box
@@ -212,7 +260,7 @@ const CampaignEdit = () => {
 
             <Box sx={{ backgroundColor: 'rgba(255,255,255,0.05)', p: 3, borderRadius: '12px', mb: 4 }}>
                 <Typography sx={{ color: 'rgba(255,255,255,0.8)', mb: 1 }}>Título da Campanha</Typography>
-                <TextField fullWidth variant="outlined" placeholder="Título da Campanha" name="title" value={formData.title} onChange={handleChange} InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white' } } }} />
+                <TextField fullWidth variant="outlined" placeholder="Título da Campanha" name="title" value={formData.title} onChange={handleChange} InputProps={{ sx: textFieldSx }} />
                 
                 <Box mt={3}>
                     <Box sx={{ display: 'flex', gap: 2, mb: 1, alignItems: 'center' }}>
@@ -228,23 +276,41 @@ const CampaignEdit = () => {
                         </Box>
                         <Box sx={{ flex: 1 }}> <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>Data de Início</Typography> </Box>
                         <Box sx={{ flex: 1 }}> <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>Data de Término</Typography> </Box>
+                        
+                        {/* 1. CABEÇALHO PARA VAGAS */}
+                        <Box sx={{ flex: 0.5 }}> <Typography sx={{ color: 'rgba(255,255,255,0.8)' }}>Vagas</Typography> </Box>
                     </Box>
+
                     <Box sx={{ display: 'flex', gap: 2 }}>
                         <Box sx={{ flex: 1 }}>
-                            {formData.paymentType === 'Indefinido' && <TextField fullWidth disabled value="Pagamento a combinar" InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '&.Mui-disabled': { backgroundColor: 'rgba(255,255,255,0.1)' }, '& .MuiInputBase-input.Mui-disabled': { color: 'rgba(255,255,255,0.5)', '-webkit-text-fill-color': 'rgba(255,255,255,0.5)' }, '& fieldset': { border: 'none' }, } }} />}
-                            {formData.paymentType === 'Exato' && <TextField fullWidth type="number" name="paymentValueExact" value={formData.paymentValueExact} onChange={handleChange} variant="outlined" placeholder="Ex: 5000" InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white' } }, startAdornment: <InputAdornment position="start" sx={{ color: 'white' }}>R$</InputAdornment> }} />}
+                            {formData.paymentType === 'Indefinido' && <TextField fullWidth disabled value="Pagamento a combinar" InputProps={{ sx: textFieldSx }} />}
+                            {formData.paymentType === 'Exato' && <TextField fullWidth type="number" name="paymentValueExact" value={formData.paymentValueExact} onChange={handleChange} variant="outlined" placeholder="Ex: 5000" InputProps={{ sx: textFieldSx, startAdornment: <InputAdornment position="start" sx={{ color: 'white' }}>R$</InputAdornment> }} />}
                             {formData.paymentType === 'Aberto' && (
                                 <Box sx={{ display: 'flex', gap: 2 }}>
-                                    <TextField fullWidth type="number" name="paymentValueMin" value={formData.paymentValueMin} onChange={handleChange} variant="outlined" placeholder="Mín: 1000" InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white' } }, startAdornment: <InputAdornment position="start" sx={{ color: 'white' }}>R$</InputAdornment> }} />
-                                    <TextField fullWidth type="number" name="paymentValueMax" value={formData.paymentValueMax} onChange={handleChange} variant="outlined" placeholder="Máx: 3000" InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white' } }, startAdornment: <InputAdornment position="start" sx={{ color: 'white' }}>R$</InputAdornment> }} />
+                                    <TextField fullWidth type="number" name="paymentValueMin" value={formData.paymentValueMin} onChange={handleChange} variant="outlined" placeholder="Mín: 1000" InputProps={{ sx: textFieldSx, startAdornment: <InputAdornment position="start" sx={{ color: 'white' }}>R$</InputAdornment> }} />
+                                    <TextField fullWidth type="number" name="paymentValueMax" value={formData.paymentValueMax} onChange={handleChange} variant="outlined" placeholder="Máx: 3000" InputProps={{ sx: textFieldSx, startAdornment: <InputAdornment position="start" sx={{ color: 'white' }}>R$</InputAdornment> }} />
                                 </Box>
                             )}
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                            <TextField fullWidth type="date" name="startDate" value={formData.startDate} onChange={handleChange} variant="outlined" InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white', colorScheme: 'dark' } } }} />
+                            <TextField fullWidth type="date" name="startDate" value={formData.startDate} onChange={handleChange} variant="outlined" InputProps={{ sx: { ...textFieldSx, '& input': { color: 'white', colorScheme: 'dark' } } }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                            <TextField fullWidth type="date" name="endDate" value={formData.endDate} onChange={handleChange} variant="outlined" disabled={!formData.startDate} InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white', colorScheme: 'dark' } } }} />
+                            <TextField fullWidth type="date" name="endDate" value={formData.endDate} onChange={handleChange} variant="outlined" disabled={!formData.startDate} InputProps={{ sx: { ...textFieldSx, '& input': { color: 'white', colorScheme: 'dark' } } }} />
+                        </Box>
+
+                        {/* 2. CAMPO VAGAS */}
+                        <Box sx={{ flex: 0.5 }}>
+                            <TextField
+                                fullWidth
+                                type="number"
+                                name="vagas"
+                                variant="outlined"
+                                value={formData.vagas}
+                                onChange={handleChange}
+                                InputProps={{ sx: textFieldSx }}
+                                inputProps={{ min: currentParticipantsCount }} // HTML5 validation (visual)
+                            />
                         </Box>
                     </Box>
                 </Box>
@@ -329,11 +395,11 @@ const CampaignEdit = () => {
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <Box>
                             <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Mínimo de seguidores:</Typography>
-                            <TextField fullWidth name="minFollowers" value={formData.minFollowers} onChange={handleChange} variant="outlined" placeholder="Ex: 10000" InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white' } } }} />
+                            <TextField fullWidth name="minFollowers" value={formData.minFollowers} onChange={handleChange} variant="outlined" placeholder="Ex: 10000" InputProps={{ sx: textFieldSx }} />
                         </Box>
                         <Box>
                             <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Mínimo de visualizações:</Typography>
-                            <TextField fullWidth name="minViews" value={formData.minViews} onChange={handleChange} variant="outlined" placeholder="Ex: 5000" InputProps={{ sx: { borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.1)', '& fieldset': { border: 'none' }, '& input': { color: 'white' } } }} />
+                            <TextField fullWidth name="minViews" value={formData.minViews} onChange={handleChange} variant="outlined" placeholder="Ex: 5000" InputProps={{ sx: textFieldSx }} />
                         </Box>
                         <Box>
                             <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)', mb: 1 }}>Redes Sociais</Typography>
@@ -358,7 +424,42 @@ const CampaignEdit = () => {
                 />
             </Box>
 
-            <Box sx={{ textAlign: 'center', pb: 4 }}>
+            {/* 3. LAYOUT DO RODAPÉ (Hashtag + Botão) */}
+            <Box sx={{ 
+                position: 'relative', 
+                textAlign: 'center', 
+                pb: 4, 
+                pt: { xs: 12, md: 4 }, 
+            }}>
+                
+                {/* 4. CAMPO DE HASHTAG (Não editável) */}
+                <Box sx={{ 
+                    position: { xs: 'relative', md: 'absolute' }, 
+                    width: { xs: '100%', md: '30%' }, 
+                    mb: { xs: 3, md: 0 }, 
+                    left: { md: 0 },         
+                    bottom: { md: '32px' },
+                }}>
+                    <Typography sx={{ color: 'rgba(255,255,255,0.8)', mb: 1 }}>
+                        Hashtag Oficial (Não editável)
+                    </Typography>
+                    <TextField
+                        fullWidth
+                        size="small"
+                        variant="outlined"
+                        value={formData.hashtag}
+                        disabled={true} // Bloqueado para edição
+                        InputProps={{
+                            sx: textFieldSx,
+                            startAdornment: (
+                                <InputAdornment position="start" sx={{ color: 'rgba(255,255,255,0.5)' }}>
+                                    #
+                                </InputAdornment>
+                            ),
+                        }}
+                    />
+                </Box>
+                
                 <Button onClick={handleSave} sx={{ mt: 2, borderRadius: "30px", transition: "all 0.2s ease-in-out", background: "#FFFFFF", boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)", color: "#BF28B0", fontWeight: "900", fontSize: "18px", px: 6, py: 1.5, textTransform: "none", "&:hover": { borderRadius: "10px", background: "#ffffff", color: "#a9239d", boxShadow: "none" }, }} >
                     Salvar Alterações
                 </Button>
