@@ -2,8 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
-import { Box, Typography, Button, Menu, MenuItem, IconButton, CircularProgress, Avatar } from "@mui/material";
-import { ArrowBack, InfoOutlined, People, GroupAdd, BarChart, ExpandMore, Person } from "@mui/icons-material"; // Removido TrendingUp
+import { 
+    Box, 
+    Typography, 
+    Button, 
+    Menu, 
+    MenuItem, 
+    IconButton, 
+    CircularProgress, 
+    Avatar, 
+    AvatarGroup, // IMPORTANTE: Para agrupar as fotos
+    Tooltip 
+} from "@mui/material";
+import { ArrowBack, InfoOutlined, People, GroupAdd, BarChart, ExpandMore, Person } from "@mui/icons-material";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from 'axios';
 import { useAuth } from "../../auth/AuthContext";
@@ -156,11 +167,12 @@ const CampaignProfile = () => {
                                             </>
                                         )}
 
-                                        {/* BLOCO PUBLICADO POR */}
+                                        {/* BLOCO PUBLICADO POR (COM FOTO E LINK) */}
                                         {campaign.createdBy && (
                                             <Box display="flex" alignItems="center" gap={1} sx={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', px: 1.5, py: 0.5, borderRadius: '8px' }}>
                                                 <Avatar 
                                                     src={campaign.createdBy.profileImageUrl} 
+                                                    alt={campaign.createdBy.name}
                                                     sx={{ width: 24, height: 24, border: '1px solid rgba(255,255,255,0.5)' }}
                                                 >
                                                     <Person sx={{ fontSize: 16 }} />
@@ -177,11 +189,49 @@ const CampaignProfile = () => {
                                 
                                 <Box display="flex" gap={4} alignItems="center" sx={{ backgroundColor: "rgba(0,0,0,0.2)", p: 2, borderRadius: "16px" }}>
                                     
-                                    {/* ESTATÍSTICA DE PARTICIPANTES */}
-                                    <motion.div variants={itemVariants}><Box textAlign="center"><People sx={{ fontSize: 32, color: "#9c27b0" }} /><Typography variant="h5" fontWeight="bold">{participantesCount}</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Participantes</Typography></Box></motion.div>
+                                    {/* ESTATÍSTICA DE PARTICIPANTES (FOTOS APARECENDO) */}
+                                    <motion.div variants={itemVariants}>
+                                        <Box textAlign="center" display="flex" flexDirection="column" alignItems="center">
+                                            {/* Container com altura fixa para evitar pulos de layout */}
+                                            <Box mb={0.5} height={40} display="flex" alignItems="center" justifyContent="center">
+                                                {participantesCount > 0 ? (
+                                                    <AvatarGroup 
+                                                        max={4} 
+                                                        sx={{ 
+                                                            '& .MuiAvatar-root': { 
+                                                                width: 32, 
+                                                                height: 32, 
+                                                                fontSize: 12, 
+                                                                borderColor: '#9c27b0' // Cor da borda para combinar com o tema
+                                                            } 
+                                                        }}
+                                                    >
+                                                        {campaign.participatingInfluencers.map((influencer) => (
+                                                            <Tooltip key={influencer._id} title={influencer.name}>
+                                                                <Avatar alt={influencer.name} src={influencer.profileImageUrl} />
+                                                            </Tooltip>
+                                                        ))}
+                                                    </AvatarGroup>
+                                                ) : (
+                                                    // Se não houver ninguém, exibe ícone padrão
+                                                    <People sx={{ fontSize: 32, color: "#9c27b0" }} />
+                                                )}
+                                            </Box>
+                                            <Typography variant="h5" fontWeight="bold">{participantesCount}</Typography>
+                                            <Typography variant="caption" sx={{ opacity: 0.8 }}>Participantes</Typography>
+                                        </Box>
+                                    </motion.div>
                                     
                                     {/* ESTATÍSTICA DE VAGAS RESTANTES */}
-                                    <motion.div variants={itemVariants}><Box textAlign="center"><GroupAdd sx={{ fontSize: 32, color: "#A8E349" }} /><Typography variant="h5" fontWeight="bold">{vagasDisponiveis}</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Vagas</Typography></Box></motion.div>
+                                    <motion.div variants={itemVariants}>
+                                        <Box textAlign="center" display="flex" flexDirection="column" alignItems="center">
+                                            <Box mb={0.5} height={40} display="flex" alignItems="center" justifyContent="center">
+                                                <GroupAdd sx={{ fontSize: 32, color: "#A8E349" }} />
+                                            </Box>
+                                            <Typography variant="h5" fontWeight="bold">{vagasDisponiveis}</Typography>
+                                            <Typography variant="caption" sx={{ opacity: 0.8 }}>Vagas</Typography>
+                                        </Box>
+                                    </motion.div>
                                     
                                 </Box>
                             </Box>
