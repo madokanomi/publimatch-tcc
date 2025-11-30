@@ -19,17 +19,12 @@ export const extractYoutubeId = (url) => {
     return null;
 };
 
-<<<<<<< HEAD
-/**
- * Busca estatísticas completas, incluindo engajamento recente
- */
-=======
 // =======================================================
-// ✨ FUNÇÃO AUXILIAR 2 (NOVA) - Custo: 1 Ponto
+// ✨ FUNÇÃO AUXILIAR (NOVA) - Custo: 1 Ponto
+// Necessária para a função checkYoutubeHashtag
 // =======================================================
 /**
  * Pega o ID do canal (UC...) a partir de qualquer URL.
- * Reutiliza a lógica de busca do 'getYoutubeStats' mas retorna apenas o ID.
  */
 const getChannelId = async (url) => {
     const identifier = extractYoutubeId(url);
@@ -63,7 +58,9 @@ const getChannelId = async (url) => {
     }
 };
 
->>>>>>> d67e9f6 (hashtag funcionando, vou colocar pra ela ser visivel em outros lugares e arrumar a edição pra ter as coisas novas)
+/**
+ * Busca estatísticas completas, incluindo engajamento recente
+ */
 export const getYoutubeStats = async (url) => {
     const identifier = extractYoutubeId(url);
     if (!identifier) return null;
@@ -177,6 +174,10 @@ export const getYoutubeStats = async (url) => {
     }
 }
 
+/**
+ * Verifica contagem de views em vídeos com uma Hashtag específica
+ * (Custo alto de API: ~102 pontos)
+ */
 export const checkYoutubeHashtag = async (channelUrl, hashtag) => {
     // 1. Encontrar o ID do canal (ex: UC...) - Custo: 1 ponto
     const channelId = await getChannelId(channelUrl);
