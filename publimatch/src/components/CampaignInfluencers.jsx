@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
     Box, Typography, Avatar, LinearProgress, CircularProgress, Tooltip, IconButton
 } from "@mui/material";
-import { Instagram, YouTube, Twitter, StarRounded, Chat as ChatIcon } from "@mui/icons-material";
+import { Instagram, YouTube, Twitter, StarRounded, Chat as ChatIcon, Search } from "@mui/icons-material";
 import { FaTwitch, FaTiktok } from 'react-icons/fa';
 import { useAuth } from "../auth/AuthContext";
 import axios from "axios";
@@ -32,6 +32,9 @@ const CampaignInfluencers = ({ campaign }) => {
     // Usamos um Set para uma verificação de existência mais rápida (O(1)).
     const [reviewedIds, setReviewedIds] = useState(new Set());
 
+    const [postCounts, setPostCounts] = useState({}); // Guarda { influencerId: 5 }
+    const [checkingId, setCheckingId] = useState(null);
+
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -54,17 +57,16 @@ const CampaignInfluencers = ({ campaign }) => {
                 ]);
 
                 // Processa a lista de participantes
-                const augmentedData = participantsResponse.data.map(influencer => ({
+               const augmentedData = participantsResponse.data.map(influencer => ({
                     ...influencer,
                     randomStats: {
                         views: (Math.random() * (campaign.minViews / 100000 || 5) + 1).toFixed(1),
-                        publications: Math.floor(Math.random() * 20) + 5,
+                        // publications: Math.floor(Math.random() * 20) + 5, // REMOVIDO
                         platform: ["Stories, Vídeos", "Reels, Posts", "Vídeos Longos"][Math.floor(Math.random() * 3)],
                         conversion: Math.floor(Math.random() * 50) + 40,
                     }
                 }));
                 setParticipants(augmentedData);
-
                 // ✨ Processa a lista de IDs de avaliados e guarda no estado
                 setReviewedIds(new Set(reviewedResponse.data));
 
@@ -114,6 +116,52 @@ const CampaignInfluencers = ({ campaign }) => {
             // Você pode adicionar um snackbar de erro aqui, se quiser
         }
     };
+
+const handleCheckYoutubePosts = async (influencer) => {
+        if (checkingId) return; // Não permite checagens simultâneas
+
+        // Pega a hashtag da campanha que está sendo passada como prop
+        const hashtag = campaign.hashtag;
+        if (!hashtag) {
+            alert("Esta campanha não tem uma hashtag definida.");
+            return;
+        }
+
+        // ✨ 1. PEGA A URL DIRETAMENTE DO INFLUENCER
+        const channelUrl = influencer.social?.youtube;
+        if (!channelUrl) {
+            alert("Este influenciador não tem uma URL de YouTube cadastrada.");
+            // Isso não deveria acontecer se o ícone do YouTube apareceu
+            return;
+        }
+
+        setCheckingId(influencer._id); // Ativa o loading para este influencer
+
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            
+            // ✨ 2. ENVIA A URL E O ID PARA O BACKEND
+            const { data } = await axios.post(
+                'http://localhost:5001/api/youtube/check-hashtag',
+                { 
+                    channelUrl: channelUrl,     // Envia a URL do canal
+                    hashtag: hashtag,           // Envia a hashtag
+                    influencerId: influencer._id  // Envia o ID (para o frontend saber qual linha atualizar)
+                },
+                config
+            );
+            
+            // data = { influencerId, count }
+            setPostCounts(prev => ({ ...prev, [data.influencerId]: data.count }));
+
+        } catch (error) {
+            console.error("Erro ao checar posts:", error);
+            alert(error.response?.data?.message || "Erro ao checar YouTube.");
+            setPostCounts(prev => ({ ...prev, [influencer._id]: 'Erro' }));
+        } finally {
+            setCheckingId(null); // Libera o loading
+        }
+    };
 
     const gridTemplate = "2.5fr 1.5fr 1.5fr 1fr 1.5fr 1fr";
     const primaryPink = "rgb(255, 0, 212)"; 
@@ -210,7 +258,36 @@ const CampaignInfluencers = ({ campaign }) => {
                                 </Box>
 
                                 <Typography color="white" fontWeight="bold">{influencer.randomStats.views}M</Typography>
-                                <Typography color="white" fontWeight="bold">{influencer.randomStats.publications}</Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    {checkingId === influencer._id ? (
+                                        <CircularProgress size={22} sx={{ color: 'white' }} />
+                                    ) : (
+                                        <Typography color="white" fontWeight="bold" sx={{ minWidth: '20px' }}>
+                                            {/* Mostra a contagem, 'Erro', ou '?' se nunca foi checado */}
+                                            {postCounts[influencer._id] !== undefined ? postCounts[influencer._id] : '?'}
+                                        </Typography>
+                                    )}
+
+                                    {/* O botão só aparece se o influenciador tiver YouTube cadastrado */}
+                                    {influencer.social?.youtube && (
+                                        <Tooltip title="Verificar posts com a hashtag no YouTube (Custo Alto)">
+                                            <span> {/* Span é necessário para o Tooltip em botões desabilitados */}
+                                                <IconButton 
+                                                    size="small"
+                                                    onClick={() => handleCheckYoutubePosts(influencer)}
+                                                    disabled={!!checkingId || !campaign.hashtag} // Desabilita se já estiver checando ou se a campanha não tiver hashtag
+                                                    sx={{ 
+                                                        color: 'rgba(255,255,255,0.7)', 
+                                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.1)'},
+                                                        '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' }
+                                                    }}
+                                                >
+                                                    <Search fontSize="inherit" />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+                                    )}
+                                </Box>
                                 <Box sx={{ display: 'flex', gap: 1 }}>
                                     {Object.keys(influencer.social || {}).filter(key => influencer.social[key]).map(net => <SocialIcon key={net} network={net} />)}
                                 </Box>

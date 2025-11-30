@@ -19,9 +19,51 @@ export const extractYoutubeId = (url) => {
     return null;
 };
 
+<<<<<<< HEAD
 /**
  * Busca estatísticas completas, incluindo engajamento recente
  */
+=======
+// =======================================================
+// ✨ FUNÇÃO AUXILIAR 2 (NOVA) - Custo: 1 Ponto
+// =======================================================
+/**
+ * Pega o ID do canal (UC...) a partir de qualquer URL.
+ * Reutiliza a lógica de busca do 'getYoutubeStats' mas retorna apenas o ID.
+ */
+const getChannelId = async (url) => {
+    const identifier = extractYoutubeId(url);
+    if (!identifier) return null;
+
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    const baseUrl = 'https://www.googleapis.com/youtube/v3/channels';
+    
+    let params = {
+        part: 'id', // Só precisamos do ID
+        key: apiKey
+    };
+
+    if (identifier.type === 'handle') {
+        params.forHandle = identifier.value;
+    } else if (identifier.type === 'id') {
+        params.id = identifier.value;
+    } else if (identifier.type === 'username') {
+        params.forUsername = identifier.value;
+    }
+
+    try {
+        const response = await axios.get(baseUrl, { params });
+        if (response.data.items && response.data.items.length > 0) {
+            return response.data.items[0].id; // Retorna o 'UC...' ID
+        }
+        return null;
+    } catch (error) {
+        console.error('Erro ao buscar ID do canal YouTube:', error.message);
+        return null;
+    }
+};
+
+>>>>>>> d67e9f6 (hashtag funcionando, vou colocar pra ela ser visivel em outros lugares e arrumar a edição pra ter as coisas novas)
 export const getYoutubeStats = async (url) => {
     const identifier = extractYoutubeId(url);
     if (!identifier) return null;
@@ -131,6 +173,36 @@ export const getYoutubeStats = async (url) => {
     } catch (error) {
         console.error('Erro ao buscar dados do YouTube:', error.message);
         // Em caso de erro (ex: cota excedida), retorna null ou objeto vazio para não quebrar a UI
+        return null;
+    }
+}
+
+export const checkYoutubeHashtag = async (channelUrl, hashtag) => {
+    // 1. Encontrar o ID do canal (ex: UC...) - Custo: 1 ponto
+    const channelId = await getChannelId(channelUrl);
+    if (!channelId) {
+        console.error("Não foi possível encontrar o Channel ID para a URL:", channelUrl);
+        return null;
+    }
+
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    const searchUrl = 'https://www.googleapis.com/youtube/v3/search';
+    
+    // 2. Buscar por vídeos com a hashtag E o channelId - Custo: 100 pontos
+    const params = {
+        part: 'id', // Só precisamos saber a contagem, 'id' é o mais leve
+        key: apiKey,
+        channelId: channelId, // Filtra por canal
+        q: hashtag, // Filtra pela hashtag
+        type: 'video', // Apenas vídeos
+    };
+
+    try {
+        const response = await axios.get(searchUrl, { params });
+        // O totalResults nos dá a contagem de vídeos que deram "match"
+        return response.data.pageInfo.totalResults;
+    } catch (error) {
+        console.error('Erro ao buscar no YouTube (search.list):', error.message);
         return null;
     }
 };

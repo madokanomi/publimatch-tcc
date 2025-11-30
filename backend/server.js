@@ -19,6 +19,7 @@ import inviteRoutes from './routes/inviteRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
+import youtubeRoutes from './routes/yotubeRoutes.js';
 
 // --- CONFIGURAÇÃO INICIAL ---
 dotenv.config();
@@ -61,6 +62,7 @@ app.use('/api/invites', inviteRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/youtube', youtubeRoutes);
 
 // --- INICIALIZAÇÃO DO SERVIDOR ---
 const PORT = process.env.PORT || 5001;
