@@ -150,49 +150,95 @@ const CampaignAbout = ({ campaign, isAboutOnlyView }) => {
                     <DialogContentText sx={{ textAlign: 'center', mb: 2, color: '#555' }}>
                         Escolha um dos seus influenciadores cadastrados para aplicar.
                     </DialogContentText>
-                    <Autocomplete
-                        key={autocompleteKey}
-                        options={availableInfluencers}
-                        loading={loadingInfluencers}
-                        value={selectedInfluencer}
-                        getOptionLabel={(option) => option.name}
-                        isOptionEqualToValue={(option, value) => option._id === value._id}
-                        onChange={(event, newValue) => setSelectedInfluencer(newValue)}
-                        renderInput={(params) => (
-                            <TextField {...params} placeholder="Insira o nome do criador"
-                                InputProps={{ ...params.InputProps, endAdornment: (<>{loadingInfluencers ? <CircularProgress color="inherit" size={20} /> : null}{params.InputProps.endAdornment}</>),
-                                    startAdornment: (
-                                        <Box sx={{ pr: 1, display: 'flex', alignItems: 'center' }}>
-                                            <Avatar sx={{ bgcolor: '#eee', width: 32, height: 32 }}>
-                                                {selectedInfluencer && selectedInfluencer.profileImageUrl ? (
-                                                    <img src={selectedInfluencer.profileImageUrl} alt={selectedInfluencer.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}/>
-                                                ) : (<Star sx={{ color: '#bbb' }} />)}
-                                            </Avatar>
-                                        </Box>
-                                    ),
-                                }}
-                                // Estilos adaptados para o fundo branco
-                                sx={{ 
-                                    "& .MuiOutlinedInput-root": { 
-                                        backgroundColor: "#f5f5f5", 
-                                        borderRadius: "16px", 
-                                        "& fieldset": { borderColor: "#e0e0e0" }, 
-                                        "&:hover fieldset": { borderColor: "#bdbdbd" }, 
-                                        "&.Mui-focused fieldset": { borderColor: "#FF37EB" }, 
-                                        color: "#333" 
-                                    }, 
-                                    "& .MuiInputBase-input::placeholder": { color: "#999" } 
-                                }}
-                            />
-                        )}
-                        renderOption={(props, option) => (
-                            <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#333' }}>
-                                <Avatar src={option.profileImageUrl} alt={option.name} sx={{ width: 32, height: 32 }} />
-                                <Typography>{option.name}</Typography>
-                            </Box>
-                        )}
-                        noOptionsText="Nenhum influenciador disponível para esta campanha."
-                    />
+                  <Autocomplete
+    key={autocompleteKey}
+    options={availableInfluencers}
+    loading={loadingInfluencers}
+    value={selectedInfluencer}
+    getOptionLabel={(option) => option.name}
+    isOptionEqualToValue={(option, value) => option._id === value._id}
+    onChange={(event, newValue) => setSelectedInfluencer(newValue)}
+    
+    // ✨ FIX 1: Estilizando o Menu Flutuante (Dropdown)
+    // Garante fundo branco na lista e cores do sistema no hover
+    slotProps={{
+        paper: {
+            sx: {
+                backgroundColor: "white", // Fundo do menu branco
+                color: "#333",            // Texto das opções escuro
+                borderRadius: "12px",
+                marginTop: "8px",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                "& .MuiAutocomplete-option": {
+                    // Hover com tom roxo do sistema
+                    "&:hover": {
+                        backgroundColor: "rgba(179, 47, 255, 0.08)", 
+                        color: "#b32fff"
+                    },
+                    // Item selecionado com roxo mais forte
+                    "&.Mui-selected": {
+                        backgroundColor: "rgba(179, 47, 255, 0.15)",
+                        color: "#b32fff",
+                        fontWeight: "bold"
+                    }
+                }
+            }
+        }
+    }}
+
+    renderInput={(params) => (
+        <TextField 
+            {...params} 
+            placeholder="Insira o nome do criador"
+            InputProps={{ 
+                ...params.InputProps, 
+                endAdornment: (
+                    <>
+                        {loadingInfluencers ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                    </>
+                ),
+                startAdornment: (
+                    <Box sx={{ pr: 1, display: 'flex', alignItems: 'center' }}>
+                        <Avatar sx={{ bgcolor: '#eee', width: 32, height: 32 }}>
+                            {selectedInfluencer && selectedInfluencer.profileImageUrl ? (
+                                <img src={selectedInfluencer.profileImageUrl} alt={selectedInfluencer.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}/>
+                            ) : (<Star sx={{ color: '#bbb' }} />)}
+                        </Avatar>
+                    </Box>
+                ),
+            }}
+            // ✨ FIX 2: Estilos do Input (Campo de digitação)
+            sx={{ 
+                "& .MuiOutlinedInput-root": { 
+                    backgroundColor: "#f5f5f5", // Fundo cinza claro
+                    borderRadius: "16px", 
+                    color: "#333", // Cor base do texto
+                    
+                    "& fieldset": { borderColor: "#e0e0e0" }, 
+                    "&:hover fieldset": { borderColor: "#bdbdbd" }, 
+                    "&.Mui-focused fieldset": { 
+                        borderColor: "#b32fff", // Roxo do sistema no foco
+                        borderWidth: "2px"
+                    }, 
+                }, 
+                // Força a cor do texto digitado para evitar herança de tema dark
+                "& .MuiInputBase-input": { 
+                    color: "#333 !important",
+                    "-webkit-text-fill-color": "#333 !important", // Garante compatibilidade Webkit
+                },
+                "& .MuiInputBase-input::placeholder": { color: "#888" } 
+            }}
+        />
+    )}
+    renderOption={(props, option) => (
+        <Box component="li" {...props} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Avatar src={option.profileImageUrl} alt={option.name} sx={{ width: 32, height: 32 }} />
+            <Typography>{option.name}</Typography>
+        </Box>
+    )}
+    noOptionsText="Nenhum influenciador disponível."
+/>
                 </DialogContent>
                 <DialogActions sx={{ justifyContent: 'center', p: 3, gap: 2 }}>
                     <Button 

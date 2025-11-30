@@ -61,57 +61,43 @@ export default function RankingInfluenciadores() {
   const [catQuery, setCatQuery] = useState("");
 
   // 1. Fetch dos dados reais do Backend
-  useEffect(() => {
+useEffect(() => {
     const fetchData = async () => {
       try {
-      const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
+        const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
         const token = userInfo?.token;
         const config = { headers: { Authorization: `Bearer ${token}` } };
 
-        // Pega a lista básica
-        const { data: influencersData } = await axios.get('http://localhost:5001/api/influencers', config);
+        // Agora chama a rota que retorna TODOS (conforme configurado no Backend)
+   // Chama a rota específica para buscar TODOS do banco
+const { data: influencersData } = await axios.get('http://localhost:5001/api/influencers/all', config);
 
-        // Enriquece com as avaliações reais para o ranking ser fidedigno
-        const fullData = await Promise.all(influencersData.map(async (inf) => {
-           let avg = 0;
-           let count = 0;
+        // O backend já está retornando a estrutura formatada no getAllInfluencers
+        // Se precisar de mapeamento adicional, faça aqui, mas o controller atualizado já trata isso.
+        
+        // Garante que é um array
+        const dataArray = Array.isArray(influencersData) ? influencersData : [];
 
-           // Se o backend já mandar, usa. Se não, busca.
-           if (inf.averageRating !== undefined && inf.reviewsCount !== undefined) {
-               avg = Number(inf.averageRating);
-               count = Number(inf.reviewsCount);
-           } else {
-               try {
-                   const { data: reviews } = await axios.get(`http://localhost:5001/api/reviews/influencer/${inf._id}`, config);
-                   const total = reviews.reduce((acc, r) => acc + r.rating, 0);
-                   avg = reviews.length > 0 ? total / reviews.length : 0;
-                   count = reviews.length;
-               } catch (e) {
-                   console.log("Sem reviews para", inf.name);
-               }
-           }
-
-           // Mapeia para o formato que o componente visual espera
-           return {
-               id: inf._id,
-               nome: inf.name,
-               nomeReal: inf.realName || "",
-               imagem: inf.profileImageUrl,
-               imagemFundo: inf.backgroundImageUrl,
-               categorias: inf.niches || [],
-               engajamento: inf.engagementRate || 0,
-               inscritos: inf.followersCount || 0,
-               avaliacao: avg,
-               qtdAvaliacoes: count
-           };
+        // Mapeamento de segurança (caso o backend não envie exatamente os campos visuais)
+        const formattedData = dataArray.map(inf => ({
+             id: inf._id || inf.id,
+             nome: inf.name || inf.nome,
+             nomeReal: inf.realName || inf.nomeReal || "",
+             imagem: inf.profileImageUrl || inf.imagem,
+             imagemFundo: inf.backgroundImageUrl || inf.imagemFundo,
+             categorias: inf.niches || inf.categorias || [],
+             engajamento: inf.engagementRate || inf.engajamento || 0,
+             inscritos: inf.followersCount || inf.inscritos || 0,
+             avaliacao: Number(inf.avaliacao || 0),
+             qtdAvaliacoes: Number(inf.qtdAvaliacoes || 0)
         }));
 
-        setListaInfluenciadores(fullData);
+        setListaInfluenciadores(formattedData);
         
-        // Ajusta a categoria inicial caso "Jogos" não exista nos dados retornados
-        const allCats = Array.from(new Set(fullData.flatMap(i => i.categorias)));
+        // Ajusta a categoria inicial dinamicamente
+        const allCats = Array.from(new Set(formattedData.flatMap(i => i.categorias)));
         if (allCats.length > 0 && !allCats.includes("Jogos")) {
-            setCategoria(allCats[0]);
+             setCategoria(allCats[0]);
         }
 
       } catch (error) {
@@ -135,7 +121,7 @@ export default function RankingInfluenciadores() {
     }));
   }, [listaInfluenciadores]);
 
-  // 3. Filtra categorias pelo texto da busca lateral
+  // 3. Filtro de Categorias
   const catsFiltradas = useMemo(
     () =>
         categoriesList.filter((c) =>
@@ -144,15 +130,13 @@ export default function RankingInfluenciadores() {
     [catQuery, categoriesList]
   );
 
-  // 4. Lógica de Ranking (Filtra por categoria ativa + Ordena)
+  // 4. Lógica de Ranking
   const listaOrdenada = useMemo(() => {
     const base = listaInfluenciadores.filter((i) => i.categorias?.includes(categoria));
     return [...base].sort((a, b) => {
-      // Prioridade 1: Nota de Avaliação
       if (b.avaliacao !== a.avaliacao) {
         return b.avaliacao - a.avaliacao;
       }
-      // Prioridade 2: Quantidade de Avaliações (Desempate)
       return b.qtdAvaliacoes - a.qtdAvaliacoes;
     });
   }, [categoria, listaInfluenciadores]);

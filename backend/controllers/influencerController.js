@@ -289,19 +289,19 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
 
 // ✅ ATUALIZADO: Lógica para calcular tags e avaliação média na listagem geral
 export const getAllInfluencers = asyncHandler(async (req, res) => {
-    // Usamos .lean() para modificar o objeto JSON
+    // Busca TODOS os influenciadores no banco de dados, sem filtro de agente
     const influencers = await Influencer.find({}).lean(); 
     
     if (influencers && influencers.length > 0) {
-        // Processa cada influenciador para buscar reviews e calcular tags
         const influencersWithData = await Promise.all(influencers.map(async (inf) => {
+            // Busca reviews para calcular a nota real
             const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
 
-            // 1. Calcular Média de Avaliação Real
+            // Calcula média
             const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
-            const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0; // Se não houver reviews, 0 ou valor padrão do model
+            const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
 
-            // 2. Contar frequência das Tags
+            // Calcula Tags
             const tagCounts = {};
             reviews.forEach(review => {
                 if (review.tags && Array.isArray(review.tags)) {
@@ -312,7 +312,6 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                 }
             });
 
-            // 3. Pegar as top 3 tags mais recorrentes
             const topTags = Object.entries(tagCounts)
                 .sort(([, countA], [, countB]) => countB - countA) 
                 .slice(0, 3) 
@@ -320,14 +319,25 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
 
             return {
                 ...inf,
-                avaliacao: avgRating || inf.avaliacao || 4.5, // Usa a média real, ou fallback
-                tags: topTags // ✅ Mapeado para 'tags' para o InfluencerCard usar diretamente
+                avaliacao: avgRating || inf.avaliacao || 0, // Nota real ou 0
+                tags: topTags,
+                // Mapeia para o frontend
+                id: inf._id,
+                nome: inf.name,
+                nomeReal: inf.realName,
+                imagem: inf.profileImageUrl,
+                imagemFundo: inf.backgroundImageUrl,
+                categorias: inf.niches || [],
+                engajamento: inf.engagementRate || 0,
+                inscritos: inf.followersCount || 0,
+                qtdAvaliacoes: reviews.length
             };
         }));
 
         res.status(200).json(influencersWithData);
     } else {
-        res.status(404).json({ message: 'Nenhum influenciador encontrado na plataforma.' });
+        // Retorna array vazio em vez de erro 404 para não quebrar o map do frontend
+        res.status(200).json([]);
     }
 });
 
