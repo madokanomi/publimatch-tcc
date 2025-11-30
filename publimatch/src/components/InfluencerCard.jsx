@@ -8,6 +8,14 @@ import YouTubeIcon from "@mui/icons-material/YouTube";
 import InstagramIcon from "@mui/icons-material/Instagram";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 
+
+const formatNumber = (num) => {
+  if (!num) return "0";
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+};
+
 const InfluencerCard = ({
   influencer,
   onCompararClick,
@@ -20,12 +28,25 @@ const InfluencerCard = ({
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
   const handleClose = () => setAnchorEl(null);
   
-  // SEM MOCK DATA: Valores vêm direto do objeto ou são 0/vazios
+  // Extração segura dos dados
   const {
     _id, name, realName, description, profileImageUrl, backgroundImageUrl,
-    niches, social, followersCount, engagementRate,
-    avaliacao, views, inscritos, tags, // 'tags' agora contém as Top 3 reviews
+    niches, social, 
+    tags, // Top 3 tags vindas do backend
+    avaliacao // Média de avaliação calculada no backend
   } = influencer;
+
+  // Lógica para usar dados agregados (se existirem) ou campos diretos
+  // O backend agora envia 'aggregatedStats' com a soma de todas as redes
+  const stats = influencer.aggregatedStats || {
+      followers: influencer.followersCount || 0,
+      views: influencer.views || 0,
+      engagementRate: influencer.engagementRate || 0,
+      likes: influencer.curtidas || 0 // Usando 'curtidas' se 'likes' não existir
+  };
+
+  // Garante que a avaliação seja um número válido entre 0 e 5
+  const ratingValue = typeof avaliacao === 'number' ? avaliacao : 0;
 
   const handleOcultar = () => {
     onOcultar(_id);
@@ -42,10 +63,10 @@ const InfluencerCard = ({
         color: "white",
         position: "relative",
         height: "100%",
-        border: estaSelecionado
-          ? "3px solid #ff00d4"
-          : "3px solid rgba(255, 255, 255, 0.56)",
-        boxShadow: "0px 0px 29.6px -1px rgba(0, 0, 0, 0.25)",
+         outline: estaSelecionado
+      ? "3px solid #ff00d4"
+      : "3px solid rgba(0,0,0,0)",
+      boxShadow: "0px 4px 20px rgba(0, 0, 0, 0.4)",
         display: "flex",
         flexDirection: "column",
         transition: "border 0.3s ease",
@@ -54,7 +75,7 @@ const InfluencerCard = ({
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start">
         <Box display="flex" alignItems="center" gap={2}>
-          <Avatar src={profileImageUrl} sx={{ width: 90, height: 90, border: "3px solid white" }} />
+          <Avatar src={profileImageUrl} sx={{ width: 90, height: 90,  boxShadow: "0px 4px 20px rgba(255, 255, 255, 0.16)", }} />
           <Box>
             <Typography variant="h5" fontWeight="bold">{name}</Typography>
             <Typography variant="body2" color="white">{realName}</Typography>
@@ -98,19 +119,33 @@ const InfluencerCard = ({
     </Box>
 
     {/* Métricas */}
-    <Box display="flex" justifyContent="space-between" mt={2}>
-      <Box display="flex" alignItems="center" gap={0.5}>
-        <Favorite sx={{ fontSize: 18 }} /> <Typography>{followersCount || 0}M</Typography>
+  <Box display="flex" justifyContent="space-between" mt={1} p={1.5} bgcolor="rgba(0,0,0,0.3)" borderRadius="12px">
+      <Box textAlign="center">
+        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5} color="#ff4081">
+            <Favorite sx={{ fontSize: 16 }} /> 
+            <Typography variant="body2" fontWeight="bold">{formatNumber(stats.likes)}</Typography>
+        </Box>
+        <Typography variant="caption" color="gray" fontSize="0.65rem">Curtidas</Typography>
       </Box>
-      <Box display="flex" alignItems="center" gap={0.5}>
-        <Visibility sx={{ fontSize: 18 }} /> <Typography>{views || 0}M</Typography>
-      </Box>
-      <Box display="flex" alignItems="center" gap={0.5}>
-        <Groups sx={{ fontSize: 18 }} /> <Typography>{inscritos || 0}M</Typography>
-      </Box>
-      <Typography color="lightgreen" fontWeight="bold">{engagementRate || 0}%</Typography>
-    </Box>
 
+      <Box textAlign="center" sx={{borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)', px: 2}}>
+        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5} color="#40c4ff">
+            <Visibility sx={{ fontSize: 16 }} /> 
+            <Typography variant="body2" fontWeight="bold">{formatNumber(stats.views)}</Typography>
+        </Box>
+        <Typography variant="caption" color="gray" fontSize="0.65rem">Views</Typography>
+      </Box>
+
+      <Box textAlign="center">
+        <Box display="flex" alignItems="center" justifyContent="center" gap={0.5} color="#b2ff59">
+             <Groups sx={{ fontSize: 16 }} /> 
+             <Typography variant="body2" fontWeight="bold">{formatNumber(stats.followers)}</Typography>
+        </Box>
+        <Typography variant="caption" color="gray" fontSize="0.65rem">Seguidores</Typography>
+      </Box>
+    </Box>
+    
+  
     {/* Descrição */}
     <Typography variant="body2" fontStyle="italic" mt={2} textAlign="center" color="white" sx={{
          display: '-webkit-box',

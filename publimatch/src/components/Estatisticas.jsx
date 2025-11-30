@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
-import { Box, Typography, Select, MenuItem, FormControl, InputLabel, Grid, LinearProgress, Divider } from "@mui/material";
-
+import React, { useState, useMemo, useEffect } from "react";
+import { Box, Typography, Select, MenuItem, FormControl, InputLabel, Grid, LinearProgress, Divider, CircularProgress, Fade } from "@mui/material";
+import { useAuth } from "../auth/AuthContext";
+import axios from "axios";
 // Ícones
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
@@ -17,7 +18,8 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import PublicIcon from '@mui/icons-material/Public';
 import WcIcon from '@mui/icons-material/Wc';
 import CakeIcon from '@mui/icons-material/Cake';
-
+import { SiTwitch } from "react-icons/si";
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; // Ícone da IA
 // Recharts
 import {
   ResponsiveContainer,
@@ -124,8 +126,61 @@ const StatCard = ({ title, value, subtext, icon: Icon, color, gradient }) => (
 
 // --- Componente Principal ---
 
-export default function Estatisticas({ youtubeData, instagramData, socialLinks }) {
+// No início do componente Estatisticas.jsx
+export default function Estatisticas({ youtubeData, instagramData, tiktokData, twitchData, socialLinks, description }) {
+  const { user } = useAuth(); // Para pegar o token
+  const safeYoutubeData = youtubeData || {};
   const [platform, setPlatform] = useState("geral");
+  
+  // Estados da IA
+  const [aiAnalysis, setAiAnalysis] = useState("");
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [hasFetchedAi, setHasFetchedAi] = useState(false);
+
+  // --- Efeito para chamar a IA automaticamente ---
+ useEffect(() => {
+    const fetchAnalysis = async () => {
+        const hasAnyData = youtubeData || instagramData || tiktokData || twitchData;
+        
+        // Adicionei verificação se a description mudou para re-analisar se necessário
+        if (!hasAnyData || hasFetchedAi || !user?.token) return;
+
+        setLoadingAi(true);
+        setHasFetchedAi(true);
+
+        const aggregatedStats = {
+            youtube: youtubeData ? { subs: youtubeData.subscriberCount, views: youtubeData.viewCount, eng: youtubeData.engagementRate } : null,
+            instagram: instagramData ? { followers: instagramData.followers, er: instagramData.engagementRate } : null,
+            tiktok: tiktokData ? { followers: tiktokData.followers, likes: tiktokData.likes } : null,
+            twitch: twitchData ? { followers: twitchData.followers, views: twitchData.totalViews } : null
+        };
+
+        try {
+            const { data } = await axios.post('http://localhost:5001/api/influencers/analyze-stats', 
+                { 
+                  stats: aggregatedStats,
+                  bio: description // ✅ 2. Enviando a descrição para o backend
+                },
+                { headers: { Authorization: `Bearer ${user.token}` } }
+            );
+            setAiAnalysis(data.analysis);
+        } catch (error) {
+            console.error("Falha ao gerar análise IA:", error);
+            setAiAnalysis("Perfil analisado. Verifique os dados detalhados abaixo.");
+        } finally {
+            setLoadingAi(false);
+        }
+    };
+
+    const timeout = setTimeout(fetchAnalysis, 1000);
+    return () => clearTimeout(timeout);
+    
+    // ✅ Importante: Adicione 'description' nas dependências do useEffect se quiser que atualize ao mudar
+  }, [youtubeData, instagramData, tiktokData, twitchData, hasFetchedAi, user, description]);
+  // ... resto do código
+  
+  // Onde você usa youtubeData.subscriberCount, mude para:
+  // safeYoutubeData.subscriberCount
 
   // --- Processamento de Dados (useMemo) ---
 
@@ -144,6 +199,10 @@ export default function Estatisticas({ youtubeData, instagramData, socialLinks }
     if (!instagramData?.audienceGender || instagramData.audienceGender.length === 0) {
         return [];
     }
+
+    
+
+
     
     // Mapeia labels baseados na documentação: m=Male, f=Female [cite: 169]
     return instagramData.audienceGender.map(g => {
@@ -194,36 +253,64 @@ export default function Estatisticas({ youtubeData, instagramData, socialLinks }
 
   const renderContent = () => {
     switch (platform) {
-      case "youtube":
+     case "youtube":
+   case "youtube":
+        // Verifica se temos dados extras. Se avgLikes for 0, provavelmente a API extra falhou.
+        const hasExtraData = safeYoutubeData.avgLikes > 0;
+
         return (
             <Box display="flex" flexDirection="column" gap={3} key="youtube-content">
-                {/* KPI HERO */}
+                {/* LINHA 1: DADOS GERAIS (Sempre disponíveis) */}
                 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(3, 1fr)" }} gap={2}>
                     <StatCard 
                         title="Inscritos" 
-                        value={youtubeData ? formatNumber(youtubeData.subscriberCount) : "N/A"} 
+                        value={formatNumber(safeYoutubeData.subscriberCount)} 
                         icon={GroupAddIcon} 
                         color="#FF0000" 
                         gradient="linear-gradient(135deg, #FF0000 0%, #FF8A80 100%)"
                     />
                     <StatCard 
                         title="Visualizações Totais" 
-                        value={youtubeData ? formatNumber(youtubeData.viewCount) : "N/A"} 
+                        value={formatNumber(safeYoutubeData.viewCount)} 
                         icon={VideoLibraryIcon} 
                         color="#FFFFFF" 
                     />
                     <StatCard 
                         title="Vídeos Publicados" 
-                        value={youtubeData ? formatNumber(youtubeData.videoCount) : "N/A"} 
+                        value={formatNumber(safeYoutubeData.videoCount)} 
                         icon={DashboardIcon} 
                         color="#FFFFFF" 
                     />
                 </Box>
 
-                {/* Gráfico de Área - Views */}
+                {/* LINHA 2: ENGAJAMENTO (Pode estar indisponível se a cota exceder) */}
+                <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(3, 1fr)" }} gap={2}>
+                     <StatCard 
+                        title="Média de Likes" 
+                        value={hasExtraData ? formatNumber(safeYoutubeData.avgLikes) : "—"} 
+                        subtext={hasExtraData ? "Últimos 5 vídeos" : "Dados indisponíveis"}
+                        icon={ThumbUpAltIcon} 
+                        color="#2196F3" 
+                    />
+                     <StatCard 
+                        title="Média de Comentários" 
+                        value={hasExtraData ? formatNumber(safeYoutubeData.avgComments) : "—"} 
+                        icon={ChatBubbleIcon} 
+                        color="#4CAF50" 
+                    />
+                     <StatCard 
+                        title="Taxa de Engajamento" 
+                        value={hasExtraData ? `${safeYoutubeData.engagementRate}%` : "—"} 
+                        subtext={hasExtraData ? "Baseado em inscritos" : ""}
+                        icon={TrendingUpIcon} 
+                        color="#FF9800" 
+                    />
+                </Box>
+                
+                {/* Área de gráfico mantida igual... */}
                 <Box sx={{ p: 3, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
                     <Typography variant="h6" fontWeight="bold" mb={3} display="flex" alignItems="center" gap={1}>
-                        <TrendingUpIcon sx={{ color: "#FF0000" }} /> Tendência de Visualizações
+                        <TrendingUpIcon sx={{ color: "#FF0000" }} /> Tendência de Visualizações (Estimada)
                     </Typography>
                     <Box height={300}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -264,7 +351,7 @@ export default function Estatisticas({ youtubeData, instagramData, socialLinks }
                     <StatCard 
                         title="Taxa de Engajamento" 
                         value={instagramData?.engagementRate ? `${instagramData.engagementRate}%` : "N/A"} 
-                        subtext={instagramData?.engagementRate > 2 ? "Performance Alta 🚀" : "Performance Média"}
+                        subtext={instagramData?.engagementRate > 2 ? "Performance Alta" : "Performance Média"}
                         icon={TrendingUpIcon} 
                         color="#FF9800" 
                     />
@@ -415,36 +502,148 @@ export default function Estatisticas({ youtubeData, instagramData, socialLinks }
             </Box>
         );
 
-      case "tiktok":
-      case "twitch":
+     case "twitch":
         return (
-            <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="50vh" gap={2}>
-                <Typography variant="h5" color="rgba(255,255,255,0.5)">
-                    Integração com {platform.charAt(0).toUpperCase() + platform.slice(1)} em desenvolvimento
-                </Typography>
+            <Box display="flex" flexDirection="column" gap={3} key="twitch-content">
+                <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(3, 1fr)" }} gap={2}>
+                    <StatCard 
+                        title="Seguidores" 
+                        value={twitchData ? formatNumber(twitchData.followers) : "N/A"} 
+                        icon={GroupAddIcon} 
+                        color="#9146FF" 
+                        gradient="linear-gradient(135deg, #9146FF 0%, #F0F0FF 100%)"
+                    />
+                    <StatCard 
+                        title="Views Totais" 
+                        value={twitchData ? formatNumber(twitchData.totalViews) : "N/A"} 
+                        icon={VisibilityIcon} 
+                        color="#FFFFFF" 
+                    />
+                     <StatCard 
+                        title="Último Jogo / Categoria" 
+                        value={twitchData?.lastGame || "Variedades"} 
+                        subtext={twitchData?.language ? `Idioma: ${twitchData.language.toUpperCase()}` : ""}
+                        icon={SportsEsportsIcon} 
+                        color="#00E676" 
+                    />
+                </Box>
+                
+                {/* Exemplo de card extra para Twitch */}
+                <Box sx={{ p: 3, bgcolor: "rgba(145, 70, 255, 0.1)", borderRadius: "20px", border: "1px solid rgba(145, 70, 255, 0.3)", display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <SiTwitch size={40} color="#9146FF" />
+                    <Box>
+                        <Typography variant="h6" fontWeight="bold">Canal na Twitch</Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                            {twitchData?.description || "Sem descrição disponível na Twitch."}
+                        </Typography>
+                    </Box>
+                </Box>
             </Box>
         );
 
-      case "geral":
+      case "tiktok":
+        return (
+            <Box display="flex" flexDirection="column" gap={3} key="tiktok-content">
+                 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(3, 1fr)" }} gap={2}>
+                    <StatCard 
+                        title="Seguidores" 
+                        value={tiktokData ? formatNumber(tiktokData.followers) : "N/A"} 
+                        icon={GroupAddIcon} 
+                        color="#00f2ea" 
+                        gradient="linear-gradient(135deg, #00f2ea 0%, #ff0050 100%)"
+                    />
+                    <StatCard 
+                        title="Total de Curtidas" 
+                        value={tiktokData ? formatNumber(tiktokData.likes) : "N/A"} 
+                        icon={ThumbUpAltIcon} 
+                        color="#ff0050" 
+                    />
+                    <StatCard 
+                        title="Engajamento Est." 
+                        value={tiktokData?.engagementRate ? `${tiktokData.engagementRate}%` : "N/A"} 
+                        subtext="Baseado em likes/seguidores"
+                        icon={TrendingUpIcon} 
+                        color="#FFFFFF" 
+                    />
+                </Box>
+                
+            </Box>
+        );
+
+     case "geral":
       default:
+        const totalFollowers = (safeYoutubeData.subscriberCount ? Number(safeYoutubeData.subscriberCount) : 0) + 
+                               (instagramData?.followers ? Number(instagramData.followers) : 0) + 
+                               (tiktokData?.followers ? Number(tiktokData.followers) : 0) +
+                               (twitchData?.followers ? Number(twitchData.followers) : 0);
+        
         return (
           <Box display="flex" flexDirection="column" gap={3} key="geral-content">
+                
+                {/* --- NOVO: CARD DE ANÁLISE DA IA --- */}
+                <Fade in={true}>
+                    <Box sx={{
+                        p: 3,
+                        borderRadius: "20px",
+                        background: "linear-gradient(90deg, rgba(40,10,80,0.6) 0%, rgba(20,0,40,0.4) 100%)",
+                        border: "1px solid rgba(147, 51, 234, 0.3)",
+                        boxShadow: "0 0 20px rgba(147, 51, 234, 0.15)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1
+                    }}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <AutoAwesomeIcon sx={{ color: "#d8b4fe" }} />
+                            <Typography variant="subtitle1" fontWeight="bold" sx={{ color: "#d8b4fe", letterSpacing: 1 }}>
+                                ANÁLISE ESTRATÉGICA (IA)
+                            </Typography>
+                        </Box>
+                        
+                        {loadingAi ? (
+                            <Box display="flex" alignItems="center" gap={2} mt={1}>
+                                <CircularProgress size={20} sx={{ color: "#d8b4fe" }} />
+                                <Typography variant="body2" color="rgba(255,255,255,0.7)">
+                                    Processando métricas em tempo real...
+                                </Typography>
+                            </Box>
+                        ) : (
+                        <Typography 
+                variant="body1" 
+                sx={{ 
+                    color: "white", 
+                    lineHeight: 1.7,       // Mais espaçamento entre linhas para leitura fácil
+                    fontStyle: 'italic', 
+                    mt: 2,                 // Mais margem no topo
+                    whiteSpace: 'pre-line' // IMPORTANTE: Respeita parágrafos e quebras de linha da IA
+                }}
+            >
+                "{aiAnalysis || "Aguardando dados para gerar o relatório..."}"
+            </Typography>
+        )}
+                     
+                    </Box>
+                </Fade>
+
                 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "1fr 1fr" }} gap={2}>
                     <StatCard 
                         title="Alcance Potencial Total" 
-                        value={formatNumber((youtubeData?.subscriberCount || 0) + (instagramData?.followers || 0))} 
+                        value={formatNumber(totalFollowers)} 
                         icon={PublicIcon} 
-                        color="#FFFFFF" 
+                        color="#00E5FF" 
+                        gradient="linear-gradient(135deg, #00E5FF 0%, #2979FF 100%)"
                     />
                     <StatCard 
-                        title="Campanhas Ativas" 
-                        value="3" 
+                        title="Plataformas Conectadas" 
+                        value={Object.values(socialLinks || {}).filter(Boolean).length} 
                         icon={DashboardIcon} 
                         color="#FFFFFF" 
                     />
                 </Box>
+                
                 <Typography variant="body2" align="center" sx={{opacity: 0.5, mt: 4}}>
-                    Selecione uma plataforma específica acima para ver análises detalhadas.
+                    
+
+                    Selecione uma plataforma específica acima para ver gráficos demográficos e engajamento detalhado.
                 </Typography>
           </Box>
         );

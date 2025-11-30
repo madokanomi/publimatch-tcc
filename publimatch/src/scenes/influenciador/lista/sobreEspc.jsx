@@ -244,9 +244,11 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
                 return (
                     <motion.div key="estatisticas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit">
                         <Estatisticas 
-                            youtubeData={influencer.youtubeStats || {}} 
-                            instagramData={influencer.instagramStats || {}} 
-                            socialLinks={influencer.social || {}}
+                             youtubeData={influencer.youtubeStats || {}} 
+    instagramData={influencer.instagramStats || {}} 
+    twitchData={influencer.twitchStats || {}} // Adicionar
+    tiktokData={influencer.tiktokStats || {}} // Adicionar
+    socialLinks={influencer.social || {}}
                         />
                     </motion.div>
                 );

@@ -10,7 +10,9 @@ import {
     getPublicInfluencerProfile,
     getAllInfluencers,
     getInfluencerCampaigns,
-    getInfluencersByAgent
+    getInfluencersByAgent,
+    summarizeInfluencerBio,
+    analyzeInfluencerStats
 } from '../controllers/influencerController.js';
 
 const router = express.Router();
@@ -66,4 +68,7 @@ router.route('/:id')
         updateInfluencer
     );
 
+    router.post('/analyze-stats', protect, analyzeInfluencerStats);
+
+    router.post('/summary', protect, summarizeInfluencerBio);
 export default router;

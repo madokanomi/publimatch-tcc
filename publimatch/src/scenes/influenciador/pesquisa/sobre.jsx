@@ -3,12 +3,12 @@ import {
   Box, Typography, Avatar, Button, Chip, Divider, IconButton, Card,
   CardContent, Grid, Rating, LinearProgress, Dialog, DialogActions,
   DialogContent, DialogContentText, DialogTitle, FormControl,
-  InputLabel, Select, MenuItem, Snackbar, Alert, CircularProgress, Tooltip
+  InputLabel, Select, MenuItem, Snackbar, Alert, CircularProgress, Tooltip,  Collapse
 } from "@mui/material";
 import { 
   Favorite, Visibility, Groups, Menu as MenuIcon, ArrowBack,
   TrendingUp, Star, YouTube, Instagram, SportsEsports,
-  MusicNote, PersonOutlined, Business, BarChart, Campaign
+  MusicNote, PersonOutlined, Business, BarChart, Campaign,  AutoAwesome 
 } from "@mui/icons-material";
 import StarIcon from "@mui/icons-material/Star";
 import YouTubeIcon from "@mui/icons-material/YouTube";
@@ -17,13 +17,13 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import { useParams, useNavigate } from "react-router-dom";
-import Estatisticas from "../../../components/Estatisticas.jsx";
+import Estatisticas from "../../../components/Estatisticas.jsx"; // ✅ Importando o componente novo
 import TiptapContent from "../../../components/TiptapContent.jsx";
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import axiosInstance from '../../../auth/axios.jsx';
 import { useAuth } from '../../../auth/AuthContext'; 
 import { SiTwitch } from 'react-icons/si';
+import { keyframes } from "@mui/system";
 
 export const ROLES = {
     AD_AGENT: 'AD_AGENT',
@@ -32,6 +32,29 @@ export const ROLES = {
     ADMIN: 'ADMIN',
 };
 
+const gradientFlow = keyframes`
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+`;
+
+const pulse = keyframes`
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+`;
+
+const borderGlow = keyframes`
+  0% { box-shadow: 0 0 5px rgba(193, 78, 216, 0.2), inset 0 0 10px rgba(193, 78, 216, 0.1); border-color: rgba(124, 77, 255, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(193, 78, 216, 0.5), inset 0 0 20px rgba(193, 78, 216, 0.2); border-color: rgba(193, 78, 216, 0.8); }
+  100% { box-shadow: 0 0 5px rgba(193, 78, 216, 0.2), inset 0 0 10px rgba(193, 78, 216, 0.1); border-color: rgba(124, 77, 255, 0.3); }
+`;
+
+const fadeInUp = keyframes`
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
+
 const InfluencerProfile = () => {
   const { user } = useAuth();
   const { id } = useParams();
@@ -39,7 +62,6 @@ const InfluencerProfile = () => {
 
   const [influencer, setInfluencer] = useState(null); 
   const [reviews, setReviews] = useState([]);
-  // ✅ NOVO: Estado para histórico de campanhas reais
   const [campaignHistory, setCampaignHistory] = useState([]);
 
   const [loading, setLoading] = useState(true); 
@@ -53,28 +75,32 @@ const InfluencerProfile = () => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [error, setError] = useState(null); 
 
+   const [aiSummary, setAiSummary] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [showAiSummary, setShowAiSummary] = useState(false);
+
   const canHire = user && user.role === ROLES.AD_AGENT;
   const canSeeDetailedReviews = user && user.role === ROLES.AD_AGENT;
 
   useEffect(() => {
     const fetchData = async () => {
         if (!id) return;
-
-        // Busca dados públicos
+        // ✅ IMPORTANTE: Se o endpoint público não retornar 'youtubeStats', etc., 
+        // os gráficos ficarão vazios. Verifique se o backend está enviando esses objetos.
         const publicInfluencerPromise = axios.get(`http://localhost:5001/api/influencers/public/${id}`);
         
-        const config = (user && user.token) ? { headers: { Authorization: `Bearer ${user.token}` } } : {};
-
-        // Busca avaliações (se logado)
         let reviewsPromise;
+        let campaignsPromise;
+
         if (user && user.token) {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
             reviewsPromise = axios.get(`http://localhost:5001/api/reviews/influencer/${id}`, config);
+            // Busca campanhas (histórico)
+            campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${id}/campaigns`, config);
         } else {
             reviewsPromise = Promise.resolve({ data: [] });
+            campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${id}/campaigns`); // Endpoint público de campanhas
         }
-
-        // ✅ Busca histórico de campanhas (Real)
-        const campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${id}/campaigns`, config);
 
         try {
             const [influencerResponse, reviewsResponse, campaignsResponse] = await Promise.all([
@@ -82,12 +108,16 @@ const InfluencerProfile = () => {
                 reviewsPromise,
                 campaignsPromise
             ]);
-            
             setInfluencer(influencerResponse.data);
             setReviews(reviewsResponse.data);
             
-            // ✅ Salva o histórico real no estado
-            setCampaignHistory(campaignsResponse.data.history || []);
+            // Define o histórico (se for publico, vem so history, se for privado vem tudo)
+            if(campaignsResponse.data.history) {
+                 setCampaignHistory(campaignsResponse.data.history);
+            } else if (Array.isArray(campaignsResponse.data)) {
+                 // Fallback caso a estrutura seja diferente
+                 setCampaignHistory(campaignsResponse.data);
+            }
 
         } catch (err) {
             console.error("Erro ao buscar dados do perfil:", err.response);
@@ -97,7 +127,6 @@ const InfluencerProfile = () => {
             setReviewsLoading(false);
         }
     };
-
     fetchData();
   }, [id, user]);
 
@@ -111,7 +140,6 @@ const InfluencerProfile = () => {
     if (averageRating >= 4.5) ratingText = "Excelente!";
     else if (averageRating >= 4.0) ratingText = "Muito Bom!";
     else if (averageRating >= 3.0) ratingText = "Bom";
-    
     const tagCounts = reviews.flatMap(r => r.tags).reduce((acc, tag) => {
         acc[tag] = (acc[tag] || 0) + 1;
         return acc;
@@ -119,6 +147,7 @@ const InfluencerProfile = () => {
     const topTags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(item => item[0]);
     return { averageRating, ratingText, topTags };
   }, [reviews]);
+
 
   if (loading) return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><CircularProgress /></Box>;
   if (error) return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><Typography color="error">{error}</Typography></Box>;
@@ -167,6 +196,58 @@ const InfluencerProfile = () => {
     setUserCampaigns([]); 
   };
 
+   const extractTextFromTiptap = (jsonContent) => {
+    try {
+      const content = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
+      if (!content || !content.content) return "";
+      return content.content
+        .map(node => node.content?.map(textNode => textNode.text).join(" ") || "")
+        .join("\n");
+    } catch (e) {
+      return typeof jsonContent === 'string' ? jsonContent : "";
+    }
+  };
+
+   const handleGenerateSummary = async () => {
+    if (aiSummary) {
+        setShowAiSummary(!showAiSummary);
+        return;
+    }
+
+    setAiLoading(true);
+    setShowAiSummary(true);
+
+    try {
+        const cleanText = extractTextFromTiptap(influencer?.aboutMe || influencer?.description || "");
+        
+        if (!cleanText || cleanText.length < 5) {
+             setAiSummary("O perfil não possui texto suficiente para gerar um resumo.");
+             setAiLoading(false);
+             return;
+        }
+
+        try {
+            const { data } = await axios.post('http://localhost:5001/api/influencers/summary', 
+                { text: cleanText },
+                { headers: { Authorization: `Bearer ${user.token}` } }
+            );
+            setAiSummary(data.summary);
+        } catch (apiError) {
+            console.warn("API de IA falhou ou não configurada, usando simulação:", apiError);
+            setTimeout(() => {
+                setAiSummary(`(Simulação) ${influencer.name} é especialista em ${influencer.niches?.join(', ')}, criando conteúdo autêntico que gera alto engajamento.`);
+            }, 1500);
+        }
+
+    } catch (error) {
+        console.error("Erro geral na IA", error);
+        setAiSummary("Erro ao gerar resumo.");
+    } finally {
+        if (!aiSummary) setAiLoading(false); 
+    }
+  };
+
+
   const handleConfirmHire = async () => {
     if (!selectedCampaign) {
         setError("Por favor, selecione uma campanha antes de enviar o convite.");
@@ -200,12 +281,123 @@ const InfluencerProfile = () => {
 
   const renderTabContent = () => {
     switch(activeTab) {
-      case "Sobre":
+         case "Sobre":
         return (
-          <Box display="flex" gap={4} pl={5} pr={5} sx={{ backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius: "20px", p: 3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <Box
+            display="flex"
+            flexDirection="column" 
+            gap={4}
+            pl={5}
+            pr={5}
+            sx={{
+              backgroundColor: "rgba(27, 27, 27, 0.26)",
+              borderRadius: "20px",
+              p: 3,
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+          >
+            {/* --- SEÇÃO DO RESUMO IA (Botão + Collapse) --- */}
+        <Box>
+            <Button 
+                startIcon={
+                    aiLoading ? 
+                    <CircularProgress size={20} color="inherit"/> : 
+                    <AutoAwesome sx={{ animation: aiSummary ? 'none' : `${pulse} 2s infinite` }} /> 
+                }
+                onClick={handleGenerateSummary}
+                disabled={aiLoading}
+                sx={{
+                    background: "linear-gradient(45deg, #c14ed8ff, #7c4dffff, #ff44c1ff, #c14ed8ff)",
+                    backgroundSize: "300% 300%",
+                    animation: `${gradientFlow} 3s ease infinite`,
+                    color: "white",
+                    textTransform: "none",
+                    borderRadius: "20px",
+                    px: 4, 
+                    py: 1,
+                    mb: 2,
+                    fontWeight: "bold",
+                    letterSpacing: "0.5px",
+                    boxShadow: "0 4px 15px rgba(124, 77, 255, 0.4)",
+                    transition: "all 0.3s ease",
+                    "&:hover": { 
+                        transform: "translateY(-2px)",
+                        boxShadow: "0 6px 20px rgba(193, 78, 216, 0.6)"
+                    },
+                    "&:disabled": {
+                        background: "linear-gradient(45deg, #555 30%, #777 90%)",
+                        color: "#ccc"
+                    }
+                }}
+            >
+                {aiSummary ? (showAiSummary ? "Ocultar Resumo Inteligente" : "Ver Resumo Inteligente") : "Gerar Resumo por IA"}
+            </Button>
+
+            <Collapse in={showAiSummary}>
+                <Box sx={{
+                    position: 'relative',
+                    p: 3,
+                    borderRadius: "16px",
+                    background: "rgba(20, 0, 50, 0.7)",
+                    backdropFilter: "blur(10px)", 
+                    border: "1px solid rgba(124, 77, 255, 0.3)",
+                    mb: 3,
+                    animation: `${borderGlow} 4s infinite alternate`,
+                    overflow: "hidden" 
+                }}>
+                    <Box sx={{
+                        position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                        background: 'linear-gradient(90deg, transparent, #c14ed8, transparent)',
+                        opacity: 0.8
+                    }} />
+
+                    {aiLoading && !aiSummary ? (
+                        <Box display="flex" alignItems="center" gap={2}>
+                              <CircularProgress size={20} sx={{ color: "#b39ddb" }} />
+                              <Typography variant="body2" color="#b39ddb" sx={{ animation: `${fadeInUp} 0.5s ease` }}>
+                                A inteligência artificial está analisando o perfil...
+                              </Typography>
+                        </Box>
+                    ) : (
+                        <Box sx={{ animation: `${fadeInUp} 0.8s ease-out` }}> 
+                            <Box display="flex" alignItems="center" gap={1} mb={2}>
+                                <AutoAwesome sx={{ fontSize: 20, color: "#d1c4e9" }} />
+                                <Typography variant="overline" sx={{ 
+                                    background: "linear-gradient(90deg, #d1c4e9, #ff44c1)",
+                                    WebkitBackgroundClip: "text",
+                                    WebkitTextFillColor: "transparent",
+                                    fontWeight: "900",
+                                    letterSpacing: 1.5
+                                }}>
+                                    INSIGHT DA IA
+                                </Typography>
+                            </Box>
+                            
+                            <Typography variant="body1" color="white" lineHeight={1.8} sx={{
+                                fontFamily: "'Roboto', sans-serif",
+                                textShadow: "0 0 10px rgba(0,0,0,0.5)"
+                            }}>
+                                "{aiSummary}"
+                            </Typography>
+                        </Box>
+                    )}
+                </Box>
+            </Collapse>
+        </Box>
+
+            {/* CONTEÚDO ORIGINAL */}
             <Box flex={2}>
-              <Typography variant="h4" fontWeight="bold" mb={3} color="white">Sobre Mim</Typography>
-              {sobreMim ? <TiptapContent content={JSON.parse(sobreMim)} /> : <Typography variant="body1" lineHeight={1.8} fontSize="16px" color="white">{descricao || 'Informação não disponível'}</Typography>}
+              <Typography variant="h4" fontWeight="bold" mb={3} color="white">
+                Sobre Mim
+              </Typography>
+              {influencer.aboutMe ? (
+                <TiptapContent content={JSON.parse(influencer.aboutMe)} />
+              ) : (
+                <Typography variant="body1" lineHeight={1.8} fontSize="16px" color="white">
+                  {influencer.description || 'Informação não disponível'}
+                </Typography>
+              )}
             </Box>
           </Box>
         );
@@ -214,7 +406,7 @@ const InfluencerProfile = () => {
         return (
             <Box component={motion.div} key="avaliacoes" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit" pl={5} pr={5} sx={{backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius:"20px", p:3, backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)"}}>
                 {reviewsLoading ? (
-                     <Box display="flex" justifyContent="center" alignItems="center" height="40vh"><CircularProgress /></Box>
+                      <Box display="flex" justifyContent="center" alignItems="center" height="40vh"><CircularProgress /></Box>
                 ) : reviews.length === 0 ? (
                     <Box textAlign="center">
                         <Typography variant="h6" color="white">Nenhuma Avaliação Encontrada</Typography>
@@ -236,34 +428,34 @@ const InfluencerProfile = () => {
                             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}><Typography variant="h6" color="white">Mais Recentes</Typography></Box>
                             {reviews.slice(0, 2).map((review) => (
                                 <Box key={review._id} mb={3} p={3} sx={{ backgroundColor: "rgba(255,255,255,0.08)", borderRadius: "15px", border: "1px solid rgba(255,255,255,0.1)" }}>
-                                     <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                                        <Box>
-                                            {review.campaign?.title && (
-                                                <Typography variant="caption" color="rgba(255,255,255,0.7)" fontWeight="medium" mb={0.2} display="block">Campanha: {review.campaign.title}</Typography>
-                                            )}
-                                            <Typography variant="body1" color="white" fontWeight="bold" mb={0.5}>{review.title}</Typography>
-                                            <Typography variant="caption" color="rgba(255,255,255,0.6)">{new Date(review.createdAt).toLocaleDateString('pt-BR')}</Typography>
-                                        </Box>
-                                        <Box sx={{ mt: review.campaign?.title ? 2.5 : 0 }}>
-                                            <Tooltip title={review.campaign?.title || 'Campanha'}>
-                                                <Avatar src={review.campaign?.logo} sx={{ width: 32, height: 32 }}>{review.campaign?.title ? review.campaign.title.charAt(0).toUpperCase() : 'C'}</Avatar>
-                                            </Tooltip>
-                                        </Box>
-                                    </Box>
-                                    <Box display="flex" alignItems="center" gap={0.5} mb={2}>
-                                        <Rating value={review.rating} readOnly size="small" emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} />
-                                        <Typography variant="body2" color="white" fontWeight="bold" ml={1}>{review.rating.toFixed(1)}</Typography>
-                                        <Box ml={2} display="flex" gap={1}>
-                                            {review.tags.slice(0, 3).map((tag, i) => (
-                                                <Chip key={i} label={tag} size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
-                                            ))}
-                                        </Box>
-                                    </Box>
-                                    {canSeeDetailedReviews ? (
-                                        <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>{review.comment || "Nenhum comentário adicional."}</Typography>
-                                    ) : (
-                                        <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.</Typography>
-                                    )}
+                                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                                            <Box>
+                                                {review.campaign?.title && (
+                                                    <Typography variant="caption" color="rgba(255,255,255,0.7)" fontWeight="medium" mb={0.2} display="block">Campanha: {review.campaign.title}</Typography>
+                                                )}
+                                                <Typography variant="body1" color="white" fontWeight="bold" mb={0.5}>{review.title}</Typography>
+                                                <Typography variant="caption" color="rgba(255,255,255,0.6)">{new Date(review.createdAt).toLocaleDateString('pt-BR')}</Typography>
+                                            </Box>
+                                            <Box sx={{ mt: review.campaign?.title ? 2.5 : 0 }}>
+                                                <Tooltip title={review.campaign?.title || 'Campanha'}>
+                                                    <Avatar src={review.campaign?.logo} sx={{ width: 32, height: 32 }}>{review.campaign?.title ? review.campaign.title.charAt(0).toUpperCase() : 'C'}</Avatar>
+                                                </Tooltip>
+                                            </Box>
+                                      </Box>
+                                      <Box display="flex" alignItems="center" gap={0.5} mb={2}>
+                                            <Rating value={review.rating} readOnly size="small" emptyIcon={<StarIcon style={{ opacity: 0.3, color: 'white' }} fontSize="inherit" />} />
+                                            <Typography variant="body2" color="white" fontWeight="bold" ml={1}>{review.rating.toFixed(1)}</Typography>
+                                            <Box ml={2} display="flex" gap={1}>
+                                                {review.tags.slice(0, 3).map((tag, i) => (
+                                                    <Chip key={i} label={tag} size="small" sx={{bgcolor: "rgba(76, 175, 80, 0.2)", color: "#4caf50", fontSize: "10px"}} />
+                                                ))}
+                                            </Box>
+                                      </Box>
+                                      {canSeeDetailedReviews ? (
+                                          <Typography variant="body2" color="rgba(255,255,255,0.8)" lineHeight={1.6}>{review.comment || "Nenhum comentário adicional."}</Typography>
+                                      ) : (
+                                          <Typography variant="body2" fontStyle="italic" color="rgba(255,255,255,0.5)" lineHeight={1.6}>O conteúdo detalhado desta avaliação é visível apenas para Agentes de Publicidade.</Typography>
+                                      )}
                                 </Box>
                             ))}
                         </Box>
@@ -282,7 +474,6 @@ const InfluencerProfile = () => {
               Histórico de Campanhas
             </Typography>
             
-            {/* ✅ LÓGICA ATUALIZADA: Usa dados reais (campaignHistory) */}
             {campaignHistory && campaignHistory.length > 0 ? (
             <Box component={motion.div} variants={staggerContainer} initial="hidden" animate="visible" display="flex" flexDirection="column" gap={2}>
               {campaignHistory.map((campanha, index) => (
@@ -325,9 +516,8 @@ const InfluencerProfile = () => {
                       <Typography variant="h6" color="white" fontWeight="bold">{campanha.engagement?.toLocaleString('pt-BR') || '-'}</Typography>
                     </Box>
                     
-                    {/* Status */}
                     <Box textAlign="center">
-                       <Chip label="Concluída" size="small" color="success" variant="outlined" />
+                        <Chip label="Concluída" size="small" color="success" variant="outlined" />
                     </Box>
                   </Box>
                 </Box>
@@ -335,7 +525,7 @@ const InfluencerProfile = () => {
             </Box>
             ) : (
                 <Box textAlign="center" py={5}>
-                     <Typography variant="h6" color="rgba(255,255,255,0.6)">Nenhuma campanha concluída encontrada no histórico.</Typography>
+                      <Typography variant="h6" color="rgba(255,255,255,0.6)">Nenhuma campanha concluída encontrada no histórico.</Typography>
                 </Box>
             )}
           </Box>
@@ -344,7 +534,18 @@ const InfluencerProfile = () => {
       case 'Estatísticas':
         return (
             <Box component={motion.div} key="estatisticas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit">
-                <Estatisticas />
+                <Estatisticas 
+                    // ✅ Passando os objetos de dados que vêm do backend
+                    youtubeData={influencer.youtubeStats}
+                    instagramData={influencer.instagramStats}
+                    // Adicione tiktok/twitch se seu backend retornar esses campos
+                    
+                    // ✅ Passando os links para o filtro de plataforma
+                    socialLinks={influencer.social}
+
+                    // ✅ FUNDAMENTAL: Passando a Bio para a IA analisar
+                    description={influencer.description || influencer.aboutMe || ""}
+                />
             </Box>
         );
       default:
@@ -365,7 +566,6 @@ const InfluencerProfile = () => {
     followersCount: inscritos = 0,
     engagementRate: engajamento = 0,
     description: descricao = '',
-    aboutMe: sobreMim = '',
     niches: categorias = [],
     profileImageUrl: imagem = '',
     backgroundImageUrl: imagemFundo = '',

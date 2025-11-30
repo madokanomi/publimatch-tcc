@@ -2,6 +2,7 @@ import Influencer from '../models/influencerModel.js';
 import User from '../models/userModel.js';
 import asyncHandler from 'express-async-handler';
 import crypto from 'crypto';
+import axios from 'axios';
 import { sendWelcomeEmail } from '../config/email.js';
 import cloudinary from '../config/cloudinaryConfig.js';
 import Invite from '../models/inviteModel.js';
@@ -10,6 +11,9 @@ import Application from '../models/applicationModel.js';
 import { getYoutubeStats } from '../config/youtubeHelper.js';
 import { getInstagramStats } from '../config/instagramHelper.js';
 import Review from '../models/reviewModel.js'; // ✅ Importante para as tags
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getTwitchStats } from '../config/twitchHelper.js'; // Novo
+import { getTikTokStats } from '../config/tiktokHelper.js'; // Novo
 
 const uploadToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -146,29 +150,95 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
     const isAdAgent = req.user.role === 'AD_AGENT';
 
     if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
+        // Inicializa as promessas
         let youtubePromise = Promise.resolve(null);
         let instagramPromise = Promise.resolve(null);
+        let twitchPromise = Promise.resolve(null);
+        let tiktokPromise = Promise.resolve(null);
 
-        if (influencer.social?.youtube) {
-            youtubePromise = getYoutubeStats(influencer.social.youtube);
-        }
-        if (influencer.social?.instagram) {
-            instagramPromise = getInstagramStats(influencer.social.instagram);
-        }
+        // Dispara chamadas apenas se o link existir
+        if (influencer.social?.youtube) youtubePromise = getYoutubeStats(influencer.social.youtube);
+        if (influencer.social?.instagram) instagramPromise = getInstagramStats(influencer.social.instagram);
+        if (influencer.social?.twitch) twitchPromise = getTwitchStats(influencer.social.twitch);
+        if (influencer.social?.tiktok) tiktokPromise = getTikTokStats(influencer.social.tiktok);
 
-        const [youtubeResult, instagramResult] = await Promise.allSettled([
-            youtubePromise,
-            instagramPromise
+        // Aguarda todas (usando allSettled para que uma falha não trave as outras)
+        const [youtubeResult, instagramResult, twitchResult, tiktokResult] = await Promise.allSettled([
+            youtubePromise, instagramPromise, twitchPromise, tiktokPromise
         ]);
 
         const responseData = influencer.toObject();
 
+        // --- LÓGICA DE SOMA (AGREGAÇÃO) ---
+        let totalFollowers = 0;
+        let totalViews = 0;
+        let totalLikes = 0;
+        let engagementSum = 0;
+        let platformsWithEngagement = 0;
+
+        // Função auxiliar para somar dados de forma segura
+        const aggregateData = (stats) => {
+            if (!stats) return;
+
+            // 1. Seguidores (Inscritos + Followers)
+            const followers = Number(stats.subscriberCount || stats.followers || 0);
+            totalFollowers += followers;
+
+            // 2. Visualizações (Views Totais ou Médias dependendo da API)
+            // Twitch e YT tem totalViews/viewCount. Instagram/TikTok as vezes tem avgViews.
+            const views = Number(stats.viewCount || stats.totalViews || stats.avgViews || 0);
+            totalViews += views;
+
+            // 3. Curtidas (Likes ou AvgLikes)
+            const likes = Number(stats.likes || stats.avgLikes || 0);
+            totalLikes += likes;
+
+            // 4. Taxa de Engajamento (Para média)
+            const er = Number(stats.engagementRate || 0);
+            if (er > 0) {
+                engagementSum += er;
+                platformsWithEngagement++;
+            }
+        };
+
+        // Adiciona dados individuais e soma no total
         if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
             responseData.youtubeStats = youtubeResult.value;
+            aggregateData(youtubeResult.value);
         }
         if (instagramResult.status === 'fulfilled' && instagramResult.value) {
             responseData.instagramStats = instagramResult.value;
+            aggregateData(instagramResult.value);
         }
+        if (twitchResult.status === 'fulfilled' && twitchResult.value) {
+            responseData.twitchStats = twitchResult.value;
+            aggregateData(twitchResult.value);
+        }
+        if (tiktokResult.status === 'fulfilled' && tiktokResult.value) {
+            responseData.tiktokStats = tiktokResult.value;
+            aggregateData(tiktokResult.value);
+        }
+
+        // Calcula a média de engajamento (Ex: (5% + 3%) / 2 = 4%)
+        const avgEngagement = platformsWithEngagement > 0 
+            ? (engagementSum / platformsWithEngagement).toFixed(2) 
+            : 0;
+
+        // ✅ INJETA OS DADOS SOMADOS NA RESPOSTA
+        // O Frontend poderá acessar via: influencer.aggregatedStats.followers
+        responseData.aggregatedStats = {
+            followers: totalFollowers,
+            views: totalViews,
+            likes: totalLikes,
+            engagementRate: Number(avgEngagement),
+            platformsActive: platformsWithEngagement
+        };
+
+        // Atualiza campos raiz do influenciador com os totais calculados (opcional, para facilitar exibição rápida)
+        responseData.followersCount = totalFollowers; 
+        responseData.engagementRate = Number(avgEngagement);
+        responseData.views = totalViews;
+        responseData.curtidas = totalLikes;
 
         res.json(responseData);
 
@@ -354,4 +424,119 @@ export const getInfluencersByAgent = asyncHandler(async (req, res) => {
     } else {
         res.status(404).json({ message: 'Nenhum influenciador encontrado para este agente.' });
     }
+});
+
+export const summarizeInfluencerBio = asyncHandler(async (req, res) => {
+  const { text } = req.body;
+
+  if (!text) {
+    res.status(400);
+    throw new Error("Texto para resumo não fornecido.");
+  }
+
+  try {
+    const apiKey = process.env.GROQ_API_KEY; 
+    
+    const url = "https://api.groq.com/openai/v1/chat/completions";
+
+    const response = await axios.post(url, {
+      // ✅ MODELO ATUALIZADO (O Llama 3.3 é o mais atual e potente)
+      model: "llama-3.3-70b-versatile", 
+      messages: [
+        { 
+          role: "system", 
+          content: "Você é um especialista em Marketing de Influência. Resuma o perfil a seguir em Português do Brasil de forma sucinta, tente demonstrar informações importantes para possíveis anunciantes interesssados, entenda o influenciador, e diga a sua opinião de que tipo de publicidade mais se encaixa com ele. Foco: Nicho e estilo. foque bastante em dar sua avaliação e sugestão ao publicitário. maximo de 10 linhas, não use forma de destacar as palavras pq nao funciona" 
+        },
+        { role: "user", content: text }
+      ],
+      temperature: 0.5
+    }, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const summary = response.data?.choices?.[0]?.message?.content;
+
+    if (summary) {
+        res.status(200).json({ summary });
+    } else {
+        throw new Error("Resposta da IA vazia.");
+    }
+
+  } catch (error) {
+    console.error("Erro na IA (Groq):", error?.response?.data || error.message);
+    
+    // Resposta de fallback para não quebrar o frontend
+    res.status(200).json({ 
+        summary: "Resumo indisponível no momento, mas o perfil está ativo e verificado." 
+    });
+  }
+});
+export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
+  // ✅ Agora extraímos também a 'bio'
+  const { stats, bio } = req.body;
+
+  if (!stats) {
+    res.status(400);
+    throw new Error("Dados estatísticos não fornecidos.");
+  }
+
+  try {
+    const apiKey = process.env.GROQ_API_KEY; 
+    const url = "https://api.groq.com/openai/v1/chat/completions";
+
+    const statsString = JSON.stringify(stats);
+    // Limita o tamanho da bio para não estourar tokens se for muito grande
+    const bioString = bio ? bio.substring(0, 500) : "Não informada"; 
+
+    // ✅ PROMPT ATUALIZADO: Cruzamento de Bio + Dados
+    const prompt = `
+      Atue como um Estrategista Sênior de Marketing.
+      
+      CONTEXTO DO INFLUENCIADOR:
+      - Biografia/Nicho Declarado: "${bioString}"
+      - Métricas Reais (Dados Brutos): ${statsString}
+
+      TAREFA:
+      Gere um "Relatório de Performance e Alinhamento" detalhado em Português do Brasil.
+
+      DIRETRIZES:
+      1. Coerência: Analise se os números sustentam a autoridade do influenciador no nicho citado na bio.
+      2. Saúde da Base: Avalie a proporção de seguidores vs engajamento.
+      3. Recomendação: Sugira qual tipo de marca se beneficiaria mais (ex: se o foco é gamer na bio e os números da Twitch são altos, sugira periféricos/jogos).
+      4. Tom: Profissional, estratégico e direto.
+      5. Formatação: Use parágrafos claros. Sem markdown complexo.
+    `;
+
+    const response = await axios.post(url, {
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: "Você é um consultor especialista em validar influenciadores para grandes marcas." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 800 // Mais espaço para a análise combinada
+    }, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const analysis = response.data?.choices?.[0]?.message?.content;
+
+    if (analysis) {
+        res.status(200).json({ analysis });
+    } else {
+        throw new Error("IA não retornou análise.");
+    }
+
+  } catch (error) {
+    console.error("Erro na Análise (Groq):", error?.response?.data || error.message);
+    res.status(200).json({ 
+        analysis: "Análise indisponível. Recomendamos verificar manualmente se o conteúdo do influenciador está alinhado com as métricas apresentadas." 
+    });
+  }
 });
