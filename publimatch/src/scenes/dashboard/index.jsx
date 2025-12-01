@@ -343,65 +343,67 @@ const Dashboard = () => {
             </Slide>
 
             {/* Tabela de Dados */}
-            <Slide direction="up" in={true} timeout={1500} mountOnEnter unmountOnExit>
-                <Box
-                    width="99%"
-                    gridColumn="span 12"
-                    gridRow="span 8"
-                    p="20px"
-                    borderRadius="15px"
-                    bgcolor="#00000054"
-                    mb="20vh"
-                    sx={{ height: "500px" }}
-                >
-                <Typography
-                    variant="h3"
-                    fontWeight="bold"
-                    color="white"
-                    mb="10px"
-                    padding="10px"
-                >
-                    {config.table_title}
-                </Typography>
-                <Box sx={{ 
-                    height: 400, 
-                    width: '100%', 
-                    overflow: 'hidden',
-                    position: 'relative'
-                }}>
-                <DataGrid
-                    rows={tableData}
-                    columns={columns}
-                    getRowId={(row) => row._id} 
-                    disableRowSelectionOnClick
-                    hideFooter={true}
-                    autoHeight={false}
-                    sx={{
-                        height: "100%", paddingLeft: "10px", paddingRight: "10px", border: "none", color: "white !important", backgroundColor: "transparent !important",
-                      "& .MuiDataGrid-main": { overflow: "hidden !important", position: "relative" },
-                      "& .MuiDataGrid-scrollArea": { display: "none !important" },
-                      "& .M_uiDataGrid-root, & .MuiDataGrid-main, & .MuiDataGrid-window": { overflow: "hidden !important" },
-                      "& .MuiDataGrid-virtualScroller": { overflowY: "auto !important", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.3) transparent" },
-                      "& .MuiDataGrid-columnHeaders": { backgroundColor: "transparent !important", color: "white !important", borderBottom: "1px solid rgba(255, 255, 255, 1)", position: "sticky !important", top: 0, zIndex: 10, backdropFilter: "blur(100px)" },
-                      "& .MuiDataGrirgba(35, 26, 26, 0.33)eaderTitle": { color: "white !important" },
-                      "& .MuiDataGrid-columnHeader": { backgroundColor: "transparent !important", color: "white !important" },
-                      "& .MuiDataGrid-window": { position: "absolute !important", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden !important" },
-                      "& .MuiDataGrid-virtualScroller": { position: "relative !important", overflow: "auto !important", height: "calc(100% - 56px) !important", maxHeight: "none !important" },
-                      "& .MuiDataGrid-virtualScrollerRenderZone": { position: "relative !important" },
-                      "& .MuiDataGrid-scrollbar": { display: "none !important" },
-                      "& .MuiDataGrid-scrollArea": { display: "none !important" },
-                      "& .MuiDataGrid-row": { backgroundColor: "#ffffff3f", borderRadius: "10px", marginBottom: "5px", marginTop: "10px" },
-                      "& .MuiDataGrid-row:hover": { backgroundColor: "#ffffff18", borderRadius: "10px", marginBottom: "5px", marginTop: "10px" },
-                      "& .MuiDataGrid-virtualScroller::-webkit-scrollbar": { width: "8px", height: "8px" },
-                      "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.05)", borderRadius: "10px" },
-                      "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
-                      "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.5)" },
-                      "& .MuiDataGrid-virtualScroller": { scrollbarWidth: "thin", marginLeft:"10px", scrollbarColor: "rgba(255,255,255,0.3) transparent" },
-                    }}
-                />
-                </Box>
-                </Box>
-            </Slide>
+           {user?.role !== ROLES.INFLUENCER_AGENT && (
+                <Slide direction="up" in={true} timeout={1500} mountOnEnter unmountOnExit>
+                    <Box
+                        width="99%"
+                        gridColumn="span 12"
+                        gridRow="span 8"
+                        p="20px"
+                        borderRadius="15px"
+                        bgcolor="#00000054"
+                        mb="20vh"
+                        sx={{ height: "500px" }}
+                    >
+                        <Typography
+                            variant="h3"
+                            fontWeight="bold"
+                            color="white"
+                            mb="10px"
+                            padding="10px"
+                        >
+                            {config.table_title}
+                        </Typography>
+                        <Box sx={{ 
+                            height: 400, 
+                            width: '100%', 
+                            overflow: 'hidden',
+                            position: 'relative'
+                        }}>
+                            <DataGrid
+                                rows={tableData}
+                                columns={columns}
+                                getRowId={(row) => row._id} 
+                                disableRowSelectionOnClick
+                                hideFooter={true}
+                                autoHeight={false}
+                                sx={{
+                                    height: "100%", paddingLeft: "10px", paddingRight: "10px", border: "none", color: "white !important", backgroundColor: "transparent !important",
+                                    "& .MuiDataGrid-main": { overflow: "hidden !important", position: "relative" },
+                                    "& .MuiDataGrid-scrollArea": { display: "none !important" },
+                                    "& .M_uiDataGrid-root, & .MuiDataGrid-main, & .MuiDataGrid-window": { overflow: "hidden !important" },
+                                    "& .MuiDataGrid-virtualScroller": { overflowY: "auto !important", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.3) transparent" },
+                                    "& .MuiDataGrid-columnHeaders": { backgroundColor: "transparent !important", color: "white !important", borderBottom: "1px solid rgba(255, 255, 255, 1)", position: "sticky !important", top: 0, zIndex: 10, backdropFilter: "blur(100px)" },
+                                    "& .MuiDataGrirgba(35, 26, 26, 0.33)eaderTitle": { color: "white !important" },
+                                    "& .MuiDataGrid-columnHeader": { backgroundColor: "transparent !important", color: "white !important" },
+                                    "& .MuiDataGrid-window": { position: "absolute !important", top: 0, left: 0, right: 0, bottom: 0, overflow: "hidden !important" },
+                                    "& .MuiDataGrid-virtualScroller": { position: "relative !important", overflow: "auto !important", height: "calc(100% - 56px) !important", maxHeight: "none !important" },
+                                    "& .MuiDataGrid-virtualScrollerRenderZone": { position: "relative !important" },
+                                    "& .MuiDataGrid-scrollbar": { display: "none !important" },
+                                    "& .MuiDataGrid-scrollArea": { display: "none !important" },
+                                    "& .MuiDataGrid-row": { backgroundColor: "#ffffff3f", borderRadius: "10px", marginBottom: "5px", marginTop: "10px" },
+                                    "& .MuiDataGrid-row:hover": { backgroundColor: "#ffffff18", borderRadius: "10px", marginBottom: "5px", marginTop: "10px" },
+                                    "& .MuiDataGrid-virtualScroller::-webkit-scrollbar": { width: "8px", height: "8px" },
+                                    "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.05)", borderRadius: "10px" },
+                                    "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" },
+                                    "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.5)" },
+                                    "& .MuiDataGrid-virtualScroller": { scrollbarWidth: "thin", marginLeft:"10px", scrollbarColor: "rgba(255,255,255,0.3) transparent" },
+                                }}
+                            />
+                        </Box>
+                    </Box>
+                </Slide>
+            )}
 
         </Box>
             </Box>
