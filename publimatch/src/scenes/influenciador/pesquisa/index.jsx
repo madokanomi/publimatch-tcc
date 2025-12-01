@@ -4,7 +4,7 @@ import {
 } from "@mui/material";
 import { forwardRef, useMemo, useState, useEffect } from "react";
 import Header from "../../../components/Header";
-import InfluencerCard from "../../../components/InfluencerCard"; // Certifique-se que o caminho está certo
+import InfluencerCard from "../../../components/InfluencerCard"; 
 import { Autocomplete } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { Star, Favorite, Visibility, Groups } from "@mui/icons-material";
@@ -14,13 +14,30 @@ import InstagramIcon from "@mui/icons-material/Instagram";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Função auxiliar para formatar números (K, M) no Modal
+
+const MAX_FOLLOWERS = 80000; 
+
+  // Inicia o estado cobrindo de 0 até o máximo (1B)
+  
+
+// Função auxiliar para formatar números (K, M) e Notas
 const formatNumber = (num) => {
-  if (!num) return "0";
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
+  if (num === undefined || num === null) return "0";
+  const n = parseFloat(num);
+  
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  
+  // Se for pequeno (tipo nota 4.8), mostra o decimal. 
+  // Se for inteiro (5 ou 100), mostra sem decimal.
+  return Number.isInteger(n) ? n.toString() : n.toFixed(1);
 };
+
+const formatLabel = (value) => {
+    if (value >= 1000000) return (value / 1000000).toFixed(1) + "B"; // Bilhões
+    if (value >= 1000) return (value / 1000).toFixed(1) + "M";       // Milhões
+    return value + "K";                                              // Milhares
+  };
 
 // Componente auxiliar de comparação
 const StatComparator = ({ icon, label, value1, value2, unit = "" }) => {
@@ -36,7 +53,7 @@ const StatComparator = ({ icon, label, value1, value2, unit = "" }) => {
 
   return (
     <Box display="flex" justifyContent="space-between" alignItems="center" width="100%" py={1.5} px={2} my={0.5} sx={{ background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)" }}>
-      {/* Exibe o valor formatado, mas usa o valor bruto (props) para a cor */}
+      {/* Exibe o valor formatado */}
       <Typography sx={{ transition: "all 0.3s ease", ...(isValue1Winner ? winnerStyle : defaultStyle) }}>
         {formatNumber(v1)}{unit}
       </Typography>
@@ -94,7 +111,7 @@ const Influenciadores = () => {
   const [categoria, setCategoria] = useState("");
   const [inputValueCategoria, setInputValueCategoria] = useState("");
   const [plataforma, setPlataforma] = useState("");
-  const [seguidores, setSeguidores] = useState([0, 100]); // Slider em Milhões
+ const [seguidores, setSeguidores] = useState([0, MAX_FOLLOWERS]); // Slider em Milhões
   const [avaliacao, setAvaliacao] = useState(0);
   const [tagsSelecionadas, setTagsSelecionadas] = useState([]);
   const [searchTag, setSearchTag] = useState("");
@@ -130,9 +147,7 @@ const Influenciadores = () => {
                 .filter(key => socialObj[key])
                 .map(key => key.toLowerCase());
 
-            // --- CORREÇÃO AQUI ---
-            // Verifica se aggregatedStats existe, se não, pega das propriedades raiz (root)
-            // Se root também for undefined, usa 0.
+            // Garante que stats existam mesmo se vierem vazios
             const rawStats = inf.aggregatedStats || {};
             
             const stats = { 
@@ -154,8 +169,9 @@ const Influenciadores = () => {
               redes: redesArray, 
               description: inf.description || '',
               tags: inf.tags || [], 
+              // Usa exatamente a mesma lógica que o InfluencerCard usa
               avaliacao: inf.avaliacao || 0,
-              aggregatedStats: stats // Passa o objeto corrigido e preenchido
+              aggregatedStats: stats 
             };
         });
 
@@ -210,8 +226,8 @@ const Influenciadores = () => {
   const filtrados = useMemo(() => {
     return influencers.filter((inf) => {
       // Usa o stats corrigido
-      const seguidoresReais = inf.aggregatedStats.followers || 0;
-      const seguidoresEmMilhoes = seguidoresReais / 1000000; 
+    const seguidoresReais = inf.aggregatedStats.followers || 0;
+      const seguidoresEmMil = seguidoresReais / 1000;
       
       const matchPlataforma = plataforma 
         ? (inf.redes && inf.redes.includes(plataforma.toLowerCase())) 
@@ -222,8 +238,8 @@ const Influenciadores = () => {
         inf.name.toLowerCase().includes(search.toLowerCase()) &&
         (categoria ? inf.niches.includes(categoria) : true) &&
         matchPlataforma &&
-        seguidoresEmMilhoes >= seguidores[0] &&
-        seguidoresEmMilhoes <= seguidores[1] &&
+        seguidoresEmMil >= seguidores[0] && // ✅ Compara com escala de Mil
+        seguidoresEmMil <= seguidores[1] && 
         inf.avaliacao >= avaliacao &&
         (tagsSelecionadas.length > 0
           ? tagsSelecionadas.every((tag) => inf.tags.includes(tag))
@@ -231,7 +247,6 @@ const Influenciadores = () => {
       );
     });
   }, [influencers, search, categoria, plataforma, seguidores, avaliacao, tagsSelecionadas, ocultos]);
-
 
   const inf1 = influencersParaComparar[0];
   const inf2 = influencersParaComparar[1];
@@ -261,7 +276,6 @@ const Influenciadores = () => {
             <Typography variant="h5" fontWeight="bold" mb={2}> Filtros avançados </Typography>
             <Box sx={{ flex: 1, overflowY: "auto", overflowX: "visible", width: "100%", pr: 5, "&::-webkit-scrollbar": { width: "6px" }, "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px", }, "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px", }, }} >
               
-              {/* Filtro de Texto (Nome) - Adicionado para funcionar com o state 'search' */}
               <Typography variant="body2" fontWeight="500"> Nome </Typography>
               <TextField 
                 fullWidth size="small" placeholder="Buscar por nome..." 
@@ -279,8 +293,23 @@ const Influenciadores = () => {
               <TextField fullWidth size="small" select value={plataforma} onChange={(e) => setPlataforma(e.target.value)} SelectProps={{ native: true }} sx={{ mb: 2, mt: 0.5, bgcolor: "rgba(255,255,255,0.1)", borderRadius: "10px", "& .MuiOutlinedInput-input": { color: "white" }, "& fieldset": { border: "none" }, "& svg": { color: "white" }, }}>
                 <option value="">Todas</option> <option value="youtube">YouTube</option> <option value="twitch">Twitch</option> <option value="instagram">Instagram</option> <option value="tiktok">TikTok</option>
               </TextField>
-              <Typography variant="body2" fontWeight="500" mb={1}> Faixa de Seguidores (milhões) </Typography>
-              <Slider value={seguidores} onChange={(_, v) => setSeguidores(v)} valueLabelDisplay="auto" min={0} max={100} sx={{ marginLeft: "10px", mb: 2, color: "#ff00d4", "& .MuiSlider-thumb": { bgcolor: "white", border: "2px solid #ff00d4", }, "& .MuiSlider-track": { bgcolor: "#ff00d4" }, }} />
+           <Typography variant="body2" fontWeight="500" mb={1}> Faixa de Seguidores </Typography>
+              <Slider 
+                value={seguidores} 
+                onChange={(_, v) => setSeguidores(v)} 
+                valueLabelDisplay="auto" 
+                valueLabelFormat={formatLabel} // ✅ Usa a formatação K / M / B
+                min={0} 
+                max={MAX_FOLLOWERS} // ✅ Vai até 1 Bilhão
+                step={10} // Passo de 10k para ficar mais fluido
+                sx={{ 
+                  marginLeft: "10px", 
+                  mb: 2, 
+                  color: "#ff00d4", 
+                  "& .MuiSlider-thumb": { bgcolor: "white", border: "2px solid #ff00d4" }, 
+                  "& .MuiSlider-track": { bgcolor: "#ff00d4" } 
+                }} 
+              />
               <Typography variant="body2" fontWeight="500" mt={1}> Avaliação mínima </Typography>
               <Rating value={avaliacao} onChange={(_, v) => setAvaliacao(v)} precision={0.5} sx={{ mb: 2, "& .MuiRating-iconFilled": { color: "gold" }, "& .MuiRating-iconEmpty": { color: "rgba(255,255,255,0.3)" }, }} />
               <Typography variant="body2" fontWeight="500" mb={1}> Tags </Typography>
@@ -297,19 +326,16 @@ const Influenciadores = () => {
           {/* Lista de Influenciadores */}
     <Box component={motion.div} key={filtrados.map(f => f.id).join('-')} variants={containerVariants} initial="hidden" animate="visible" flex={1} display="grid" gridTemplateColumns="repeat(auto-fill, minmax(350px, 1fr))" gap={4} pl={3} pb={20} sx={{ justifyContent: 'flex-start', alignContent: 'flex-start' }}>
               {loading ? (
-                // Se estiver carregando, mostra 8 skeletons
                 [...Array(8)].map((_, index) => (
                   <motion.div key={index} variants={itemVariants}>
                     <Skeleton variant="rectangular" animation="wave" width="100%" height={450} sx={{ borderRadius: "24px", bgcolor: 'rgba(255,255,255,0.1)' }} />
                   </motion.div>
                 ))
               ) : error ? (
-                // Se der erro, mostra a mensagem de erro
                 <Typography variant="h4" color="error" textAlign="center" gridColumn="1/-1">
                   Erro ao carregar: {error}
                 </Typography>
               ) : filtrados.length > 0 ? (
-                // Se tiver dados, mostra os cards
                 filtrados.map((inf) => (
                   <motion.div key={inf.id} variants={itemVariants}>
                     <InfluencerCard
@@ -321,7 +347,6 @@ const Influenciadores = () => {
                   </motion.div>
                 ))
               ) : (
-                // Se não tiver dados (após carregar), mostra a mensagem de "não encontrado"
                 <Typography variant="h3" fontWeight="bold" color="white" textAlign="center" gridColumn="1/-1">
                   Nenhum influenciador encontrado
                 </Typography>
@@ -379,33 +404,64 @@ const Influenciadores = () => {
                 </Box>
 
                 {/* ESTATÍSTICAS COMPARATIVAS */}
-                {/* Nota: Usamos aggregatedStats aqui */}
                 <Box px={5} pb={4} mt={-2}>
                   <StatComparator icon={<Favorite />} label="Curtidas" value1={inf1.aggregatedStats?.likes} value2={inf2.aggregatedStats?.likes} />
                   <StatComparator icon={<Visibility />} label="Views" value1={inf1.aggregatedStats?.views} value2={inf2.aggregatedStats?.views} />
                   <StatComparator icon={<Groups />} label="Seguidores" value1={inf1.aggregatedStats?.followers} value2={inf2.aggregatedStats?.followers} />
+                  
+                  {/* CORREÇÃO AQUI: Agora usa inf.avaliacao direto */}
                   <StatComparator icon={<Star />} label="Avaliação" value1={inf1.avaliacao} value2={inf2.avaliacao} />
                   
-                  {/* Barras de Engajamento */}
-                  <Box mt={2}>
-                    <Box>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                        <Typography variant="body2" fontWeight="bold">{inf1.name}</Typography>
-                        <Typography variant="body2" fontWeight="bold" color="#ff00d4">{inf1.aggregatedStats?.engagementRate}%</Typography>
-                      </Box>
-                      <Box sx={{ height: '10px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <Box sx={{ height: '100%', width: `${Math.min(inf1.aggregatedStats?.engagementRate || 0, 100)}%`, bgcolor: '#ff00d4', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #ff00d4' }}/>
-                      </Box>
-                    </Box>
-                    <Box mt={2}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                        <Typography variant="body2" fontWeight="bold">{inf2.name}</Typography>
-                        <Typography variant="body2" fontWeight="bold" color="#00ff95">{inf2.aggregatedStats?.engagementRate}%</Typography>
-                      </Box>
-                      <Box sx={{ height: '10px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <Box sx={{ height: '100%', width: `${Math.min(inf2.aggregatedStats?.engagementRate || 0, 100)}%`, bgcolor: '#00ff95', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #00ff95' }}/>
-                      </Box>
-                    </Box>
+                  {/* Barras de Engajamento Aumentadas */}
+                <Box mt={3}>
+                    {(() => {
+                        // 10% de engajamento preenche 100% da barra (barras maiores)
+                        const MAX_SCALE = 10; 
+
+                        const rate1 = parseFloat(inf1.aggregatedStats?.engagementRate || 0);
+                        const rate2 = parseFloat(inf2.aggregatedStats?.engagementRate || 0);
+                        
+                        const width1 = Math.min((rate1 / MAX_SCALE) * 100, 100);
+                        const width2 = Math.min((rate2 / MAX_SCALE) * 100, 100);
+
+                        return (
+                          <>
+                            <Box mb={2}>
+                              <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                <Typography variant="body2" fontWeight="bold">{inf1.name}</Typography>
+                                <Typography variant="body2" fontWeight="bold" color="#ff00d4">{rate1.toFixed(2)}%</Typography>
+                              </Box>
+                              <Box sx={{ height: '12px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px', overflow: 'hidden' }}>
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${width1}%` }}
+                                  transition={{ duration: 1, ease: "easeOut" }}
+                                  style={{ height: '100%', background: '#ff00d4', borderRadius: '10px', boxShadow: '0 0 10px #ff00d4' }}
+                                />
+                              </Box>
+                            </Box>
+
+                            <Box>
+                              <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                <Typography variant="body2" fontWeight="bold">{inf2.name}</Typography>
+                                <Typography variant="body2" fontWeight="bold" color="#00ff95">{rate2.toFixed(2)}%</Typography>
+                              </Box>
+                              <Box sx={{ height: '12px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px', overflow: 'hidden' }}>
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${width2}%` }}
+                                  transition={{ duration: 1, ease: "easeOut" }}
+                                  style={{ height: '100%', background: '#00ff95', borderRadius: '10px', boxShadow: '0 0 10px #00ff95' }}
+                                />
+                              </Box>
+                            </Box>
+                            
+                            <Typography variant="caption" color="rgba(255,255,255,0.4)" display="block" textAlign="center" mt={1}>
+                              *Escala de engajamento baseada em {MAX_SCALE}%
+                            </Typography>
+                          </>
+                        );
+                    })()}
                   </Box>
                 </Box>
               </DialogContent>

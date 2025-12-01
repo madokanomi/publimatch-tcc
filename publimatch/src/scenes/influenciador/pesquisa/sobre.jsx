@@ -481,7 +481,7 @@ const InfluencerProfile = () => {
             </Box>
         );
 
-      case 'Campanhas':
+   case 'Campanhas':
         return (
           <Box 
             component={motion.div} key="campanhas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit"
@@ -502,48 +502,74 @@ const InfluencerProfile = () => {
                     transition: "all 0.3s ease", "&:hover": { backgroundColor: "rgba(255,255,255,0.12)", transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }
                   }}
                 >
-                  {/* Logo da Campanha */}
+                  {/* --- LOGO DA CAMPANHA (Com Fallback se não tiver imagem) --- */}
                   <Box 
                     sx={{
                       width: 60, height: 60, borderRadius: "12px", mr: 3, flexShrink: 0,
-                      backgroundImage: `url(${campanha.logo})`, backgroundSize: "cover", backgroundPosition: "center", backgroundRepeat: "no-repeat",
-                      backgroundColor: "rgba(0,0,0,0.5)"
+                      backgroundColor: "rgba(0,0,0,0.3)", 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      backgroundImage: campanha.logo ? `url(${campanha.logo})` : 'none',
+                      backgroundSize: "cover", backgroundPosition: "center"
                     }}
-                  />
+                  >
+                      {!campanha.logo && <Campaign sx={{ color: "rgba(255,255,255,0.3)", fontSize: 30 }} />}
+                  </Box>
                   
-                  {/* Informações da Campanha */}
-                  <Box flex={1} display="flex" justifyContent="space-between" alignItems="center">
-                    <Box>
-                      <Typography variant="h6" color="white" fontWeight="bold" mb={0.5}>Campanha</Typography>
-                      <Typography variant="h5" color="white" fontWeight="bold" mb={0.5}>{campanha.title}</Typography>
-                      <Typography variant="h6" color="rgba(255,255,255,0.6)">{new Date(campanha.endDate).toLocaleDateString('pt-BR')}</Typography>
+                  {/* --- INFORMAÇÕES E MÉTRICAS --- */}
+                  <Box flex={1} display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                    
+                    {/* Título e Data */}
+                    <Box minWidth="180px">
+                      <Typography variant="caption" color="rgba(255,255,255,0.5)" fontWeight="bold" textTransform="uppercase" letterSpacing={1}>
+                        Campanha
+                      </Typography>
+                      <Typography variant="h6" color="white" fontWeight="bold" lineHeight={1.2}>
+                        {campanha.title}
+                      </Typography>
+                      <Typography variant="body2" color="rgba(255,255,255,0.6)" mt={0.5}>
+                          {campanha.endDate ? new Date(campanha.endDate).toLocaleDateString('pt-BR') : 'Data não informada'}
+                      </Typography>
                     </Box>
                     
-                    {/* Métricas Reais */}
-                    <Box textAlign="center" mx={3}>
-                      <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Conversão</Typography>
-                      <Typography variant="body1" fontWeight="bold" sx={{ color: '#4caf50' }}>{campanha.conversion || 'N/A'}</Typography>
-                    </Box>
-                    <Box textAlign="center" mx={3}>
-                      <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Visualizações</Typography>
-                      <Typography variant="h6" color="white" fontWeight="bold">{campanha.views?.toLocaleString('pt-BR') || '-'}</Typography>
-                    </Box>
-                    <Box textAlign="center" mx={3}>
-                      <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Engajamento</Typography>
-                      <Typography variant="h6" color="white" fontWeight="bold">{campanha.engagement?.toLocaleString('pt-BR') || '-'}</Typography>
+                    {/* Métricas Reais (Conversão, Views, Engajamento) */}
+                    <Box display="flex" alignItems="center" gap={4} flexWrap="wrap">
+                        <Box textAlign="center">
+                          <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Conversão</Typography>
+                          <Typography variant="body1" fontWeight="bold" sx={{ color: '#4caf50' }}>
+                            {campanha.conversion || 'N/A'}
+                          </Typography>
+                        </Box>
+
+                        <Box textAlign="center">
+                          <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Visualizações</Typography>
+                          <Typography variant="h6" color="white" fontWeight="bold">
+                            {formatNumber(campanha.views)}
+                          </Typography>
+                        </Box>
+
+                        <Box textAlign="center">
+                          <Typography variant="caption" color="rgba(255,255,255,0.6)" mb={0.5} display="block">Engajamento</Typography>
+                          <Typography variant="h6" color="white" fontWeight="bold">
+                            {formatNumber(campanha.engagement)}
+                          </Typography>
+                        </Box>
                     </Box>
                     
+                    {/* Status Chip */}
                     <Box textAlign="center">
-                        <Chip label="Concluída" size="small" color="success" variant="outlined" />
+                        <Chip label="Concluída" size="small" color="success" variant="outlined" sx={{ fontWeight: 'bold' }} />
                     </Box>
                   </Box>
                 </Box>
               ))}
             </Box>
             ) : (
-                <Box textAlign="center" py={5}>
-                      <Typography variant="h6" color="rgba(255,255,255,0.6)">Nenhuma campanha concluída encontrada no histórico.</Typography>
-                </Box>
+              <Box textAlign="center" py={5}>
+                  <Campaign sx={{ fontSize: 60, color: "rgba(255,255,255,0.1)", mb: 2 }} />
+                  <Typography variant="h6" color="rgba(255,255,255,0.6)">
+                    Nenhuma campanha concluída encontrada no histórico.
+                  </Typography>
+              </Box>
             )}
           </Box>
         );

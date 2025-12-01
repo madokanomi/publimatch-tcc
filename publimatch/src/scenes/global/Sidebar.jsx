@@ -237,8 +237,8 @@ const Sidebar = () => {
                                         {user.name}
                                     </Typography>
                                 
-                                    <Typography variant="h6" color={colors.greenAccent[500]} sx={{ mt: "5px" }}>
-                                        {roleDisplayNames[user.role]}
+                                    <Typography variant="h6"  sx={{ mt: "5px"}}>
+                                       {user.email}
                                     </Typography>
                                 </Box>
                             </Box>

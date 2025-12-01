@@ -538,15 +538,18 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
 });
 
 // ✅ ATUALIZADO: Mantém a segurança do perfil público (histórico vs tudo)
+// backend/controllers/influencerController.js
+
 export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
   const { id: influencerId } = req.params;
-  const userRequesting = req.user; // Pode ser undefined se não houver middleware protect, ou o usuário logado
+  const userRequesting = req.user; 
 
   if (!influencerId) {
     res.status(400);
     throw new Error('O ID do influenciador é necessário.');
   }
 
+  // Busca o influenciador para confirmar permissões
   const influencerProfile = await Influencer.findById(influencerId);
   if (!influencerProfile) {
       res.status(404);
@@ -563,28 +566,34 @@ export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
   }
 
   if (hasFullAccess) {
+      // ✅ VISÃO PRIVADA (Sobrespec): Retorna Convites, Ativas e Histórico
       const [invites, participating, history] = await Promise.all([
+        // Convites pendentes
         Invite.find({ influencer: influencerId, status: 'PENDING' })
           .populate({ path: 'campaign', select: 'title logo endDate createdBy' })
           .populate('adAgent', 'name'),
 
+        // Campanhas Ativas (Aberta, Planejamento, Ativa)
         Campaign.find({
           participatingInfluencers: influencerId,
           status: { $in: ['Aberta', 'Planejamento', 'Ativa'] },
         }),
 
+        // ✅ Histórico (Concluída, Finalizada, Encerrada)
         Campaign.find({
           participatingInfluencers: influencerId,
-          status: 'Concluída',
+          status: { $in: ['Concluída', 'Finalizada', 'Encerrada'] },
         }),
       ]);
+      
       res.status(200).json({ invites, participating, history });
+
   } else {
-      // VISITANTE PÚBLICO: Vê apenas campanhas CONCLUÍDAS (Histórico)
+      // VISÃO PÚBLICA
       const history = await Campaign.find({
           participatingInfluencers: influencerId,
-          status: 'Concluída',
-      }).select('title logo endDate conversion views engagement'); 
+          status: { $in: ['Concluída', 'Finalizada', 'Encerrada'] }, 
+      }).select('title logo endDate conversion views engagement status'); 
 
       res.status(200).json({ invites: [], participating: [], history });
   }
