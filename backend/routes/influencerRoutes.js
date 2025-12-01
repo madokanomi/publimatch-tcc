@@ -28,8 +28,8 @@ router.route('/all')
     .get(getAllInfluencers); 
 
 // 2. Rota para buscar influenciadores por Agente
-router.route('/by-agent/:agentId')
-    .get(getInfluencersByAgent); 
+router.route('/agente/:agentId') // ✅ Alterado de '/by-agent/' para '/agente/'
+    .get(protect, getInfluencersByAgent); // ✅ Adicionado 'protect'
 
 // 3. Rota para Perfil Público (sem login)
 router.route('/public/:id')

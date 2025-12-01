@@ -1,5 +1,3 @@
-// src/scenes/chat/ChatWindow.jsx
-
 import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
@@ -13,13 +11,12 @@ import {
   DialogContentText,
   DialogActions,
   Button,
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  ListItemButton // Importado para tornar a lista clicável
+    CircularProgress,
+    List,
+    ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar 
 } from "@mui/material";
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
@@ -35,7 +32,7 @@ import axios from "axios";
 import { useAuth } from "../auth/AuthContext";
 
 const generateConsistentColor = (name) => {
-    if (!name) return '#6366f1';
+    if (!name) return '#6366f1'; // Uma cor padrão se o nome não existir
     const colors = [
         '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e',
         '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'
@@ -48,57 +45,81 @@ const generateConsistentColor = (name) => {
     return colors[index];
 };
 
-const ChatWindow = () => {
-  const { chatId } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth(); // Pegamos o user e o token daqui
 
-  const {
+const ChatWindow = () => {
+ const { chatId } = useParams();
+  const navigate = useNavigate();
+    const { user } = useAuth();
+
+  // ✅ FONTE ÚNICA DA VERDADE: Apenas dados do Contexto e Hooks
+   const {
         conversations,
         selectedConversation,
         setSelectedConversation,
         messages,
-        loading: conversationsLoading
+        loading: conversationsLoading // Renomeado para não conflitar!
     } = useConversation();
 
-  const { loading: messagesLoading } = useGetMessages();
-  const { sendMessage } = useSendMessage();
+ const { loading: messagesLoading } = useGetMessages();
+  const { sendMessage, loading: sendingLoading } = useSendMessage();
 
+  // ✅ ESTADO LOCAL: Apenas para controlar elementos da UI
   const [inputText, setInputText] = useState("");
   const [anchorEl, setAnchorEl] = useState(null);
   const [openConfirmDialog, setOpenConfirmDialog] = useState(false);
   const isMenuOpen = Boolean(anchorEl);
   const messagesEndRef = useRef(null);
-  
-  // Estados do Modal de Influenciadores
   const [agentModalOpen, setAgentModalOpen] = useState(false);
-  const [agentInfluencers, setAgentInfluencers] = useState([]);
-  const [modalLoading, setModalLoading] = useState(false);
+  const [agentInfluencers, setAgentInfluencers] = useState([]);
+  const [modalLoading, setModalLoading] = useState(false);
 
-  // Efeito 1: Selecionar conversa
-  useEffect(() => {
-        if (conversationsLoading) return;
+  // ✅ EFEITO 1: Seleciona a conversa correta no Contexto quando a URL muda
+ useEffect(() => {
+        // 1. Se a lista de conversas ainda está carregando, espere.
+        // A próxima renderização (quando o loading terminar) reativará este efeito.
+        if (conversationsLoading) {
+            return;
+        }
 
+        // 2. Se as conversas já carregaram, encontre a que corresponde à URL.
         const conversationFound = conversations.find((c) => c._id === chatId);
 
         if (conversationFound) {
+            // 3. Se a conversa foi encontrada e ainda não está selecionada no contexto, selecione-a.
             if (!selectedConversation || selectedConversation._id !== conversationFound._id) {
                 setSelectedConversation(conversationFound);
             }
         } else {
-            console.log("Conversa não encontrada. Redirecionando...");
+            // 4. Se o loading terminou e a conversa NÃO foi encontrada, a URL é inválida. Redirecione.
+            console.log("Conversa não encontrada após carregamento. Redirecionando...");
             navigate("/conversas");
         }
-    }, [chatId, conversations, conversationsLoading, selectedConversation, setSelectedConversation, navigate]);
+    }, [
+        chatId,
+        conversations,
+        conversationsLoading, // A dependência mais importante!
+        selectedConversation,
+        setSelectedConversation,
+        navigate,
+    ]);
 
-    // Efeito 2: Scroll
+    // ✅ EFEITO 2: Scroll automático (agora com a lógica correta)
     useEffect(() => {
+        // Rola para a mensagem mais recente sempre que a lista de mensagens mudar.
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+    }, [messages]); // Este efeito depende APENAS das mensagens.
 
-  const handleSendMessage = async () => {
-        if (!selectedConversation) return;
+
+
+  // ✅ FUNÇÃO DE ENVIO: Usa o hook 'useSendMessage'
+ const handleSendMessage = async () => {
+        if (!selectedConversation) return; // Safety check
+        
+        // ANTES:
+        // const otherUser = selectedConversation.participants.find(p => p._id !== authUser?._id);
+        // DEPOIS:
         const otherUser = selectedConversation.participants.find(p => p._id !== user?._id);
+
         if (!otherUser) return;
 
         if (inputText.trim() !== "") {
@@ -107,11 +128,13 @@ const ChatWindow = () => {
         }
     };
     
+  
+    // ✅ FUNÇÃO DE DELETAR: Faz a chamada para a API
   const confirmDelete = async () => {
     if (!selectedConversation) return;
     try {
-     const config = { headers: { Authorization: `Bearer ${user.token}` } };
-     await axios.delete(`http://localhost:5001/api/chat/${selectedConversation._id}`, config);
+      // Idealmente, isso também seria um hook (ex: useDeleteConversation)
+     await axios.delete(`/api/chat/${selectedConversation._id}`);
       setOpenConfirmDialog(false);
       navigate("/conversas");
     } catch (error) {
@@ -119,60 +142,57 @@ const ChatWindow = () => {
     }
   };
 
-  // ✅ LÓGICA CORRIGIDA DO MODAL DE AGENTE
   const handleOpenAgentModal = async () => {
-    const otherUser = selectedConversation.participants.find(p => p._id !== user?._id);
-    if (!otherUser) return;
+    // 'otherUser' já está definido mais abaixo no seu código,
+    // mas vamos garantir que ele exista aqui.
+    const otherUser = selectedConversation.participants.find(p => p._id !== user?._id);
+    if (!otherUser) return;
 
-    setAgentModalOpen(true);
-    setModalLoading(true);
-    
-    try {
-      // Usa o token direto do useAuth
-      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+    setAgentModalOpen(true);
+    setModalLoading(true);
+    try {
+        // 1. Pega o token do usuário logado (necessário para a rota 'protect')
+        const userInfo = JSON.parse(sessionStorage.getItem('user'));
+        const token = userInfo ? userInfo.token : null;
 
-      // Chama a API (certifique-se que a porta está certa, ex: 5001)
-      const { data } = await axios.get(
-            `http://localhost:5001/api/influencers/agente/${otherUser._id}`, 
-            config
+        // 2. Chama a NOVA API que criamos
+      const { data } = await axios.get(
+            `/api/influencers/agente/${otherUser._id}`, 
+            { headers: { Authorization: `Bearer ${token}` } }
         );
-      
-      setAgentInfluencers(data);
-    } catch (error) {
-      console.error("Erro ao buscar influenciadores do agente:", error);
-      setAgentInfluencers([]); 
-    } finally {
-      setModalLoading(false);
-    }
-  };
+      setAgentInfluencers(data);
+    } catch (error) {
+      console.error("Erro ao buscar influenciadores do agente:", error);
+      setAgentInfluencers([]); // Limpa em caso de erro
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
-  const handleCloseAgentModal = () => {
-    setAgentModalOpen(false);
-  };
+  const handleCloseAgentModal = () => {
+    setAgentModalOpen(false);
+  };
 
   const handleGoBack = () => {
-    setSelectedConversation(null);
+    setSelectedConversation(null); // Limpa o estado global ao sair
     navigate("/conversas");
   };
   
+  // Funções de UI que permanecem
   const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
   const handleMenuClose = () => setAnchorEl(null);
-  
   const handleDeleteConversation = () => {
     setOpenConfirmDialog(true);
     handleMenuClose();
   };
-  
   const cancelDelete = () => setOpenConfirmDialog(false);
-
-  if (conversationsLoading) {
-      return (
-          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
-              <CircularProgress color="inherit" />
-          </Box>
-      );
-  }
-  
+    if (conversationsLoading) {
+        return (
+            <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                <CircularProgress color="inherit" />
+            </Box>
+        );
+    }
   if (!selectedConversation) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" height="100%">
@@ -183,15 +203,17 @@ const ChatWindow = () => {
         );
     }
 
+  // Encontra o outro usuário na conversa para exibir nome e foto
   const validParticipants = selectedConversation.participants.filter(p => p);
-  const otherUser = validParticipants.find(p => p._id !== user?._id);
+    // ANTES:
+    // const otherUser = validParticipants.find(p => p._id !== authUser?._id);
+    // DEPOIS:
+    const otherUser = validParticipants.find(p => p._id !== user?._id);
   const initial = otherUser?.name ? otherUser.name[0].toUpperCase() : '?';
-  const hasValidImage = otherUser?.profileImageUrl && !otherUser.profileImageUrl.includes("default"); // Ajuste conforme sua lógica de imagem padrão
-  
-  // ✅ CORREÇÃO: Mostra o botão SE o outro usuário for um Agente de Influenciadores
-  const showAgentButton = otherUser?.role === 'INFLUENCER_AGENT';
+ const hasValidImage = otherUser?.profileImageUrl && otherUser.profileImageUrl !== "URL_DA_SUA_IMAGEM_PADRAO.png";
+    const showAgentButton = otherUser?.role !== 'AD_AGENT' && otherUser?.role !== 'INFLUENCER';
 
-  return (
+    return (
     <Box
       sx={{
         flex: 1,
@@ -206,7 +228,7 @@ const ChatWindow = () => {
         ml: "40px",
       }}
     >
-      {/* Header */}
+      {/* Header do Chat */}
       <Box
         display="flex"
         alignItems="center"
@@ -221,47 +243,60 @@ const ChatWindow = () => {
           <IconButton onClick={handleGoBack} sx={{ color: "white" }}>
             <ArrowBackIcon />
           </IconButton>
-          
-            {hasValidImage ? (
-                <img
-                    src={otherUser.profileImageUrl}
-                    alt={otherUser.name}
-                    style={{ width: 50, height: 50, borderRadius: "40%", objectFit: "cover" }}
-                />
-            ) : (
-                <Box
-                    sx={{
-                        width: 50, height: 50, borderRadius: '40%',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: generateConsistentColor(otherUser?.name),
-                        color: 'white', fontSize: '24px', fontWeight: 'bold',
-                    }}
-                >
-                    {initial}
-                </Box>
-            )}
+          {/* ✅ A MUDANÇA PRINCIPAL ESTÁ AQUI */}
+                    {hasValidImage ? (
+                        <img
+                            src={otherUser.profileImageUrl}
+                            alt={otherUser.name}
+                            style={{
+                                width: 50,
+                                height: 50,
+                                borderRadius: "40%",
+                                objectFit: "cover",
+                            }}
+                        />
+                    ) : (
+                        <Box
+                            sx={{
+                                width: 50,
+                                height: 50,
+                                borderRadius: '40%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: generateConsistentColor(otherUser?.name),
+                                color: 'white',
+                                fontSize: '24px',
+                                fontWeight: 'bold',
+                            }}
+                        >
+                            {initial}
+                        </Box>
+                    )}
           <Typography variant="h4" fontWeight="bold" color="white">
             {otherUser?.name}
           </Typography>
 
-          {/* Botão de Ver Influenciadores (Interrogação) */}
-          {showAgentButton && (
-            <IconButton
-              onClick={handleOpenAgentModal}
-              sx={{
-                color: 'white',
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                ml: 1,
-                '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.3)' },
-                width: '28px',
-                height: '28px',
-                padding: 0,
-                borderRadius: '50%'
-              }}
-            >
-              <HelpOutlineIcon sx={{ fontSize: '18px' }} /> 
-            </IconButton>
-          )}
+            {showAgentButton && (
+            <IconButton
+              onClick={handleOpenAgentModal}
+              sx={{
+      color: 'white',
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      ml: 1,
+      '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.3)' },
+
+      // ✅ A MÁGICA ESTÁ AQUI:
+      width: '28px',       // Define uma largura fixa
+      height: '28px',      // Define uma altura fixa
+      padding: 0,          // Remove o padding interno
+      borderRadius: '50%'  // Garante a forma de círculo
+    }}
+  >
+    {/* Ajustamos o ícone para caber perfeitamente */}
+    <HelpOutlineIcon sx={{ fontSize: '18px' }} /> 
+  </IconButton>
+          )}
         </Box>
         <Box>
           <IconButton onClick={handleMenuClick} sx={{ color: "white" }}>
@@ -287,7 +322,7 @@ const ChatWindow = () => {
         </Box>
       </Box>
 
-      {/* Lista de Mensagens */}
+      {/* Mensagens (BLOCO CORRIGIDO) */}
       <Box
         flexGrow={1}
         p={2}
@@ -305,19 +340,33 @@ const ChatWindow = () => {
         }}
       >
         {messagesLoading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+          <Box
+            display="flex"
+            justifyContent="center"
+            alignItems="center"
+            height="100%"
+          >
+            {/* Lembre-se de importar o CircularProgress */}
             <CircularProgress color="inherit" />
           </Box>
         ) : messages.length > 0 ? (
-            messages.map((msg) => (
-                <ChatMessage
-                    key={msg._id}
-                    message={msg}
-                    currentUserId={user._id}
-                />
+                  messages.map((msg) => (
+                        <ChatMessage
+                            key={msg._id}
+                            message={msg}
+                            // ANTES:
+                            // currentUserId={authUser._id}
+                            // DEPOIS:
+                            currentUserId={user._id}
+                        />
           ))
         ) : (
-          <Box display="flex" alignItems="center" justifyContent="center" height="100%">
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            height="100%"
+          >
             <Typography color="rgba(255,255,255,0.6)">
               Nenhuma mensagem neste chat.
             </Typography>
@@ -326,8 +375,17 @@ const ChatWindow = () => {
         <div ref={messagesEndRef} />
       </Box>
 
-      {/* Input */}
-      <Box sx={{ position: "absolute", left: 24, right: 24, bottom: 24, background: "transparent", zIndex: 30 }}>
+      {/* Input de Mensagem */}
+      <Box
+        sx={{
+          position: "absolute",
+          left: 24,
+          right: 24,
+          bottom: 24,
+          background: "transparent",
+          zIndex: 30,
+        }}
+      >
         <ChatInput
           inputText={inputText}
           setInputText={setInputText}
@@ -335,10 +393,12 @@ const ChatWindow = () => {
         />
       </Box>
 
-      {/* Diálogo de confirmação de exclusão */}
+      {/* Diálogo de confirmação */}
       <Dialog
         open={openConfirmDialog}
         onClose={cancelDelete}
+        aria-labelledby="alert-dialog-title"
+        aria-describedby="alert-dialog-description"
         sx={{
           "& .MuiPaper-root": {
             backgroundColor: "rgba(255, 255, 255, 0.64)",
@@ -348,82 +408,103 @@ const ChatWindow = () => {
           },
         }}
       >
-        <DialogTitle>{"Confirmar exclusão"}</DialogTitle>
+        <DialogTitle id="alert-dialog-title">
+          {"Confirmar exclusão"}
+        </DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: "#4f4f4fff" }}>
-            Tem certeza de que deseja apagar esta conversa?
+          <DialogContentText
+            id="alert-dialog-description"
+            sx={{ color: "#4f4f4fff" }}
+          >
+            Tem certeza de que deseja apagar esta conversa? Essa ação não poderá
+            ser desfeita.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={cancelDelete} sx={{ color: "#540069ff" }}>Cancelar</Button>
-          <Button onClick={confirmDelete} sx={{ fontWeight: "bold" }} color="error">Apagar</Button>
+          <Button onClick={cancelDelete} sx={{ color: "#540069ff" }}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={confirmDelete}
+            sx={{ fontWeight: "bold" }}
+            color="error"
+            autoFocus
+          >
+            Apagar
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* ✅ DIÁLOGO DOS INFLUENCIADORES (MODAL) */}
-      <Dialog
-        open={agentModalOpen}
-        onClose={handleCloseAgentModal}
-        sx={{
-            "& .MuiPaper-root": {
-            backgroundColor: "rgba(255, 255, 255, 0.9)", // Fundo um pouco mais sólido para leitura
-            color: "#610069ff",
-            backdropFilter: "blur(30px)",
-            borderRadius: "20px",
-            minWidth: "320px",
-            maxHeight: "500px" // Limite de altura
-            },
-        }}
-        >
-        <DialogTitle fontWeight="bold">
-            Influenciadores de {otherUser?.name}
-        </DialogTitle>
-        <DialogContent dividers>
-            {modalLoading ? (
-            <Box display="flex" justifyContent="center" my={3}>
-                <CircularProgress color="inherit" />
-            </Box>
-            ) : (
-            <List>
-                {agentInfluencers.length > 0 ? (
-                agentInfluencers.map((influ) => (
-                    // ✅ Usando ListItemButton para permitir clique e navegação
-                    <ListItemButton 
-                        key={influ._id} 
-                        onClick={() => {
-                            navigate(`/influencer/${influ._id}`); // Ajuste a rota para o seu padrão de perfil
-                            handleCloseAgentModal();
-                        }}
-                    >
-                    <ListItemAvatar>
-                        <Avatar src={influ.profileImageUrl} alt={influ.name}>
-                        {influ.name[0]}
-                        </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText 
-                        primary={influ.name} 
-                        secondary={`${influ.niches?.join(", ") || "Sem nicho"}`} // Mostra nichos como secundário
-                        sx={{
-                            "& .MuiListItemText-primary": { color: "#4f4f4fff", fontWeight: "bold" },
-                            "& .MuiListItemText-secondary": { color: "rgba(0,0,0,0.5)", fontSize: "0.8rem" }
-                        }}
-                    />
-                    </ListItemButton>
-                ))
-                ) : (
-                <Typography sx={{ color: "#4f4f4fff", textAlign: 'center', p: 2 }}>
-                    Nenhum influenciador encontrado.
-                </Typography>
-                )}
-            </List>
-            )}
-        </DialogContent>
-        <DialogActions>
-            <Button onClick={handleCloseAgentModal} sx={{ color: "#540069ff", fontWeight: 'bold' }}>
-            Fechar
-            </Button>
-        </DialogActions>
-        </Dialog>
+        {/* ✅ ADICIONE O NOVO MODAL (DIALOG) DO AGENTE */}
+      <Dialog
+        open={agentModalOpen}
+        onClose={handleCloseAgentModal}
+        sx={{ // ✅ 1. ESTILO IDÊNTICO AO DIÁLOGO DE EXCLUSÃO
+    "& .MuiPaper-root": {
+      backgroundColor: "rgba(255, 255, 255, 0.64)", // Corrigido
+      color: "#610069ff",                      // Mantido
+      backdropFilter: "blur(30px)",               // Corrigido
+      borderRadius: "20px",                     // Mantido
+      minWidth: "300px"                         // Mantido
+    },
+  }}
+>
+  <DialogTitle fontWeight="bold">
+    Influenciadores de {otherUser?.name}
+  </DialogTitle>
+
+  {/* ✅ AQUI ESTÁ A MUDANÇA */}
+  <DialogContent sx={{
+    overflowY: 'auto',
+    "&::-webkit-scrollbar": { width: "8px" },
+    "&::-webkit-scrollbar-track": {
+      background: "rgba(0, 0, 0, 0.2)",
+      borderRadius: "10px",
+    },
+    "&::-webkit-scrollbar-thumb": {
+      backgroundColor: "rgba(255, 255, 255, 0.3)",
+      borderRadius: "10px",
+      border: "2px solid transparent",
+      backgroundClip: "content-box",
+    },
+    "&::-webkit-scrollbar-thumb:hover": {
+      backgroundColor: "rgba(255, 255, 255, 0.5)",
+    },
+  }}>
+    {modalLoading ? (
+      <Box display="flex" justifyContent="center" my={3}>
+        <CircularProgress color="inherit" />
+      </Box>
+    ) : (
+      // Adicionei paddingTop: 0 para a lista não ficar com
+      // um espaço estranho no topo por causa do DialogContent
+      <List sx={{ paddingTop: 0 }}>
+        {agentInfluencers.length > 0 ? (
+          agentInfluencers.map((influ) => (
+            <ListItem key={influ._id}>
+              <ListItemAvatar>
+                <Avatar src={influ.profileImageUrl} alt={influ.name}>
+                  {influ.name[0]}
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText primary={influ.name} sx={{color: "#4f4f4fff"}}/>
+            </ListItem>
+          ))
+        ) : (
+          <Typography sx={{ color: "#4f4f4fff", textAlign: 'center', p: 2 }}>
+            Este agente não gerencia influenciadores no momento.
+          </Typography>
+        )}
+      </List>
+    )}
+  </DialogContent>
+  <DialogActions>
+    {/* ✅ 4. COR DO BOTÃO IDÊNTICA */}
+    <Button onClick={handleCloseAgentModal} sx={{ color: "#540069ff" }}>
+      Fechar
+    </Button>
+  </DialogActions>
+</Dialog>
 
     </Box>
   );
