@@ -323,8 +323,9 @@ export const getMyCampaigns = async (req, res) => {
     if (!req.user || !req.user._id) {
       return res.status(401).json({ message: 'Não autorizado' });
     }
+    
+    // CORREÇÃO: Removido o .select('title _id') para retornar o objeto completo (logo, status, etc)
     const campaigns = await Campaign.find({ createdBy: req.user._id })
-      .select('title _id')
       .sort({ createdAt: -1 });
     
     res.status(200).json(campaigns);

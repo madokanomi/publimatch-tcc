@@ -424,15 +424,22 @@ export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     res.status(200).json(campaign.participatingInfluencers);
 });
 
+// controllers/influencerController.js
+
 export const getInfluencersByAgent = asyncHandler(async (req, res) => {
     const { agentId } = req.params;
+    
+    // CORREÇÃO: Retornamos os dados necessários e garantimos que niches e imagens venham.
+    // Se quiser retornar TUDO, basta remover o .select
     const influencers = await Influencer.find({ agent: agentId })
-        .select('name profileImageUrl realName social'); 
+        .select('name profileImageUrl realName social niches agent'); 
 
+    // CORREÇÃO: Retorna array vazio em vez de erro 404 se não encontrar nada
+    // Isso evita que o frontend trate como "Erro de API"
     if (influencers) {
         res.status(200).json(influencers);
     } else {
-        res.status(404).json({ message: 'Nenhum influenciador encontrado para este agente.' });
+        res.status(200).json([]); 
     }
 });
 

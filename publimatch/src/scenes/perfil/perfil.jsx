@@ -8,8 +8,10 @@ import {
   Edit, ArrowBack, BusinessCenter, 
   Groups, Email, Phone, VerifiedUser, Security,
   Language, AccessTime, CheckCircle,
-  Instagram, YouTube, Twitter
+  Instagram, YouTube, Twitter,
+  Star, Favorite, Visibility, BarChart // Novos ícones
 } from "@mui/icons-material";
+import MusicNoteIcon from "@mui/icons-material/MusicNote"; // Para TikTok caso não use FaTiktok
 import { FaTwitch, FaTiktok } from 'react-icons/fa'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from "react-router-dom";
@@ -23,9 +25,16 @@ const ROLES = {
     ADMIN: 'ADMIN'
 };
 
-// --- COMPONENTE AUXILIAR PARA ÍCONES SOCIAIS ---
+// Função auxiliar para formatar números (K, M)
+const formatNumber = (num) => {
+  if (!num) return "0";
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+};
+
 const SocialIcon = ({ network }) => {
-    const iconStyle = { color: "rgba(255,255,255,0.7)", fontSize: '20px' };
+    const iconStyle = { color: "white", fontSize: '20px' };
     const net = network ? network.toLowerCase() : '';
     
     if (net.includes("instagram")) return <Tooltip title="Instagram"><Instagram sx={iconStyle} /></Tooltip>;
@@ -37,37 +46,23 @@ const SocialIcon = ({ network }) => {
     return null;
 };
 
-// --- FUNÇÃO AUXILIAR PARA EXTRAIR TEXTO DO TIPTAP (JSON) ---
 const extractTextFromTipTap = (content) => {
     if (!content) return "";
-
     try {
-        // Se já for uma string simples (não JSON), retorna ela mesma
-        if (typeof content === 'string' && !content.trim().startsWith('{')) {
-            return content;
-        }
-
-        // Se for string JSON, faz o parse primeiro
+        if (typeof content === 'string' && !content.trim().startsWith('{')) return content;
         let json = content;
         if (typeof content === 'string') {
-            try {
-                json = JSON.parse(content);
-            } catch (e) {
-                return content; // Falha no parse, retorna como está
-            }
+            try { json = JSON.parse(content); } catch (e) { return content; }
         }
-
-        // Se for estrutura do Tiptap (doc -> content -> paragraph -> text)
         if (json && json.type === 'doc' && Array.isArray(json.content)) {
             return json.content.map(node => {
                 if (node.content && Array.isArray(node.content)) {
                     return node.content.map(n => n.text).join('');
                 }
-                return '\n'; // Parágrafos vazios viram quebra de linha
+                return '\n'; 
             }).join('\n');
         }
-
-        return ""; // Estrutura desconhecida
+        return ""; 
     } catch (error) {
         console.error("Erro ao processar bio:", error);
         return "";
@@ -81,7 +76,6 @@ const UserProfile = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  // Lógica de Identidade
   const isOwnProfile = !id || (authUser && id === authUser._id);
   const profileId = id || (authUser ? authUser._id : null);
 
@@ -93,7 +87,7 @@ const UserProfile = () => {
   // Variantes de Animação
   const staggerContainer = {
     hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } },
   };
   const staggerItem = {
     hidden: { y: 20, opacity: 0 },
@@ -105,18 +99,20 @@ const UserProfile = () => {
     exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } }
   };
 
-  // --- FETCH DATA ---
   useEffect(() => {
     const fetchProfile = async () => {
         if (!profileId) return;
         setLoading(true);
         try {
-            // 1. Fetch Dados do Usuário
+            console.log("Buscando perfil para ID:", profileId);
             const res = await axios.get(`http://localhost:5001/api/users/public/${profileId}`);
             let userData = res.data;
             
+            const userRole = userData.role ? userData.role.toUpperCase() : "";
+
             const safeUserData = {
                 ...userData,
+                role: userRole,
                 profileImageUrl: userData.profileImageUrl || "",
                 backgroundImageUrl: userData.backgroundImageUrl || "",
                 privacySettings: userData.privacySettings || { showEmail: false, showPhone: false, isProfilePublic: true }
@@ -124,44 +120,47 @@ const UserProfile = () => {
 
             setProfileData(safeUserData);
 
-            // 2. Busca Campanhas ou Influenciadores
             const tokenConfig = authUser?.token ? { headers: { Authorization: `Bearer ${authUser.token}` } } : {};
+            let fetchedData = [];
 
-            if (safeUserData.role === ROLES.AD_AGENT) {
+            if (userRole === ROLES.AD_AGENT) {
                 const url = isOwnProfile 
                     ? 'http://localhost:5001/api/campaigns/my-campaigns' 
                     : `http://localhost:5001/api/campaigns/public?creator=${profileId}`;
-                try {
-                    const campRes = await axios.get(url, tokenConfig);
-                    setRelatedData(campRes.data);
-                } catch (e) { setRelatedData([]); }
+                
+                const campRes = await axios.get(url, tokenConfig);
+                fetchedData = Array.isArray(campRes.data) ? campRes.data : [];
 
-            } else if (safeUserData.role === ROLES.INFLUENCER_AGENT) {
+            } else if (userRole === ROLES.INFLUENCER_AGENT) {
                 const url = isOwnProfile 
                     ? 'http://localhost:5001/api/influencers'
                     : `http://localhost:5001/api/influencers/by-agent/${profileId}`;
                 
-                try {
-                    const infRes = await axios.get(url, tokenConfig);
-                    
-                    const augmentedInfluencers = infRes.data.map(influencer => ({
-                        ...influencer,
-                        randomStats: {
-                            views: (Math.random() * 5 + 1).toFixed(1),
-                            publications: Math.floor(Math.random() * 20) + 5,
-                            platform: ["Stories, Vídeos", "Reels, Posts", "Vídeos Longos"][Math.floor(Math.random() * 3)],
-                            conversion: Math.floor(Math.random() * 50) + 40,
-                        },
-                        social: influencer.social || {} 
-                    }));
-                    setRelatedData(augmentedInfluencers);
-                } catch (e) { 
-                    setRelatedData([]); 
-                }
+                const infRes = await axios.get(url, tokenConfig);
+                const rawData = Array.isArray(infRes.data) ? infRes.data : [];
+
+                // Mapeia os dados, priorizando aggregatedStats se vier do backend
+                fetchedData = rawData.map(influencer => ({
+                    ...influencer,
+                    // Se o backend já mandar aggregatedStats, usamos. Se não, fallback.
+                    aggregatedStats: influencer.aggregatedStats || {
+                        followers: influencer.followersCount || Math.floor(Math.random() * 100000),
+                        views: influencer.views || Math.floor(Math.random() * 500000),
+                        likes: influencer.curtidas || Math.floor(Math.random() * 20000),
+                        engagementRate: influencer.engagementRate || 0
+                    },
+                    avaliacao: influencer.avaliacao || (Math.random() * 2 + 3), // Mock se não tiver
+                    niches: influencer.niches || [],
+                    social: influencer.social || {} 
+                }));
             }
+
+            setRelatedData(fetchedData);
 
         } catch (error) {
             console.error("Erro ao carregar perfil:", error);
+            if (!profileData) setProfileData(null); 
+            setRelatedData([]);
         } finally {
             setLoading(false);
         }
@@ -172,27 +171,24 @@ const UserProfile = () => {
   if (loading) return <Box display="flex" justifyContent="center" alignItems="center" height="80vh"><CircularProgress sx={{ color: '#db1db5' }} /></Box>;
   if (!profileData) return <Typography p={5} color="white" align="center">Usuário não encontrado.</Typography>;
 
+  const secondTabName = profileData.role === ROLES.AD_AGENT ? 'Campanhas' : 'Agenciados';
+
   const tabs = [
       { name: 'Sobre', icon: VerifiedUser },
       { 
-          name: profileData.role === ROLES.AD_AGENT ? 'Campanhas' : 'Agenciados', 
+          name: secondTabName, 
           icon: profileData.role === ROLES.AD_AGENT ? BusinessCenter : Groups 
       }
   ];
-
-  const gridTemplate = "2.5fr 1.5fr 1.5fr 1fr 1.5fr 1fr";
-  const primaryPink = "#db1db5"; 
-  const lightPinkBg = "rgba(219, 29, 181, 0.2)";
 
   // --- RENDER CONTENT ---
   const renderTabContent = () => {
     switch (activeTab) {
       case "Sobre":
-        // Processa o texto da biografia antes de renderizar
         const bioText = extractTextFromTipTap(profileData.bio);
-
         return (
           <Box
+            key="sobre-box"
             component={motion.div} variants={tabContentVariant} initial="hidden" animate="visible" exit="exit"
             sx={{
               backgroundColor: "rgba(27, 27, 27, 0.26)", borderRadius: "20px", p: { xs: 2, md: 4 },
@@ -219,11 +215,18 @@ const UserProfile = () => {
           </Box>
         );
 
-      case "Campanhas": // AD_AGENT
+      case "Campanhas": 
         return (
-            <Box component={motion.div} variants={staggerContainer} initial="hidden" animate="visible">
-                {relatedData.length === 0 ? (
-                    <Box textAlign="center" py={5} sx={{ backgroundColor: "rgba(255,255,255,0.02)", borderRadius: "20px" }}>
+            <Box 
+                key="campanhas-list" 
+                component={motion.div} variants={staggerContainer} initial="hidden" animate="visible"
+                sx={{
+                    backgroundColor: "rgba(20, 1, 19, 0.6)", p: 3, borderRadius: "12px",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                }}
+            >
+                {(!relatedData || relatedData.length === 0) ? (
+                    <Box textAlign="center" py={5}>
                           <Typography color="rgba(255,255,255,0.5)">Nenhuma campanha encontrada.</Typography>
                     </Box>
                 ) : (
@@ -232,7 +235,7 @@ const UserProfile = () => {
                             <Box 
                                 component={motion.div} variants={staggerItem}
                                 key={campaign._id || i}
-                                onClick={() => navigate(`/dashboard/campaigns/${campaign._id}`)}
+                                onClick={() => navigate(`/campaign/${campaign._id}?view=about`)}
                                 sx={{
                                     p: 3, borderRadius: "20px",
                                     backgroundColor: "rgba(255,255,255,0.05)",
@@ -260,7 +263,7 @@ const UserProfile = () => {
                                     <Typography variant="h6" color="white" fontWeight="bold">{campaign.title}</Typography>
                                     <Box display="flex" gap={1} mt={1}>
                                         <Chip 
-                                            label={campaign.status} 
+                                            label={campaign.status || 'Indefinido'} 
                                             size="small" 
                                             icon={campaign.status === 'Aberta' ? <CheckCircle sx={{ fontSize: '14px !important' }} /> : <AccessTime sx={{ fontSize: '14px !important' }} />}
                                             sx={{ 
@@ -272,7 +275,14 @@ const UserProfile = () => {
                                     </Box>
                                 </Box>
                                 <Box textAlign="right" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                                    <Button variant="outlined" sx={{ color: "white", borderColor: "rgba(255,255,255,0.3)", borderRadius: "20px", textTransform: "none" }}>
+                                    <Button 
+                                        variant="outlined" 
+                                        onClick={(e) => {
+                                            e.stopPropagation(); 
+                                            navigate(`/campaign/${campaign._id}?view=about`);
+                                        }}
+                                        sx={{ color: "white", borderColor: "rgba(255,255,255,0.3)", borderRadius: "20px", textTransform: "none" }}
+                                    >
                                         Ver Detalhes
                                     </Button>
                                 </Box>
@@ -283,100 +293,177 @@ const UserProfile = () => {
             </Box>
         );
 
-      case "Agenciados": // INFLUENCER_AGENT
+      case "Agenciados": 
           return (
-            <Box component={motion.div} variants={staggerContainer} initial="hidden" animate="visible"
+            <Box 
+                key="agenciados-list" 
+                component={motion.div} variants={staggerContainer} initial="hidden" animate="visible"
                 sx={{
                     backgroundColor: "rgba(20, 1, 19, 0.6)", p: 3, borderRadius: "12px",
                     border: "1px solid rgba(255, 255, 255, 0.1)",
                 }}
             >
-                 {relatedData.length === 0 ? (
+                 {(!relatedData || relatedData.length === 0) ? (
                       <Box textAlign="center" py={5}>
                          <Typography color="rgba(255,255,255,0.5)">Nenhum influenciador encontrado.</Typography>
                       </Box>
                   ) : (
-                      <>
-                        <Box
-                            sx={{
-                                display: { xs: "none", md: "grid" }, 
-                                gridTemplateColumns: gridTemplate, 
-                                gap: 2, py: 1.5, px: 2, mb: 2,
-                                alignItems: "center", color: "rgba(255,255,255,0.6)", fontWeight: "bold",
-                                textTransform: 'uppercase', fontSize: '0.8rem',
-                            }}
-                        >
-                            <Typography variant="caption" fontWeight="bold">Nome</Typography>
-                            <Typography variant="caption" fontWeight="bold">Visualizações</Typography>
-                            <Typography variant="caption" fontWeight="bold">Publicações</Typography>
-                            <Typography variant="caption" fontWeight="bold">Redes Sociais</Typography>
-                            <Typography variant="caption" fontWeight="bold">Especialidade</Typography>
-                            <Typography variant="caption" fontWeight="bold">Conversão</Typography>
-                        </Box>
-
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {relatedData.map((influencer) => (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {relatedData.map((influencer) => {
+                             // Extrai estatísticas ou usa padrão seguro
+                             const stats = influencer.aggregatedStats || { followers: 0, views: 0, likes: 0 };
+                             
+                             return (
                                 <Box 
                                     key={influencer._id} 
-                                    onClick={() => navigate(`/dashboard/influencers/${influencer._id}`)}
+                                    onClick={() => navigate(`/influenciador/${influencer._id}`)}
                                     component={motion.div} variants={staggerItem}
                                     sx={{ 
-                                        position: 'relative', backgroundColor: "rgba(255, 255, 255, 0.05)",
-                                        borderRadius: "16px", overflow: 'hidden', transition: 'all 0.3s',
+                                        position: 'relative', 
+                                        // Estilo baseado no InfluencerCard
+                                        background: `linear-gradient(90deg, rgba(20, 3, 41, 0.95) 0%, rgba(20, 3, 41, 0.7) 100%), url(${influencer.backgroundImageUrl || ''})`,
+                                        backgroundSize: "cover",
+                                        backgroundPosition: "center",
+                                        borderRadius: "20px", 
+                                        overflow: 'hidden', 
+                                        transition: 'all 0.3s',
                                         cursor: 'pointer',
-                                        '&:hover': { backgroundColor: "rgba(255, 255, 255, 0.1)", transform: "translateX(5px)" }
+                                        border: "1px solid rgba(255,255,255,0.1)",
+                                        boxShadow: "0px 4px 20px rgba(0, 0, 0, 0.2)",
+                                        '&:hover': { 
+                                            borderColor: "rgba(255, 0, 212, 0.5)", 
+                                            transform: "translateY(-3px)",
+                                            boxShadow: "0px 10px 30px rgba(0, 0, 0, 0.4)"
+                                        }
                                     }}
                                 >
                                     <Box sx={{
                                         display: "grid", 
-                                        gridTemplateColumns: { xs: "1fr", md: gridTemplate }, 
-                                        gap: { xs: 2, md: 2 },
-                                        py: 2, px: 2, alignItems: "center",
+                                        gridTemplateColumns: { xs: "1fr", md: "2.5fr 2fr 1.5fr" }, // Layout responsivo
+                                        gap: { xs: 2, md: 3 },
+                                        p: 3, alignItems: "center",
                                     }}>
+                                        
+                                        {/* COLUNA 1: Perfil e Nichos */}
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                            <Avatar src={influencer.profileImageUrl} alt={influencer.name} sx={{ width: 48, height: 48, borderRadius: "12px" }} variant="rounded" />
+                                            <Avatar 
+                                                src={influencer.profileImageUrl} 
+                                                alt={influencer.name} 
+                                                sx={{ 
+                                                    width: 80, height: 80, 
+                                                    boxShadow: "0px 4px 15px rgba(0,0,0,0.5)",
+                                                    border: "2px solid rgba(255,255,255,0.2)"
+                                                }} 
+                                            />
                                             <Box>
-                                                <Typography color="white" fontWeight="bold">{influencer.name}</Typography>
-                                                <Typography variant="caption" color="rgba(255,255,255,0.5)">
+                                                <Typography color="white" variant="h6" fontWeight="bold" lineHeight={1.2}>
+                                                    {influencer.name}
+                                                </Typography>
+                                                <Typography variant="body2" color="rgba(255,255,255,0.6)" mb={1}>
                                                     {influencer.realName || "Influencer"}
                                                 </Typography>
+                                                
+                                                <Box display="flex" gap={0.5} flexWrap="wrap">
+                                                    {influencer.niches?.slice(0, 2).map((cat, i) => (
+                                                        <Chip key={i} label={cat} size="small"
+                                                            sx={{ 
+                                                                backdropFilter: "blur(5px)", 
+                                                                bgcolor: "rgba(255,255,255,0.1)", 
+                                                                color: "white",
+                                                                fontSize: "0.65rem",
+                                                                height: "22px"
+                                                            }} 
+                                                        />
+                                                    ))}
+                                                </Box>
                                             </Box>
                                         </Box>
-                                        <Box>
-                                            <Typography variant="caption" display={{ xs: 'block', md: 'none' }} color="rgba(255,255,255,0.5)">Views</Typography>
-                                            <Typography color="white" fontWeight="bold">{influencer.randomStats?.views}M</Typography>
+
+                                        {/* COLUNA 2: Métricas (Box de Destaque) */}
+                                        <Box 
+                                            display="flex" 
+                                            justifyContent="space-between" 
+                                            bgcolor="rgba(0,0,0,0.4)" 
+                                            borderRadius="12px" 
+                                            p={1.5}
+                                            sx={{ border: "1px solid rgba(255,255,255,0.05)" }}
+                                        >
+                                            <Box textAlign="center" flex={1}>
+                                                <Box display="flex" alignItems="center" justifyContent="center" gap={0.5} color="#b2ff59">
+                                                    <Groups sx={{ fontSize: 18 }} /> 
+                                                    <Typography variant="body1" fontWeight="bold">{formatNumber(stats.followers)}</Typography>
+                                                </Box>
+                                                <Typography variant="caption" color="rgba(255,255,255,0.5)">Seguidores</Typography>
+                                            </Box>
+
+                                            <Divider orientation="vertical" flexItem sx={{ bgcolor: "rgba(255,255,255,0.1)" }} />
+
+                                            <Box textAlign="center" flex={1}>
+                                                <Box display="flex" alignItems="center" justifyContent="center" gap={0.5} color="#40c4ff">
+                                                    <Visibility sx={{ fontSize: 18 }} /> 
+                                                    <Typography variant="body1" fontWeight="bold">{formatNumber(stats.views)}</Typography>
+                                                </Box>
+                                                <Typography variant="caption" color="rgba(255,255,255,0.5)">Views</Typography>
+                                            </Box>
+
+                                            <Divider orientation="vertical" flexItem sx={{ bgcolor: "rgba(255,255,255,0.1)" }} />
+
+                                            <Box textAlign="center" flex={1}>
+                                                <Box display="flex" alignItems="center" justifyContent="center" gap={0.5} color="#ff4081">
+                                                    <Favorite sx={{ fontSize: 18 }} /> 
+                                                    <Typography variant="body1" fontWeight="bold">{formatNumber(stats.likes)}</Typography>
+                                                </Box>
+                                                <Typography variant="caption" color="rgba(255,255,255,0.5)">Curtidas</Typography>
+                                            </Box>
                                         </Box>
-                                        <Box>
-                                            <Typography variant="caption" display={{ xs: 'block', md: 'none' }} color="rgba(255,255,255,0.5)">Pubs</Typography>
-                                            <Typography color="white" fontWeight="bold">{influencer.randomStats?.publications}</Typography>
+
+                                        {/* COLUNA 3: Ações e Social */}
+                                        <Box display="flex" flexDirection="column" alignItems={{ xs: 'center', md: 'flex-end' }} gap={1}>
+                                            {/* Estrelas */}
+                                            <Box display="flex" alignItems="center">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <Star key={i} sx={{ fontSize: 16, color: i < Math.floor(influencer.avaliacao || 0) ? "gold" : "rgba(255,255,255,0.3)" }} />
+                                                ))}
+                                                <Typography variant="caption" ml={0.5} color="white">{(influencer.avaliacao || 0).toFixed(1)}</Typography>
+                                            </Box>
+
+                                            {/* Redes */}
+                                            <Box display="flex" gap={1}>
+                                                {influencer.social && Object.keys(influencer.social).map(key => (
+                                                    influencer.social[key] ? <SocialIcon key={key} network={key} /> : null
+                                                ))}
+                                                {(!influencer.social || Object.keys(influencer.social).length === 0) && (
+                                                    <Typography variant="caption" color="rgba(255,255,255,0.3)">-</Typography>
+                                                )}
+                                            </Box>
+
+                                            {/* Botão */}
+                                            <Button 
+                                                variant="outlined" 
+                                                size="small"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/influenciador/${influencer._id}`);
+                                                }}
+                                                sx={{ 
+                                                    mt: 1,
+                                                    color: "white", 
+                                                    borderColor: "rgba(255,255,255,0.3)", 
+                                                    borderRadius: "20px", 
+                                                    textTransform: "none",
+                                                    backdropFilter: "blur(5px)",
+                                                    "&:hover": { bgcolor: "rgba(255,255,255,0.1)", borderColor: "white" }
+                                                }}
+                                            >
+                                                Ver Perfil Completo
+                                            </Button>
                                         </Box>
-                                        <Box sx={{ display: 'flex', gap: 1 }}>
-                                             {influencer.social && Object.keys(influencer.social).map(key => (
-                                                 influencer.social[key] ? <SocialIcon key={key} network={key} /> : null
-                                             ))}
-                                             {(!influencer.social || Object.keys(influencer.social).length === 0) && (
-                                                 <Typography variant="caption" color="rgba(255,255,255,0.3)">-</Typography>
-                                             )}
-                                        </Box>
-                                        <Box>
-                                            <Typography color="rgba(255,255,255,0.8)" fontSize="14px">{influencer.randomStats?.platform}</Typography>
-                                        </Box>
-                                        <Box position="relative">
-                                            <Typography color={primaryPink} fontWeight="bold" textAlign={{ xs: 'left', md: 'right' }} pr={1}>
-                                                {influencer.randomStats?.conversion}%
-                                            </Typography>
-                                             <LinearProgress variant="determinate" value={influencer.randomStats?.conversion} sx={{
-                                                mt: 0.5,
-                                                width: '100%', height: '3px',
-                                                backgroundColor: lightPinkBg,
-                                                '& .MuiLinearProgress-bar': { backgroundColor: primaryPink }
-                                            }} />
-                                        </Box>
+
                                     </Box>
                                 </Box>
-                            ))}
-                        </Box>
-                      </>
+                            );
+                        })}
+                      </Box>
                   )}
             </Box>
           );
@@ -387,13 +474,15 @@ const UserProfile = () => {
 
   return (
     <Box pr={3} pl={3} pb={10} 
+        height="calc(100vh - 120px)" 
+        overflow="auto" 
         sx={{ 
-            height: "calc(100vh - 80px)", 
-            overflowY: "auto",
-            "&:webkit-scrollbar": { width: "8px" },
-            "&:webkit-scrollbar-track": { background: "rgba(255,255,255,0.02)" },
-            "&:webkit-scrollbar-thumb": { background: "rgba(255,255,255,0.15)", borderRadius: "4px" },
-            "&:webkit-scrollbar-thumb:hover": { background: "rgba(255,255,255,0.25)" }
+            transition: "all 0.3s ease-in-out", 
+            willChange: "width", 
+            "&::-webkit-scrollbar": { width: "10px", marginRight: "10px" }, 
+            "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px" }, 
+            "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px" }, 
+            "&::-webkit-scrollbar-thumb:hover": { background: "rgba(255, 255, 255, 0.6)" } 
         }}
     >
         {/* HEADER NAVIGATION */}
@@ -483,7 +572,6 @@ const UserProfile = () => {
                         Membro desde {new Date(profileData.createdAt || Date.now()).getFullYear()}
                     </Typography>
 
-                    {/* ✅ CONTATOS NO BANNER */}
                     <Box 
                         display="flex" 
                         flexWrap="wrap"
