@@ -446,8 +446,8 @@ const { data: influencersData } = await axios.get('http://localhost:5001/api/inf
       const rank = idx + 1;
       return (
         <Link
-        to={`/influenciadores/perfil/${inf.id}`}
-        key={inf.nome + rank}
+        to={`/influenciador/${inf.id}`} 
+        key={inf.nome + rank} 
         style={{ textDecoration: "none",  color: "inherit",    }} 
       >
         <Box
