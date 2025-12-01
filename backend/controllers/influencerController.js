@@ -281,69 +281,260 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
 
 // ✅ ATUALIZADO: Lógica para calcular tags e avaliação média na listagem geral
 export const getAllInfluencers = asyncHandler(async (req, res) => {
-    // Busca TODOS os influenciadores no banco de dados, sem filtro de agente
+    // 1. Busca TODOS os influenciadores
     const influencers = await Influencer.find({}).lean(); 
     
     if (influencers && influencers.length > 0) {
         const influencersWithData = await Promise.all(influencers.map(async (inf) => {
-            // Busca reviews para calcular a nota real
+            
+            // --- A. REVIEWS (Tags e Avaliação) ---
             const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
-
-            // Calcula média
             const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
             const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
 
-            // Calcula Tags
             const tagCounts = {};
             reviews.forEach(review => {
                 if (review.tags && Array.isArray(review.tags)) {
                     review.tags.forEach(tag => {
-                        const normalizedTag = tag.trim(); 
-                        tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
+                        tagCounts[tag.trim()] = (tagCounts[tag.trim()] || 0) + 1;
                     });
                 }
             });
-
             const topTags = Object.entries(tagCounts)
                 .sort(([, countA], [, countB]) => countB - countA) 
                 .slice(0, 3) 
                 .map(([tag]) => tag); 
 
+            // --- B. AUTO-REPAIR DE ESTATÍSTICAS ---
+            let currentStats = {
+                followers: inf.followersCount || 0,
+                views: inf.views || 0,
+                likes: inf.curtidas || 0, 
+                engagementRate: inf.engagementRate || 0
+            };
+
+            // Se tiver redes sociais cadastradas...
+            const hasSocials = (inf.social?.instagram || inf.social?.youtube || inf.social?.tiktok || inf.social?.twitch);
+            
+            // CORREÇÃO: Verifica se QUALQUER dado importante está zerado (Seguidores, Views OU Likes)
+            const isDataMissing = hasSocials && (currentStats.followers === 0 || currentStats.views === 0 || currentStats.likes === 0);
+
+            if (isDataMissing) {
+                // console.log(`Atualizando dados automaticamente para: ${inf.name}...`);
+                
+                const promises = [];
+                if (inf.social?.youtube) promises.push(getYoutubeStats(inf.social.youtube));
+                if (inf.social?.instagram) promises.push(getInstagramStats(inf.social.instagram));
+                if (inf.social?.twitch) promises.push(getTwitchStats(inf.social.twitch));
+                if (inf.social?.tiktok) promises.push(getTikTokStats(inf.social.tiktok));
+
+                const results = await Promise.allSettled(promises);
+
+                // Variáveis para somar os novos resultados
+                let newFollowers = 0;
+                let newViews = 0;
+                let newLikes = 0;
+                let engagementSum = 0;
+                let platformsCount = 0;
+
+                results.forEach(res => {
+                    if (res.status === 'fulfilled' && res.value) {
+                        const val = res.value;
+
+                        // 1. SOMA SEGUIDORES
+                        newFollowers += Number(val.subscriberCount || val.followers || 0);
+
+                        // 2. SOMA VIEWS (Normalizando os nomes das propriedades)
+                        // Youtube usa viewCount, Twitch usa totalViews, Insta/TikTok usa avgViews ou videoCount
+                        if (val.viewCount) newViews += Number(val.viewCount); // Youtube Total
+                        else if (val.totalViews) newViews += Number(val.totalViews); // Twitch
+                        else if (val.avgViews) newViews += Number(val.avgViews); // Estimativa Insta
+
+                        // 3. SOMA LIKES (Normalizando)
+                        // TikTok usa likes, Youtube/Insta usa avgLikes
+                        if (val.likes) newLikes += Number(val.likes); // TikTok Total
+                        else if (val.avgLikes) newLikes += Number(val.avgLikes); // Média Youtube/Insta
+
+                        // 4. SOMA ENGAJAMENTO
+                        if (val.engagementRate) {
+                            engagementSum += Number(val.engagementRate);
+                            platformsCount++;
+                        }
+                    }
+                });
+
+                const newEngagement = platformsCount > 0 ? (engagementSum / platformsCount).toFixed(2) : 0;
+
+                // Atualiza o objeto local para retorno imediato
+                // (Só substitui se o novo valor for maior que 0, para não zerar dados manuais sem querer)
+                currentStats = {
+                    followers: newFollowers > 0 ? newFollowers : currentStats.followers,
+                    views: newViews > 0 ? newViews : currentStats.views,
+                    likes: newLikes > 0 ? newLikes : currentStats.likes,
+                    engagementRate: Number(newEngagement) > 0 ? Number(newEngagement) : currentStats.engagementRate
+                };
+
+                // SALVA NO BANCO DE DADOS
+                await Influencer.updateOne(
+                    { _id: inf._id },
+                    { 
+                        $set: { 
+                            followersCount: currentStats.followers,
+                            views: currentStats.views,
+                            curtidas: currentStats.likes,
+                            engagementRate: currentStats.engagementRate
+                        } 
+                    }
+                );
+            }
+
+            // --- C. MONTAGEM FINAL DO OBJETO PARA O FRONTEND ---
             return {
                 ...inf,
-                avaliacao: avgRating || inf.avaliacao || 0, // Nota real ou 0
+                avaliacao: avgRating || inf.avaliacao || 0, 
                 tags: topTags,
-                // Mapeia para o frontend
-                id: inf._id,
-                nome: inf.name,
-                nomeReal: inf.realName,
-                imagem: inf.profileImageUrl,
-                imagemFundo: inf.backgroundImageUrl,
-                categorias: inf.niches || [],
-                engajamento: inf.engagementRate || 0,
-                inscritos: inf.followersCount || 0,
-                qtdAvaliacoes: reviews.length
+                
+                // Envia aggregatedStats preenchido para o InfluencerCard
+                aggregatedStats: currentStats, 
+
+                qtdAvaliacoes: reviews.length,
+                
+                // Campos raiz para compatibilidade
+                followersCount: currentStats.followers,
+                views: currentStats.views,
+                curtidas: currentStats.likes,
+                engagementRate: currentStats.engagementRate
             };
         }));
 
         res.status(200).json(influencersWithData);
     } else {
-        // Retorna array vazio em vez de erro 404 para não quebrar o map do frontend
-        res.status(200).json([]);
+        res.status(200).json([]); 
     }
 });
 
+// No arquivo: controllers/influencerController.js
+
 export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
+  // 1. Busca o influenciador com TODOS os campos necessários para o Banner E para a aba Estatísticas
   const influencer = await Influencer.findById(req.params.id)
-    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl agent')
+    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl agent followersCount views curtidas engagementRate youtubeStats instagramStats twitchStats tiktokStats')
     .populate('agent', 'name');
 
-  if (influencer) {
-    res.json(influencer);
-  } else {
+  if (!influencer) {
     res.status(404);
     throw new Error('Perfil de influenciador não encontrado.');
   }
+
+  // 2. Prepara objeto de estatísticas atuais (lendo do banco)
+  let currentStats = {
+      followers: influencer.followersCount || 0,
+      views: influencer.views || 0,
+      likes: influencer.curtidas || 0,
+      engagementRate: influencer.engagementRate || 0
+  };
+
+  // 3. Extrai os links das redes sociais
+  const socialLinks = influencer.social || {};
+  
+  // Verifica se tem redes sociais E se os dados estão zerados (Gatilho para Auto-Repair)
+  const hasSocials = (socialLinks.instagram || socialLinks.youtube || socialLinks.tiktok || socialLinks.twitch);
+  const isDataMissing = hasSocials && (currentStats.followers === 0 || currentStats.views === 0 || currentStats.likes === 0);
+
+  if (isDataMissing) {
+      // console.log(`Atualizando dados detalhados (Auto-Repair) para: ${influencer.name}...`);
+      
+      // Definimos as tarefas para saber qual resultado pertence a qual rede
+      const tasks = [
+          { platform: 'youtube', check: socialLinks.youtube, fn: () => getYoutubeStats(socialLinks.youtube) },
+          { platform: 'instagram', check: socialLinks.instagram, fn: () => getInstagramStats(socialLinks.instagram) },
+          { platform: 'twitch', check: socialLinks.twitch, fn: () => getTwitchStats(socialLinks.twitch) },
+          { platform: 'tiktok', check: socialLinks.tiktok, fn: () => getTikTokStats(socialLinks.tiktok) }
+      ];
+
+      // Filtra apenas as redes que existem
+      const activeTasks = tasks.filter(t => t.check);
+      
+      // Executa em paralelo
+      const results = await Promise.allSettled(activeTasks.map(t => t.fn()));
+
+      // Variáveis para somar os totais
+      let newFollowers = 0;
+      let newViews = 0;
+      let newLikes = 0;
+      let engagementSum = 0;
+      let platformsCount = 0;
+
+      // Processa os resultados
+      results.forEach((res, index) => {
+          if (res.status === 'fulfilled' && res.value) {
+              const val = res.value;
+              const platform = activeTasks[index].platform;
+
+              // ✅ SALVA O OBJETO DETALHADO NO DOCUMENTO DO MONGOOSE
+              // Isso garante que os gráficos funcionem na próxima carga
+              if (platform === 'youtube') influencer.youtubeStats = val;
+              if (platform === 'instagram') influencer.instagramStats = val;
+              if (platform === 'twitch') influencer.twitchStats = val;
+              if (platform === 'tiktok') influencer.tiktokStats = val;
+              
+              // --- Lógica de Soma dos Totais ---
+              newFollowers += Number(val.subscriberCount || val.followers || 0);
+              
+              if (val.viewCount) newViews += Number(val.viewCount); // Youtube
+              else if (val.totalViews) newViews += Number(val.totalViews); // Twitch
+              else if (val.avgViews) newViews += Number(val.avgViews); // Instagram
+              else if (val.videoCount) newViews += Number(val.videoCount * 100); // TikTok (estimativa)
+
+              if (val.likes) newLikes += Number(val.likes); // TikTok
+              else if (val.avgLikes) newLikes += Number(val.avgLikes); // Youtube/Insta
+
+              if (val.engagementRate) {
+                  engagementSum += Number(val.engagementRate);
+                  platformsCount++;
+              }
+          }
+      });
+
+      const newEngagement = platformsCount > 0 ? (engagementSum / platformsCount).toFixed(2) : 0;
+
+      // Atualiza os totais locais
+      currentStats = {
+          followers: newFollowers > 0 ? newFollowers : currentStats.followers,
+          views: newViews > 0 ? newViews : currentStats.views,
+          likes: newLikes > 0 ? newLikes : currentStats.likes,
+          engagementRate: Number(newEngagement) > 0 ? Number(newEngagement) : currentStats.engagementRate
+      };
+
+      // 🔥 SALVA TUDO NO BANCO DE DADOS (Totais + Detalhados)
+      influencer.followersCount = currentStats.followers;
+      influencer.views = currentStats.views;
+      influencer.curtidas = currentStats.likes;
+      influencer.engagementRate = currentStats.engagementRate;
+      
+      try {
+        await influencer.save();
+      } catch (err) {
+        console.error("Erro ao salvar atualização automática:", err.message);
+      }
+  }
+
+  // 4. Retorna os dados completos para o Frontend
+  const responseData = {
+      ...influencer.toObject(),
+      // Garante que o frontend receba os valores mais atualizados
+      followersCount: currentStats.followers,
+      views: currentStats.views,
+      curtidas: currentStats.likes,
+      engagementRate: currentStats.engagementRate,
+      // Garante o envio dos objetos detalhados atualizados
+      youtubeStats: influencer.youtubeStats,
+      instagramStats: influencer.instagramStats,
+      twitchStats: influencer.twitchStats,
+      tiktokStats: influencer.tiktokStats
+  };
+
+  res.json(responseData);
 });
 
 // ✅ ATUALIZADO: Mantém a segurança do perfil público (histórico vs tudo)

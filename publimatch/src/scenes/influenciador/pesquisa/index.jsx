@@ -4,7 +4,7 @@ import {
 } from "@mui/material";
 import { forwardRef, useMemo, useState, useEffect } from "react";
 import Header from "../../../components/Header";
-import InfluencerCard from "../../../components/InfluencerCard";
+import InfluencerCard from "../../../components/InfluencerCard"; // Certifique-se que o caminho está certo
 import { Autocomplete } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import { Star, Favorite, Visibility, Groups } from "@mui/icons-material";
@@ -14,11 +14,20 @@ import InstagramIcon from "@mui/icons-material/Instagram";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Função auxiliar para formatar números (K, M) no Modal
+const formatNumber = (num) => {
+  if (!num) return "0";
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+};
+
 // Componente auxiliar de comparação
 const StatComparator = ({ icon, label, value1, value2, unit = "" }) => {
   const v1 = parseFloat(value1 || 0);
   const v2 = parseFloat(value2 || 0);
-  // Lógica simples para destacar o maior valor
+  
+  // Lógica para destacar o maior valor
   const isValue1Winner = v1 > v2;
   const isValue2Winner = v2 > v1;
   
@@ -27,9 +36,18 @@ const StatComparator = ({ icon, label, value1, value2, unit = "" }) => {
 
   return (
     <Box display="flex" justifyContent="space-between" alignItems="center" width="100%" py={1.5} px={2} my={0.5} sx={{ background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.1)" }}>
-      <Typography sx={{ transition: "all 0.3s ease", ...(isValue1Winner ? winnerStyle : defaultStyle) }}>{value1}{unit}</Typography>
-      <Box display="flex" alignItems="center" gap={1} color="rgba(255,255,255,0.7)">{icon}<Typography variant="body2">{label}</Typography></Box>
-      <Typography sx={{ transition: "all 0.3s ease", ...(isValue2Winner ? winnerStyle : defaultStyle) }}>{value2}{unit}</Typography>
+      {/* Exibe o valor formatado, mas usa o valor bruto (props) para a cor */}
+      <Typography sx={{ transition: "all 0.3s ease", ...(isValue1Winner ? winnerStyle : defaultStyle) }}>
+        {formatNumber(v1)}{unit}
+      </Typography>
+      
+      <Box display="flex" alignItems="center" gap={1} color="rgba(255,255,255,0.7)">
+        {icon}<Typography variant="body2">{label}</Typography>
+      </Box>
+      
+      <Typography sx={{ transition: "all 0.3s ease", ...(isValue2Winner ? winnerStyle : defaultStyle) }}>
+        {formatNumber(v2)}{unit}
+      </Typography>
     </Box>
   );
 };
@@ -76,7 +94,7 @@ const Influenciadores = () => {
   const [categoria, setCategoria] = useState("");
   const [inputValueCategoria, setInputValueCategoria] = useState("");
   const [plataforma, setPlataforma] = useState("");
-  const [seguidores, setSeguidores] = useState([0, 100]);
+  const [seguidores, setSeguidores] = useState([0, 100]); // Slider em Milhões
   const [avaliacao, setAvaliacao] = useState(0);
   const [tagsSelecionadas, setTagsSelecionadas] = useState([]);
   const [searchTag, setSearchTag] = useState("");
@@ -93,7 +111,7 @@ const Influenciadores = () => {
         setLoading(true);
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         
-        const response = await fetch('/api/influencers/all', {
+        const response = await fetch('http://localhost:5001/api/influencers/all', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -101,24 +119,30 @@ const Influenciadores = () => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ message: 'Erro ao buscar influenciadores' }));
-          throw new Error(errorData.message || 'Erro de rede');
+          throw new Error('Erro ao buscar influenciadores');
         }
 
         const data = await response.json();
         
         const transformedData = data.map(inf => {
-            // Gera números aleatórios apenas para dados que o backend ainda não fornece
-            const randomFollowers = parseFloat((Math.random() * (50 - 0.1) + 0.1).toFixed(1));
-
-            // CRIAÇÃO SEGURA DA LISTA DE REDES (Converte para minúsculo para garantir compatibilidade)
             const socialObj = inf.social || {};
             const redesArray = Object.keys(socialObj)
-                .filter(key => socialObj[key]) // Verifica se tem link
-                .map(key => key.toLowerCase()); // Transforma 'YouTube' em 'youtube'
+                .filter(key => socialObj[key])
+                .map(key => key.toLowerCase());
+
+            // --- CORREÇÃO AQUI ---
+            // Verifica se aggregatedStats existe, se não, pega das propriedades raiz (root)
+            // Se root também for undefined, usa 0.
+            const rawStats = inf.aggregatedStats || {};
+            
+            const stats = { 
+                followers: rawStats.followers || inf.followersCount || 0, 
+                views: rawStats.views || inf.views || 0, 
+                likes: rawStats.likes || inf.curtidas || 0, 
+                engagementRate: rawStats.engagementRate || inf.engagementRate || 0 
+            };
 
             return {
-              // Dados padronizados
               id: inf._id,
               _id: inf._id,
               name: inf.name,
@@ -127,16 +151,11 @@ const Influenciadores = () => {
               backgroundImageUrl: inf.backgroundImageUrl || '',
               niches: inf.niches || [],
               social: socialObj,
-              redes: redesArray, // Array pronto para uso nos filtros e ícones
+              redes: redesArray, 
               description: inf.description || '',
-              tags: inf.topTags || [], 
-              avaliacao: inf.calculatedRating || 0, // Nota real ou 0
-
-              // Dados Simulados (Substituir quando tiver no backend)
-              followersCount: randomFollowers,
-              engagementRate: 4.5,
-              views: 1.2,
-              inscritos: 0.5,
+              tags: inf.tags || [], 
+              avaliacao: inf.avaliacao || 0,
+              aggregatedStats: stats // Passa o objeto corrigido e preenchido
             };
         });
 
@@ -166,7 +185,6 @@ const Influenciadores = () => {
     visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 120 }},
   };
 
-  // Memoização das opções de filtros
   const todasCategorias = useMemo(() => {
     return Array.from(new Set(influencers.flatMap((inf) => inf.niches || [])));
   }, [influencers]);
@@ -189,10 +207,11 @@ const Influenciadores = () => {
     setInfluencersParaComparar([]);
   };
 
-  // Filtragem
   const filtrados = useMemo(() => {
     return influencers.filter((inf) => {
-      const seg = inf.followersCount; 
+      // Usa o stats corrigido
+      const seguidoresReais = inf.aggregatedStats.followers || 0;
+      const seguidoresEmMilhoes = seguidoresReais / 1000000; 
       
       const matchPlataforma = plataforma 
         ? (inf.redes && inf.redes.includes(plataforma.toLowerCase())) 
@@ -203,8 +222,8 @@ const Influenciadores = () => {
         inf.name.toLowerCase().includes(search.toLowerCase()) &&
         (categoria ? inf.niches.includes(categoria) : true) &&
         matchPlataforma &&
-        seg >= seguidores[0] &&
-        seg <= seguidores[1] &&
+        seguidoresEmMilhoes >= seguidores[0] &&
+        seguidoresEmMilhoes <= seguidores[1] &&
         inf.avaliacao >= avaliacao &&
         (tagsSelecionadas.length > 0
           ? tagsSelecionadas.every((tag) => inf.tags.includes(tag))
@@ -241,6 +260,15 @@ const Influenciadores = () => {
           >
             <Typography variant="h5" fontWeight="bold" mb={2}> Filtros avançados </Typography>
             <Box sx={{ flex: 1, overflowY: "auto", overflowX: "visible", width: "100%", pr: 5, "&::-webkit-scrollbar": { width: "6px" }, "&::-webkit-scrollbar-track": { background: "rgba(255, 255, 255, 0.1)", borderRadius: "10px", }, "&::-webkit-scrollbar-thumb": { background: "rgba(255, 255, 255, 0.3)", borderRadius: "10px", }, }} >
+              
+              {/* Filtro de Texto (Nome) - Adicionado para funcionar com o state 'search' */}
+              <Typography variant="body2" fontWeight="500"> Nome </Typography>
+              <TextField 
+                fullWidth size="small" placeholder="Buscar por nome..." 
+                value={search} onChange={(e) => setSearch(e.target.value)} 
+                sx={{ mb: 2, mt: 0.5, bgcolor: "rgba(255,255,255,0.1)", borderRadius: "10px", "& .MuiOutlinedInput-input": { color: "white" }, "& fieldset": { border: "none" } }} 
+              />
+
               <Typography variant="body2" fontWeight="500"> Categoria </Typography>
               <Autocomplete
                 options={todasCategorias} value={categoria || null} onChange={(_, newValue) => setCategoria(newValue || "")} inputValue={inputValueCategoria} onInputChange={(_, newInputValue) => { setInputValueCategoria(newInputValue); }}
@@ -262,7 +290,7 @@ const Influenciadores = () => {
               </Box>
               {todasTags.length > 5 && (<Button onClick={() => setShowAllTags(!showAllTags)} size="small" variant="contained" fullWidth sx={{ mb: 2, color: "white", textTransform: "none", backgroundColor: "rgba(255,255,255,0.1)", alignContent: "center", alignItems: "center", justifyContent: "center", transition: "all 0.3s ease-in-out", borderRadius: "10px", fontSize: "0.8rem", "&:hover": { bgcolor: "rgba(255, 255, 255, 0.28)" }, }}> {showAllTags ? "Ver menos" : "Ver mais"} </Button> )}
             </Box>
-            <Button variant="contained" fullWidth onClick={() => { setCategoria(""); setInputValueCategoria(""); setPlataforma(""); setSeguidores([0, 100]); setAvaliacao(0); setTagsSelecionadas([]); setSearchTag(""); }} sx={{ mt: 2, borderRadius: "12px", bgcolor: "#ff00ae5b", textTransform: "none", backdropFilter: "blur(10px)", transition: "all 0.3s ease-in-out", fontWeight: "600", "&:hover": { bgcolor: "#ff00a679", fontSize: "0.8rem" ,}, }}>
+            <Button variant="contained" fullWidth onClick={() => { setCategoria(""); setInputValueCategoria(""); setPlataforma(""); setSeguidores([0, 100]); setAvaliacao(0); setTagsSelecionadas([]); setSearchTag(""); setSearch(""); }} sx={{ mt: 2, borderRadius: "12px", bgcolor: "#ff00ae5b", textTransform: "none", backdropFilter: "blur(10px)", transition: "all 0.3s ease-in-out", fontWeight: "600", "&:hover": { bgcolor: "#ff00a679", fontSize: "0.8rem" ,}, }}>
               Limpar Filtros
             </Button>
           </Box>
@@ -316,7 +344,7 @@ const Influenciadores = () => {
             {inf1 && inf2 && (
               <DialogContent sx={{ p: 0, position: "relative" }}>
                 <Box display="flex" alignItems="stretch" sx={{ overflow: 'hidden' }}>
-                  {/* ESQUERDA (Inf 1) - CORRIGIDO AS VARIÁVEIS */}
+                  {/* ESQUERDA (Inf 1) */}
                   <Box flex={1} p={4} display="flex" flexDirection="column" alignItems="center" gap={1.5}>
                     <Avatar src={inf1.profileImageUrl} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
                     <Typography variant="h4" fontWeight="bold" textAlign="center">{inf1.name}</Typography>
@@ -336,7 +364,7 @@ const Influenciadores = () => {
                     </Box>
                   </Box>
 
-                  {/* DIREITA (Inf 2) - CORRIGIDO AS VARIÁVEIS */}
+                  {/* DIREITA (Inf 2) */}
                   <Box flex={1} p={4} display="flex" flexDirection="column" alignItems="center" gap={1.5}>
                     <Avatar src={inf2.profileImageUrl} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
                     <Typography variant="h4" fontWeight="bold" textAlign="center">{inf2.name}</Typography>
@@ -350,11 +378,12 @@ const Influenciadores = () => {
                   </Box>
                 </Box>
 
-                {/* ESTATÍSTICAS - VARIÁVEIS CORRIGIDAS */}
+                {/* ESTATÍSTICAS COMPARATIVAS */}
+                {/* Nota: Usamos aggregatedStats aqui */}
                 <Box px={5} pb={4} mt={-2}>
-                  <StatComparator icon={<Favorite />} label="Curtidas" value1={inf1.followersCount} value2={inf2.followersCount} unit="M" />
-                  <StatComparator icon={<Visibility />} label="Views" value1={inf1.views} value2={inf2.views} unit="M" />
-                  <StatComparator icon={<Groups />} label="Inscritos" value1={inf1.inscritos} value2={inf2.inscritos} unit="M" />
+                  <StatComparator icon={<Favorite />} label="Curtidas" value1={inf1.aggregatedStats?.likes} value2={inf2.aggregatedStats?.likes} />
+                  <StatComparator icon={<Visibility />} label="Views" value1={inf1.aggregatedStats?.views} value2={inf2.aggregatedStats?.views} />
+                  <StatComparator icon={<Groups />} label="Seguidores" value1={inf1.aggregatedStats?.followers} value2={inf2.aggregatedStats?.followers} />
                   <StatComparator icon={<Star />} label="Avaliação" value1={inf1.avaliacao} value2={inf2.avaliacao} />
                   
                   {/* Barras de Engajamento */}
@@ -362,19 +391,19 @@ const Influenciadores = () => {
                     <Box>
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
                         <Typography variant="body2" fontWeight="bold">{inf1.name}</Typography>
-                        <Typography variant="body2" fontWeight="bold" color="#ff00d4">{inf1.engagementRate}%</Typography>
+                        <Typography variant="body2" fontWeight="bold" color="#ff00d4">{inf1.aggregatedStats?.engagementRate}%</Typography>
                       </Box>
                       <Box sx={{ height: '10px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <Box sx={{ height: '100%', width: `${inf1.engagementRate}%`, bgcolor: '#ff00d4', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #ff00d4' }}/>
+                        <Box sx={{ height: '100%', width: `${Math.min(inf1.aggregatedStats?.engagementRate || 0, 100)}%`, bgcolor: '#ff00d4', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #ff00d4' }}/>
                       </Box>
                     </Box>
                     <Box mt={2}>
                       <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
                         <Typography variant="body2" fontWeight="bold">{inf2.name}</Typography>
-                        <Typography variant="body2" fontWeight="bold" color="#00ff95">{inf2.engagementRate}%</Typography>
+                        <Typography variant="body2" fontWeight="bold" color="#00ff95">{inf2.aggregatedStats?.engagementRate}%</Typography>
                       </Box>
                       <Box sx={{ height: '10px', width: '100%', bgcolor: 'rgba(255,255,255,0.1)', borderRadius: '10px' }}>
-                        <Box sx={{ height: '100%', width: `${inf2.engagementRate}%`, bgcolor: '#00ff95', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #00ff95' }}/>
+                        <Box sx={{ height: '100%', width: `${Math.min(inf2.aggregatedStats?.engagementRate || 0, 100)}%`, bgcolor: '#00ff95', borderRadius: '10px', transition: 'width 0.5s ease-in-out', boxShadow: '0 0 10px #00ff95' }}/>
                       </Box>
                     </Box>
                   </Box>

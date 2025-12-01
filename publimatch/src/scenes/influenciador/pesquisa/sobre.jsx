@@ -17,7 +17,7 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import MusicNoteIcon from "@mui/icons-material/MusicNote";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import { useParams, useNavigate } from "react-router-dom";
-import Estatisticas from "../../../components/Estatisticas.jsx"; // ✅ Importando o componente novo
+import Estatisticas from "../../../components/Estatisticas.jsx"; 
 import TiptapContent from "../../../components/TiptapContent.jsx";
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -43,6 +43,14 @@ const pulse = keyframes`
   50% { transform: scale(1.2); opacity: 0.7; }
   100% { transform: scale(1); opacity: 1; }
 `;
+
+const formatNumber = (num) => {
+  if (!num) return "0";
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+  return num.toString();
+};
+
 
 const borderGlow = keyframes`
   0% { box-shadow: 0 0 5px rgba(193, 78, 216, 0.2), inset 0 0 10px rgba(193, 78, 216, 0.1); border-color: rgba(124, 77, 255, 0.3); }
@@ -85,8 +93,7 @@ const InfluencerProfile = () => {
   useEffect(() => {
     const fetchData = async () => {
         if (!id) return;
-        // ✅ IMPORTANTE: Se o endpoint público não retornar 'youtubeStats', etc., 
-        // os gráficos ficarão vazios. Verifique se o backend está enviando esses objetos.
+        
         const publicInfluencerPromise = axios.get(`http://localhost:5001/api/influencers/public/${id}`);
         
         let reviewsPromise;
@@ -95,11 +102,10 @@ const InfluencerProfile = () => {
         if (user && user.token) {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
             reviewsPromise = axios.get(`http://localhost:5001/api/reviews/influencer/${id}`, config);
-            // Busca campanhas (histórico)
             campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${id}/campaigns`, config);
         } else {
             reviewsPromise = Promise.resolve({ data: [] });
-            campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${id}/campaigns`); // Endpoint público de campanhas
+            campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${id}/campaigns`); 
         }
 
         try {
@@ -111,11 +117,9 @@ const InfluencerProfile = () => {
             setInfluencer(influencerResponse.data);
             setReviews(reviewsResponse.data);
             
-            // Define o histórico (se for publico, vem so history, se for privado vem tudo)
             if(campaignsResponse.data.history) {
                  setCampaignHistory(campaignsResponse.data.history);
             } else if (Array.isArray(campaignsResponse.data)) {
-                 // Fallback caso a estrutura seja diferente
                  setCampaignHistory(campaignsResponse.data);
             }
 
@@ -279,128 +283,141 @@ const InfluencerProfile = () => {
     { name: 'Estatísticas', icon: BarChart }
   ];
 
+  // Função auxiliar para renderizar o conteúdo do Tiptap com segurança
+  const safeParseContent = (content) => {
+    try {
+        if (!content) return null;
+        if (typeof content === 'object') return content;
+        return JSON.parse(content);
+    } catch (error) {
+        return null;
+    }
+  };
+
   const renderTabContent = () => {
     switch(activeTab) {
-         case "Sobre":
-        return (
-          <Box
-            display="flex"
-            flexDirection="column" 
-            gap={4}
-            pl={5}
-            pr={5}
-            sx={{
-              backgroundColor: "rgba(27, 27, 27, 0.26)",
-              borderRadius: "20px",
-              p: 3,
-              backdropFilter: "blur(10px)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            {/* --- SEÇÃO DO RESUMO IA (Botão + Collapse) --- */}
-        <Box>
-            <Button 
-                startIcon={
-                    aiLoading ? 
-                    <CircularProgress size={20} color="inherit"/> : 
-                    <AutoAwesome sx={{ animation: aiSummary ? 'none' : `${pulse} 2s infinite` }} /> 
-                }
-                onClick={handleGenerateSummary}
-                disabled={aiLoading}
-                sx={{
-                    background: "linear-gradient(45deg, #c14ed8ff, #7c4dffff, #ff44c1ff, #c14ed8ff)",
-                    backgroundSize: "300% 300%",
-                    animation: `${gradientFlow} 3s ease infinite`,
-                    color: "white",
-                    textTransform: "none",
-                    borderRadius: "20px",
-                    px: 4, 
-                    py: 1,
-                    mb: 2,
-                    fontWeight: "bold",
-                    letterSpacing: "0.5px",
-                    boxShadow: "0 4px 15px rgba(124, 77, 255, 0.4)",
-                    transition: "all 0.3s ease",
-                    "&:hover": { 
-                        transform: "translateY(-2px)",
-                        boxShadow: "0 6px 20px rgba(193, 78, 216, 0.6)"
-                    },
-                    "&:disabled": {
-                        background: "linear-gradient(45deg, #555 30%, #777 90%)",
-                        color: "#ccc"
-                    }
-                }}
-            >
-                {aiSummary ? (showAiSummary ? "Ocultar Resumo Inteligente" : "Ver Resumo Inteligente") : "Gerar Resumo por IA"}
-            </Button>
+        case "Sobre":
+            const content = safeParseContent(influencer.aboutMe);
 
-            <Collapse in={showAiSummary}>
-                <Box sx={{
-                    position: 'relative',
-                    p: 3,
-                    borderRadius: "16px",
-                    background: "rgba(20, 0, 50, 0.7)",
-                    backdropFilter: "blur(10px)", 
-                    border: "1px solid rgba(124, 77, 255, 0.3)",
-                    mb: 3,
-                    animation: `${borderGlow} 4s infinite alternate`,
-                    overflow: "hidden" 
-                }}>
-                    <Box sx={{
-                        position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
-                        background: 'linear-gradient(90deg, transparent, #c14ed8, transparent)',
-                        opacity: 0.8
-                    }} />
+            return (
+                <Box
+                    display="flex"
+                    flexDirection="column" 
+                    gap={4}
+                    pl={5}
+                    pr={5}
+                    sx={{
+                        backgroundColor: "rgba(27, 27, 27, 0.26)",
+                        borderRadius: "20px",
+                        p: 3,
+                        backdropFilter: "blur(10px)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                    }}
+                >
+                    {/* --- SEÇÃO DO RESUMO IA (Botão + Collapse) --- */}
+                    <Box>
+                        <Button 
+                            startIcon={
+                                aiLoading ? 
+                                <CircularProgress size={20} color="inherit"/> : 
+                                <AutoAwesome sx={{ animation: aiSummary ? 'none' : `${pulse} 2s infinite` }} /> 
+                            }
+                            onClick={handleGenerateSummary}
+                            disabled={aiLoading}
+                            sx={{
+                                background: "linear-gradient(45deg, #c14ed8ff, #7c4dffff, #ff44c1ff, #c14ed8ff)",
+                                backgroundSize: "300% 300%",
+                                animation: `${gradientFlow} 3s ease infinite`,
+                                color: "white",
+                                textTransform: "none",
+                                borderRadius: "20px",
+                                px: 4, 
+                                py: 1,
+                                mb: 2,
+                                fontWeight: "bold",
+                                letterSpacing: "0.5px",
+                                boxShadow: "0 4px 15px rgba(124, 77, 255, 0.4)",
+                                transition: "all 0.3s ease",
+                                "&:hover": { 
+                                    transform: "translateY(-2px)",
+                                    boxShadow: "0 6px 20px rgba(193, 78, 216, 0.6)"
+                                },
+                                "&:disabled": {
+                                    background: "linear-gradient(45deg, #555 30%, #777 90%)",
+                                    color: "#ccc"
+                                }
+                            }}
+                        >
+                            {aiSummary ? (showAiSummary ? "Ocultar Resumo Inteligente" : "Ver Resumo Inteligente") : "Gerar Resumo por IA"}
+                        </Button>
 
-                    {aiLoading && !aiSummary ? (
-                        <Box display="flex" alignItems="center" gap={2}>
-                              <CircularProgress size={20} sx={{ color: "#b39ddb" }} />
-                              <Typography variant="body2" color="#b39ddb" sx={{ animation: `${fadeInUp} 0.5s ease` }}>
-                                A inteligência artificial está analisando o perfil...
-                              </Typography>
-                        </Box>
-                    ) : (
-                        <Box sx={{ animation: `${fadeInUp} 0.8s ease-out` }}> 
-                            <Box display="flex" alignItems="center" gap={1} mb={2}>
-                                <AutoAwesome sx={{ fontSize: 20, color: "#d1c4e9" }} />
-                                <Typography variant="overline" sx={{ 
-                                    background: "linear-gradient(90deg, #d1c4e9, #ff44c1)",
-                                    WebkitBackgroundClip: "text",
-                                    WebkitTextFillColor: "transparent",
-                                    fontWeight: "900",
-                                    letterSpacing: 1.5
-                                }}>
-                                    INSIGHT DA IA
-                                </Typography>
-                            </Box>
-                            
-                            <Typography variant="body1" color="white" lineHeight={1.8} sx={{
-                                fontFamily: "'Roboto', sans-serif",
-                                textShadow: "0 0 10px rgba(0,0,0,0.5)"
+                        <Collapse in={showAiSummary}>
+                            <Box sx={{
+                                position: 'relative',
+                                p: 3,
+                                borderRadius: "16px",
+                                background: "rgba(20, 0, 50, 0.7)",
+                                backdropFilter: "blur(10px)", 
+                                border: "1px solid rgba(124, 77, 255, 0.3)",
+                                mb: 3,
+                                animation: `${borderGlow} 4s infinite alternate`,
+                                overflow: "hidden" 
                             }}>
-                                "{aiSummary}"
-                            </Typography>
-                        </Box>
-                    )}
-                </Box>
-            </Collapse>
-        </Box>
+                                <Box sx={{
+                                    position: 'absolute', top: 0, left: 0, right: 0, height: '1px',
+                                    background: 'linear-gradient(90deg, transparent, #c14ed8, transparent)',
+                                    opacity: 0.8
+                                }} />
 
-            {/* CONTEÚDO ORIGINAL */}
-            <Box flex={2}>
-              <Typography variant="h4" fontWeight="bold" mb={3} color="white">
-                Sobre Mim
-              </Typography>
-              {influencer.aboutMe ? (
-                <TiptapContent content={JSON.parse(influencer.aboutMe)} />
-              ) : (
-                <Typography variant="body1" lineHeight={1.8} fontSize="16px" color="white">
-                  {influencer.description || 'Informação não disponível'}
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        );
+                                {aiLoading && !aiSummary ? (
+                                    <Box display="flex" alignItems="center" gap={2}>
+                                          <CircularProgress size={20} sx={{ color: "#b39ddb" }} />
+                                          <Typography variant="body2" color="#b39ddb" sx={{ animation: `${fadeInUp} 0.5s ease` }}>
+                                            A inteligência artificial está analisando o perfil...
+                                          </Typography>
+                                    </Box>
+                                ) : (
+                                    <Box sx={{ animation: `${fadeInUp} 0.8s ease-out` }}> 
+                                        <Box display="flex" alignItems="center" gap={1} mb={2}>
+                                            <AutoAwesome sx={{ fontSize: 20, color: "#d1c4e9" }} />
+                                            <Typography variant="overline" sx={{ 
+                                                background: "linear-gradient(90deg, #d1c4e9, #ff44c1)",
+                                                WebkitBackgroundClip: "text",
+                                                WebkitTextFillColor: "transparent",
+                                                fontWeight: "900",
+                                                letterSpacing: 1.5
+                                            }}>
+                                                INSIGHT DA IA
+                                            </Typography>
+                                        </Box>
+                                        
+                                        <Typography variant="body1" color="white" lineHeight={1.8} sx={{
+                                            fontFamily: "'Roboto', sans-serif",
+                                            textShadow: "0 0 10px rgba(0,0,0,0.5)"
+                                        }}>
+                                            "{aiSummary}"
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
+                        </Collapse>
+                    </Box>
+
+                    {/* CONTEÚDO ORIGINAL */}
+                    <Box flex={2}>
+                        <Typography variant="h4" fontWeight="bold" mb={3} color="white">
+                            Sobre Mim
+                        </Typography>
+                        {content ? (
+                            <TiptapContent content={content} />
+                        ) : (
+                            <Typography variant="body1" lineHeight={1.8} fontSize="16px" color="white">
+                                {influencer.description || 'Informação não disponível'}
+                            </Typography>
+                        )}
+                    </Box>
+                </Box>
+            );
 
       case 'Avaliações':
         return (
@@ -534,18 +551,13 @@ const InfluencerProfile = () => {
       case 'Estatísticas':
         return (
             <Box component={motion.div} key="estatisticas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit">
-                <Estatisticas 
-                    // ✅ Passando os objetos de dados que vêm do backend
-                    youtubeData={influencer.youtubeStats}
-                    instagramData={influencer.instagramStats}
-                    // Adicione tiktok/twitch se seu backend retornar esses campos
-                    
-                    // ✅ Passando os links para o filtro de plataforma
-                    socialLinks={influencer.social}
-
-                    // ✅ FUNDAMENTAL: Passando a Bio para a IA analisar
-                    description={influencer.description || influencer.aboutMe || ""}
-                />
+                 <Estatisticas 
+                                            youtubeData={influencer.youtubeStats || {}} 
+                   instagramData={influencer.instagramStats || {}} 
+                   twitchData={influencer.twitchStats || {}} // Adicionar
+                   tiktokData={influencer.tiktokStats || {}} // Adicionar
+                   socialLinks={influencer.social || {}}
+                                       />
             </Box>
         );
       default:
@@ -563,19 +575,27 @@ const InfluencerProfile = () => {
     name: nome = 'Nome não disponível',
     realName: nomeReal = '',
     age: idade = 0,
-    followersCount: inscritos = 0,
-    engagementRate: engajamento = 0,
     description: descricao = '',
     niches: categorias = [],
     profileImageUrl: imagem = '',
     backgroundImageUrl: imagemFundo = '',
     social = {},
+    // Dados estatísticos vindos do backend (agora incluídos no select)
+    followersCount = 0, 
+    views: rawViews = 0,
+    curtidas: rawLikes = 0,
+    engagementRate = 0,
+    // Avaliação calculada no frontend via reviews
     avaliacao = stats.averageRating,
-    views = 150,
-    seguidores = 80,
-    curtidas = 40,
   } = influencer || {};
 
+
+  const seguidoresDisplay = formatNumber(followersCount);
+  const viewsDisplay = formatNumber(rawViews);
+  const likesDisplay = formatNumber(rawLikes);
+  const engajamentoDisplay = engagementRate ? engagementRate.toFixed(1) : "0";
+
+  
   return (
       <Box pr={3} pl={3}>
         <Box mb={1}>
@@ -667,21 +687,33 @@ const InfluencerProfile = () => {
                 </Box>
               </Box>
               <Box component={motion.div} variants={staggerItem} display="flex" flexDirection="column" gap={3} mt={3} alignItems="center" sx={{ minWidth: "300px" }}>
-              <Box display="flex" alignItems="center" gap={1} textAlign="center">
+                <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <Favorite sx={{ fontSize: 24, color: "#ff1493" }} />
-                  <Box><Typography variant="h4" fontWeight="bold">{curtidas}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Curtidas</Typography></Box>
+                  <Box>
+                      <Typography variant="h4" fontWeight="bold">{likesDisplay}</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.8 }}>Curtidas</Typography>
+                  </Box>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <Visibility sx={{ fontSize: 24, color: "#2196f3" }} />
-                  <Box><Typography variant="h4" fontWeight="bold">{views}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Visualizações</Typography></Box>
+                  <Box>
+                      <Typography variant="h4" fontWeight="bold">{viewsDisplay}</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.8 }}>Visualizações</Typography>
+                  </Box>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <Groups sx={{ fontSize: 24, color: "#9c27b0" }} />
-                  <Box><Typography variant="h4" fontWeight="bold">{seguidores}M</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Seguidores</Typography></Box>
+                  <Box>
+                      <Typography variant="h4" fontWeight="bold">{seguidoresDisplay}</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.8 }}>Seguidores</Typography>
+                  </Box>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1} textAlign="center">
                   <TrendingUp sx={{ fontSize: 24, color: "#4caf50" }} />
-                  <Box><Typography variant="h4" fontWeight="bold" color="#4caf50">{engajamento}%</Typography><Typography variant="caption" sx={{ opacity: 0.8 }}>Média de Conversão</Typography></Box>
+                  <Box>
+                      <Typography variant="h4" fontWeight="bold" color="#4caf50">{engajamentoDisplay}%</Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.8 }}>Taxa de Engajamento</Typography>
+                  </Box>
                 </Box>
               </Box>
             </Box>
