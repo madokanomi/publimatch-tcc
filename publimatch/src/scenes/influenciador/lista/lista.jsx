@@ -25,7 +25,6 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 import Header from "../../../components/Header";
-// import { influencers } from "../../../data/mockInfluencer"; // Não necessário se usa backend
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
@@ -57,54 +56,60 @@ const fmt = (v) => {
   return String(v);
 };
 
-// --- COMPONENTE DA LINHA (ATUALIZADO COM LÓGICA DE REVIEWS) ---
+// --- COMPONENTE DA LINHA (ATUALIZADO: Cor dos contratos fixa em branco) ---
 const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate }) => {
-    // Estado local para armazenar as estatísticas de avaliação deste influenciador específico
     const [ratingStats, setRatingStats] = useState({ avg: 0, count: 0 });
-    const [loadingReviews, setLoadingReviews] = useState(true);
+    const [campaignStats, setCampaignStats] = useState({ active: 0, pending: 0 });
+    const [loadingData, setLoadingData] = useState(true);
 
-    // Efeito para buscar as avaliações do backend (Igual ao Sobrespec)
     useEffect(() => {
         let isMounted = true;
-        const fetchReviews = async () => {
+        const fetchData = async () => {
             try {
-                // Se o objeto 'inf' já tiver averageRating e reviewsCount vindos do backend da lista, usa eles
-                if (inf.averageRating !== undefined && inf.reviewsCount !== undefined) {
-                    if (isMounted) {
-                        setRatingStats({ 
-                            avg: Number(inf.averageRating), 
-                            count: Number(inf.reviewsCount) 
-                        });
-                        setLoadingReviews(false);
-                    }
-                    return;
-                }
-
-                // Caso contrário, busca na API de reviews
-       const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
+                const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
                 const token = userInfo?.token;
                 if (!token) return;
 
                 const config = { headers: { Authorization: `Bearer ${token}` } };
-                const { data } = await axios.get(`http://localhost:5001/api/reviews/influencer/${inf._id}`, config);
+
+                let reviewsPromise = Promise.resolve(null);
+                if (inf.averageRating === undefined || inf.reviewsCount === undefined) {
+                    reviewsPromise = axios.get(`http://localhost:5001/api/reviews/influencer/${inf._id}`, config);
+                }
+
+                const campaignsPromise = axios.get(`http://localhost:5001/api/influencers/${inf._id}/campaigns`, config);
+
+                const [reviewsRes, campaignsRes] = await Promise.allSettled([reviewsPromise, campaignsPromise]);
 
                 if (isMounted) {
-                    if (data && data.length > 0) {
-                        const totalRating = data.reduce((acc, review) => acc + review.rating, 0);
-                        const avg = totalRating / data.length;
-                        setRatingStats({ avg, count: data.length });
-                    } else {
-                        setRatingStats({ avg: 0, count: 0 });
+                    if (inf.averageRating !== undefined) {
+                        setRatingStats({ avg: Number(inf.averageRating), count: Number(inf.reviewsCount) });
+                    } else if (reviewsRes.status === 'fulfilled' && reviewsRes.value) {
+                         const data = reviewsRes.value.data;
+                         if (data && data.length > 0) {
+                            const totalRating = data.reduce((acc, review) => acc + review.rating, 0);
+                            const avg = totalRating / data.length;
+                            setRatingStats({ avg, count: data.length });
+                        }
+                    }
+
+                    if (campaignsRes.status === 'fulfilled') {
+                        const { participating, invites } = campaignsRes.value.data;
+                        setCampaignStats({
+                            active: participating ? participating.length : 0,
+                            pending: invites ? invites.length : 0
+                        });
                     }
                 }
+
             } catch (error) {
-                console.error("Erro ao carregar reviews da linha:", error);
+                console.error("Erro ao carregar dados da linha:", error);
             } finally {
-                if (isMounted) setLoadingReviews(false);
+                if (isMounted) setLoadingData(false);
             }
         };
 
-        fetchReviews();
+        fetchData();
         return () => { isMounted = false; };
     }, [inf]);
 
@@ -113,20 +118,9 @@ const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate
     const views = inf.views ?? inf.visualizacoes ?? inf.viewsCount ?? 0;
     const seguidores = inf.seguidores ?? inf.followers ?? inf.followersCount ?? 0;
     const mediaConversao = inf.mediaConversao ?? inf.conversao ?? inf.conversionRate ?? inf.conversaoPercent ?? 0;
-    const campanhasNum = inf.campanhasCount ?? inf.campanhas ?? inf.campaigns ?? 0;
-    const contratosNum = inf.contratos ?? 0;
-    const desempenhoVal = Number(inf.desempenhoPercent ?? inf.desempenho ?? inf.performance ?? inf.conversaoPercent ?? 0);
     
-    // Usa os dados do estado local (buscados da API)
     const avaliacao = ratingStats.avg;
     const numReviews = ratingStats.count;
-
-    const desempenhoColor =
-      desempenhoVal >= 90 ? "#4caf50" :
-      desempenhoVal >= 70 ? "#ff9800" :
-      desempenhoVal >= 50 ? "#2196f3" :
-      desempenhoVal >= 25 ? "#ff9800" :
-      "#ff3b3b";
 
     return (
       <motion.div
@@ -162,8 +156,8 @@ const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate
               display: { xs: "flex", md: "grid" },
               flexDirection: { xs: "column", md: "row" },
               gridTemplateColumns: {
-                md: "2fr 1fr 1fr 1fr 1fr 1fr 1fr 0.5fr",
-                lg: "2.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.7fr",
+                md: "2.5fr 1fr 1fr 1.2fr 1fr 1fr 0.5fr",
+                lg: "3fr 1fr 1fr 1.2fr 1fr 1fr 0.7fr",
               },
               gap: 2,
               alignItems: "center",
@@ -184,9 +178,9 @@ const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate
               </Box>
             </Box>
 
-            {/* Avaliação (Backend Data) */}
+            {/* Avaliação */}
             <Box display="flex" alignItems="center" gap={0.5}>
-              {loadingReviews ? (
+              {loadingData ? (
                   <CircularProgress size={16} color="inherit" />
               ) : (
                   <>
@@ -228,13 +222,22 @@ const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate
             </Box>
 
             {/* Vinculado a campanhas */}
-            <Box textAlign="center"><Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{campanhasNum}</Typography></Box>
+            <Box textAlign="center">
+                {loadingData ? <CircularProgress size={20} color="inherit" /> : (
+                  <Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
+                      {campaignStats.active}
+                  </Typography>
+                )}
+            </Box>
             
-            {/* Desempenho nas campanhas */}
-            <Box textAlign="center"><Typography variant="h6" color={desempenhoColor} fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{Number.isFinite(desempenhoVal) ? `${Math.round(desempenhoVal)}%` : "—"}</Typography></Box>
-            
-            {/* Contratos para confirmação */}
-            <Box textAlign="center"><Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>{contratosNum}</Typography></Box>
+            {/* Contratos para confirmação (AGORA SEMPRE BRANCO) */}
+            <Box textAlign="center">
+                {loadingData ? <CircularProgress size={20} color="inherit" /> : (
+                  <Typography variant="h6" color="white" fontWeight={700} sx={{ fontSize: "1.5rem", textShadow: "0 2px 4px rgba(0,0,0,0.3)" }}>
+                      {campaignStats.pending}
+                  </Typography>
+                )}
+            </Box>
             
             {/* Ações */}
             <Box display="flex" gap={0.5} justifyContent="center">
@@ -268,22 +271,17 @@ const Influenciadores = () => {
   useEffect(() => {
     const fetchInfluencersData = async () => {
       try {
-      const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
+        const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
         const token = userInfo?.token;
         if (!token) throw new Error('Utilizador não autenticado.');
         
         const config = { headers: { Authorization: `Bearer ${token}` } };
         
-        // 1. Busca a lista de influenciadores
         const { data: influencers } = await axios.get('http://localhost:5001/api/influencers', config);
         
-        // 2. Para cada influenciador, busca sua média de avaliação (para que o sort funcione)
-        // Nota: O ideal seria o backend já mandar isso, mas aqui fazemos no front para resolver rápido.
         const influencersWithRatings = await Promise.all(influencers.map(async (inf) => {
             try {
-                // Se o backend já mandar, não busca de novo
                 if (inf.averageRating !== undefined) return inf;
-
                 const { data: reviews } = await axios.get(`http://localhost:5001/api/reviews/influencer/${inf._id}`, config);
                 const totalRating = reviews.reduce((acc, r) => acc + r.rating, 0);
                 const avg = reviews.length > 0 ? totalRating / reviews.length : 0;
@@ -313,7 +311,7 @@ const Influenciadores = () => {
     setIsDeleting(true);
     setDialogError('');
     try {
-  const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
+      const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
       const token = userInfo?.token;
       const config = { headers: { Authorization: `Bearer ${token}` } };
       await axios.delete(`http://localhost:5001/api/influencers/${selectedInfluencer._id}`, config);
@@ -328,7 +326,6 @@ const Influenciadores = () => {
     }
   }, [selectedInfluencer]);
 
-// 2. useMemo ATUALIZADO: Ordenação correta pegando o averageRating calculado
   const sortedInfluencers = useMemo(() => {
     if (!sortConfig.key) return listaInfluenciadores;
     
@@ -341,29 +338,16 @@ const Influenciadores = () => {
           bVal = (b.name || "").toLowerCase();
           break;
         case "avaliacao":
-          // Garante que é número, usando averageRating calculado no useEffect acima
           aVal = Number(a.averageRating || 0);
           bVal = Number(b.averageRating || 0);
-          break;
-        case "campanhas":
-          aVal = Number(a.campanhasCount ?? a.campanhas ?? 0);
-          bVal = Number(b.campanhasCount ?? b.campanhas ?? 0);
-          break;
-        case "desempenho":
-          aVal = Number(a.desempenhoPercent ?? a.desempenho ?? 0);
-          bVal = Number(b.desempenhoPercent ?? b.desempenho ?? 0);
-          break;
-        case "contratos":
-          aVal = Number(a.contratos ?? 0);
-          bVal = Number(b.contratos ?? 0);
           break;
         case "engajamento":
           aVal = Number(a.seguidores ?? a.followersCount ?? 0);
           bVal = Number(b.seguidores ?? b.followersCount ?? 0);
           break;
         default:
-          aVal = a[sortConfig.key];
-          bVal = b[sortConfig.key];
+          aVal = a[sortConfig.key] || 0;
+          bVal = b[sortConfig.key] || 0;
       }
       
       if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
@@ -372,7 +356,6 @@ const Influenciadores = () => {
     });
     return sorted;
   }, [listaInfluenciadores, sortConfig]);
-
 
   const handleSort = (key) => {
     setSortConfig((prev) => {
@@ -386,10 +369,9 @@ const Influenciadores = () => {
     setSelectedInfluencer(inf);
     setDialogStep(1);
     setDialogOpen(true);
-}, []);
+  }, []);
 
-
-const handleCloseDialog = () => {
+  const handleCloseDialog = () => {
     setDialogOpen(false);
     setTimeout(() => {
         setDialogStep(1);
@@ -398,42 +380,41 @@ const handleCloseDialog = () => {
         setSelectedInfluencer(null);
         setDialogError('');
     }, 300); 
-};
+  };
 
-const handleNextStep = async () => {
-  setDialogError('');
+  const handleNextStep = async () => {
+    setDialogError('');
 
-  if (dialogStep === 1) {
-    if (!userPassword) {
-      setDialogError("Digite sua senha para continuar!");
-      return;
+    if (dialogStep === 1) {
+      if (!userPassword) {
+        setDialogError("Digite sua senha para continuar!");
+        return;
+      }
+
+      setIsVerifying(true);
+      try {
+        const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
+        const token = userInfo?.token;
+        const config = { headers: { Authorization: `Bearer ${token}` } };
+        
+        await axios.post('http://localhost:5001/api/users/verify-password', { password: userPassword }, config);
+        setDialogStep(2);
+
+      } catch (error) {
+        const message = error.response?.data?.message || "Erro ao verificar senha.";
+        setDialogError(message);
+      } finally {
+        setIsVerifying(false);
+      }
     }
-
-    setIsVerifying(true);
-    try {
-   const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
-      const token = userInfo?.token;
-      
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      
-      await axios.post('http://localhost:5001/api/users/verify-password', { password: userPassword }, config);
-      setDialogStep(2);
-
-    } catch (error) {
-      const message = error.response?.data?.message || "Erro ao verificar senha.";
-      setDialogError(message);
-    } finally {
-      setIsVerifying(false);
+    else if (dialogStep === 2) {
+      if (confirmationName.trim() !== selectedInfluencer?.name) {
+        setDialogError("O nome digitado não corresponde ao do influenciador!");
+        return;
+      }
+      setDialogStep(3);
     }
-  }
-  else if (dialogStep === 2) {
-    if (confirmationName.trim() !== selectedInfluencer?.name) {
-      setDialogError("O nome digitado não corresponde ao do influenciador!");
-      return;
-    }
-    setDialogStep(3);
-  }
-};
+  };
 
   const handleEdit = (id) => {
     navigate(`/influenciador/editar/${id}`);
@@ -445,9 +426,8 @@ const handleNextStep = async () => {
       { key: "avaliacao", label: "Avaliação" },
       { key: "categorias", label: "Categorias" },
       { key: "engajamento", label: "Engajamento" },
-      { key: "campanhas", label: "Vinculado a campanhas" },
-      { key: "desempenho", label: "Desempenho nas campanhas" },
-      { key: "contratos", label: "Contratos para confirmação!" },
+      { key: "campanhas", label: "Vinculado a campanhas" }, 
+      { key: "contratos", label: "Contratos para confirmação" },
       { key: "acoes", label: "Ações" },
     ];
 
@@ -456,8 +436,8 @@ const handleNextStep = async () => {
         sx={{
           display: { xs: "none", md: "grid" },
           gridTemplateColumns: {
-            md: "2fr 1fr 1fr 1fr 1fr 1fr 1fr 0.5fr",
-            lg: "2.5fr 1fr 1fr 1fr 1fr 1fr 1fr 0.5fr",
+            md: "2.5fr 1fr 1fr 1.2fr 1fr 1fr 0.5fr",
+            lg: "3fr 1fr 1fr 1.2fr 1fr 1fr 0.7fr",
           },
           gap: 2,
           alignItems: "center",
@@ -473,10 +453,10 @@ const handleNextStep = async () => {
             color="rgba(255,255,255,0.7)"
             fontWeight={600}
             sx={{
-              cursor: col.key !== "acoes" ? "pointer" : "default",
+              cursor: (col.key !== "acoes" && col.key !== "campanhas" && col.key !== "contratos") ? "pointer" : "default",
               userSelect: "none",
             }}
-            onClick={() => col.key !== "acoes" && handleSort(col.key)}
+            onClick={() => (col.key !== "acoes" && col.key !== "campanhas" && col.key !== "contratos") && handleSort(col.key)}
           >
             {col.label}{" "}
             {sortConfig.key === col.key
@@ -538,7 +518,7 @@ const handleNextStep = async () => {
         </Box>
       </Box>
 
-<Dialog 
+    <Dialog 
     open={dialogOpen} 
     onClose={handleCloseDialog} 
     PaperProps={{ 
@@ -548,13 +528,11 @@ const handleNextStep = async () => {
             backdropFilter:"blur(10px)",
             boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
             width: '100%',
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
             maxWidth: '500px'
         } 
     }}
 >
-    
-    {/* --- ETAPA 1: SENHA --- */}
     {dialogStep === 1 && (
         <>
             <DialogTitle sx={{ color: '#1a1a1a', fontWeight: 'bold' }}>
@@ -595,7 +573,6 @@ const handleNextStep = async () => {
         </>
     )}
 
-    {/* --- ETAPA 2: NOME DO INFLUENCIADOR --- */}
     {dialogStep === 2 && (
         <>
             <DialogTitle sx={{ color: '#1a1a1a', fontWeight: 'bold' }}>
@@ -633,7 +610,6 @@ const handleNextStep = async () => {
         </>
     )}
     
-    {/* --- ETAPA 3: CONFIRMAÇÃO FINAL --- */}
     {dialogStep === 3 && (
         <>
             <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>
@@ -658,7 +634,7 @@ const handleNextStep = async () => {
         </>
     )}
 
-</Dialog>
+    </Dialog>
     </Box>
   );
 }

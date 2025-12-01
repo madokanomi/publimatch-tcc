@@ -38,7 +38,7 @@ const CampanhasInfluSpec = () => {
   useEffect(() => {
     const fetchCampaigns = async () => {
       try {
-        const userInfo = JSON.parse(localStorage.getItem('user'));
+        const userInfo = JSON.parse(sessionStorage.getItem('user'));
         const token = userInfo?.token;
         if (!token) throw new Error('Utilizador não autenticado.');
 
@@ -72,7 +72,7 @@ const CampanhasInfluSpec = () => {
   // AQUI: A lógica de aceitar/rejeitar precisará chamar a API no futuro
    const handleUpdateInvite = async (inviteId, status) => {
     try {
-      const userInfo = JSON.parse(localStorage.getItem('user'));
+      const userInfo = JSON.parse(sessionStorage.getItem('user'));
       const token = userInfo?.token;
       const config = { headers: { Authorization: `Bearer ${token}` } };
 
@@ -136,7 +136,7 @@ const CampanhasInfluSpec = () => {
    const fetchCampaigns = async () => {
         setIsLoading(true);
         try {
-            const userInfo = JSON.parse(localStorage.getItem('user'));
+            const userInfo = JSON.parse(sessionStorage.getItem('user'));
             const token = userInfo?.token;
             if (!token) throw new Error('Utilizador não autenticado.');
             const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -188,7 +188,7 @@ const CampanhasInfluSpec = () => {
   // ✅ FUNÇÃO ATUALIZADA para confirmar a finalização (agora sem senha)
   const handleConfirmFinalize = async (campaignId) => {
     try {
-        const userInfo = JSON.parse(localStorage.getItem('user'));
+        const userInfo = JSON.parse(sessionStorage.getItem('user'));
         const token = userInfo?.token;
         const config = { headers: { Authorization: `Bearer ${token}` } };
         

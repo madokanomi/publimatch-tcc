@@ -52,7 +52,7 @@ router.route('/')
 // ✅ ALTERAÇÃO: Removido 'protect' para permitir visualização pública do histórico.
 // O Controller já gerencia a segurança (mostra só histórico se não for dono).
 router.route('/:id/campaigns')
-    .get(getInfluencerCampaigns);
+    .get(protect, getInfluencerCampaigns);
 
 // 6. Rota Genérica por ID (GET, PUT, DELETE) - DEIXE ESTA POR ÚLTIMO
 router.route('/:id')
