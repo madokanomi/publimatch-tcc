@@ -2,16 +2,15 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Avatar, Button, Chip, Divider, IconButton, 
   Grid, CircularProgress, Tooltip,
-  useTheme, useMediaQuery, LinearProgress
+  useTheme, useMediaQuery
 } from "@mui/material";
 import { 
   Edit, ArrowBack, BusinessCenter, 
   Groups, Email, Phone, VerifiedUser, Security,
   Language, AccessTime, CheckCircle,
   Instagram, YouTube, Twitter,
-  Star, Favorite, Visibility, BarChart // Novos ícones
+  Star, Favorite, Visibility, LocalOffer // Adicionado LocalOffer para Tags
 } from "@mui/icons-material";
-import MusicNoteIcon from "@mui/icons-material/MusicNote"; // Para TikTok caso não use FaTiktok
 import { FaTwitch, FaTiktok } from 'react-icons/fa'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from "react-router-dom";
@@ -46,6 +45,7 @@ const SocialIcon = ({ network }) => {
     return null;
 };
 
+// Processador de texto do TipTap (Editor de Bio)
 const extractTextFromTipTap = (content) => {
     if (!content) return "";
     try {
@@ -76,6 +76,7 @@ const UserProfile = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
+  // Determina IDs e Propriedade
   const isOwnProfile = !id || (authUser && id === authUser._id);
   const profileId = id || (authUser ? authUser._id : null);
 
@@ -104,7 +105,7 @@ const UserProfile = () => {
         if (!profileId) return;
         setLoading(true);
         try {
-            console.log("Buscando perfil para ID:", profileId);
+            // 1. Busca Dados do Usuário (Agente)
             const res = await axios.get(`http://localhost:5001/api/users/public/${profileId}`);
             let userData = res.data;
             
@@ -120,39 +121,31 @@ const UserProfile = () => {
 
             setProfileData(safeUserData);
 
+            // 2. Configura Token e Busca Dados Relacionados (Campanhas ou Influencers)
             const tokenConfig = authUser?.token ? { headers: { Authorization: `Bearer ${authUser.token}` } } : {};
             let fetchedData = [];
 
             if (userRole === ROLES.AD_AGENT) {
+                // --- Busca Campanhas ---
                 const url = isOwnProfile 
                     ? 'http://localhost:5001/api/campaigns/my-campaigns' 
                     : `http://localhost:5001/api/campaigns/public?creator=${profileId}`;
-                
                 const campRes = await axios.get(url, tokenConfig);
                 fetchedData = Array.isArray(campRes.data) ? campRes.data : [];
 
             } else if (userRole === ROLES.INFLUENCER_AGENT) {
-                const url = isOwnProfile 
-                    ? 'http://localhost:5001/api/influencers'
-                    : `http://localhost:5001/api/influencers/by-agent/${profileId}`;
+                // --- Busca Influenciadores ---
+                // FIX: Usamos sempre a rota '/agente/:id' pois ela (getInfluencersByAgent)
+                // retorna os dados calculados (aggregatedStats, avaliação, tags) que a rota simples não retorna.
+                const url = `http://localhost:5001/api/influencers/agente/${profileId}`;
                 
-                const infRes = await axios.get(url, tokenConfig);
-                const rawData = Array.isArray(infRes.data) ? infRes.data : [];
-
-                // Mapeia os dados, priorizando aggregatedStats se vier do backend
-                fetchedData = rawData.map(influencer => ({
-                    ...influencer,
-                    // Se o backend já mandar aggregatedStats, usamos. Se não, fallback.
-                    aggregatedStats: influencer.aggregatedStats || {
-                        followers: influencer.followersCount || Math.floor(Math.random() * 100000),
-                        views: influencer.views || Math.floor(Math.random() * 500000),
-                        likes: influencer.curtidas || Math.floor(Math.random() * 20000),
-                        engagementRate: influencer.engagementRate || 0
-                    },
-                    avaliacao: influencer.avaliacao || (Math.random() * 2 + 3), // Mock se não tiver
-                    niches: influencer.niches || [],
-                    social: influencer.social || {} 
-                }));
+                try {
+                    const infRes = await axios.get(url, tokenConfig);
+                    fetchedData = Array.isArray(infRes.data) ? infRes.data : [];
+                } catch (err) {
+                    console.warn("Erro ao buscar influencers detalhados:", err);
+                    fetchedData = [];
+                }
             }
 
             setRelatedData(fetchedData);
@@ -167,6 +160,7 @@ const UserProfile = () => {
     };
     fetchProfile();
   }, [profileId, isOwnProfile, authUser]);
+
 
   if (loading) return <Box display="flex" justifyContent="center" alignItems="center" height="80vh"><CircularProgress sx={{ color: '#db1db5' }} /></Box>;
   if (!profileData) return <Typography p={5} color="white" align="center">Usuário não encontrado.</Typography>;
@@ -283,7 +277,7 @@ const UserProfile = () => {
                                         }}
                                         sx={{ color: "white", borderColor: "rgba(255,255,255,0.3)", borderRadius: "20px", textTransform: "none" }}
                                     >
-                                        Ver Detalhes
+                                            Ver Detalhes
                                     </Button>
                                 </Box>
                             </Box>
@@ -305,13 +299,17 @@ const UserProfile = () => {
             >
                  {(!relatedData || relatedData.length === 0) ? (
                       <Box textAlign="center" py={5}>
-                         <Typography color="rgba(255,255,255,0.5)">Nenhum influenciador encontrado.</Typography>
-                      </Box>
+                          <Typography color="rgba(255,255,255,0.5)">Nenhum influenciador encontrado.</Typography>
+                       </Box>
                   ) : (
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         {relatedData.map((influencer) => {
-                             // Extrai estatísticas ou usa padrão seguro
+                             // --- MAPEAMENTO DAS ESTATÍSTICAS DO BACKEND ---
+                             // O backend retorna 'aggregatedStats' com 'followers', 'views', 'likes'
                              const stats = influencer.aggregatedStats || { followers: 0, views: 0, likes: 0 };
+                             // O backend retorna 'avaliacao' (média) e 'tags' (top 3)
+                             const rating = influencer.avaliacao || 0;
+                             const topTags = influencer.tags || [];
                              
                              return (
                                 <Box 
@@ -320,7 +318,6 @@ const UserProfile = () => {
                                     component={motion.div} variants={staggerItem}
                                     sx={{ 
                                         position: 'relative', 
-                                        // Estilo baseado no InfluencerCard
                                         background: `linear-gradient(90deg, rgba(20, 3, 41, 0.95) 0%, rgba(20, 3, 41, 0.7) 100%), url(${influencer.backgroundImageUrl || ''})`,
                                         backgroundSize: "cover",
                                         backgroundPosition: "center",
@@ -339,12 +336,12 @@ const UserProfile = () => {
                                 >
                                     <Box sx={{
                                         display: "grid", 
-                                        gridTemplateColumns: { xs: "1fr", md: "2.5fr 2fr 1.5fr" }, // Layout responsivo
+                                        gridTemplateColumns: { xs: "1fr", md: "2.5fr 2fr 1.5fr" },
                                         gap: { xs: 2, md: 3 },
                                         p: 3, alignItems: "center",
                                     }}>
                                         
-                                        {/* COLUNA 1: Perfil e Nichos */}
+                                        {/* COLUNA 1: Perfil, Tags e Nichos */}
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                             <Avatar 
                                                 src={influencer.profileImageUrl} 
@@ -364,8 +361,9 @@ const UserProfile = () => {
                                                 </Typography>
                                                 
                                                 <Box display="flex" gap={0.5} flexWrap="wrap">
+                                                    {/* Exibir Nichos */}
                                                     {influencer.niches?.slice(0, 2).map((cat, i) => (
-                                                        <Chip key={i} label={cat} size="small"
+                                                        <Chip key={`cat-${i}`} label={cat} size="small"
                                                             sx={{ 
                                                                 backdropFilter: "blur(5px)", 
                                                                 bgcolor: "rgba(255,255,255,0.1)", 
@@ -375,11 +373,25 @@ const UserProfile = () => {
                                                             }} 
                                                         />
                                                     ))}
+                                                    {/* Exibir Tags do Backend (reviews) se houver */}
+                                                    {topTags.slice(0, 2).map((tag, i) => (
+                                                        <Chip key={`tag-${i}`} label={`#${tag}`} size="small"
+                                                            icon={<LocalOffer sx={{ fontSize: '10px !important', color: '#db1db5' }} />}
+                                                            sx={{ 
+                                                                backdropFilter: "blur(5px)", 
+                                                                bgcolor: "rgba(219, 29, 181, 0.15)", 
+                                                                color: "#ff80ea",
+                                                                fontSize: "0.65rem",
+                                                                height: "22px",
+                                                                border: "1px solid rgba(219, 29, 181, 0.3)"
+                                                            }} 
+                                                        />
+                                                    ))}
                                                 </Box>
                                             </Box>
                                         </Box>
 
-                                        {/* COLUNA 2: Métricas (Box de Destaque) */}
+                                        {/* COLUNA 2: Métricas Agregadas (Calculadas pelo Backend) */}
                                         <Box 
                                             display="flex" 
                                             justifyContent="space-between" 
@@ -417,14 +429,21 @@ const UserProfile = () => {
                                             </Box>
                                         </Box>
 
-                                        {/* COLUNA 3: Ações e Social */}
+                                        {/* COLUNA 3: Avaliação e Social */}
                                         <Box display="flex" flexDirection="column" alignItems={{ xs: 'center', md: 'flex-end' }} gap={1}>
-                                            {/* Estrelas */}
+                                            {/* Estrelas baseadas na Review */}
                                             <Box display="flex" alignItems="center">
                                                 {[...Array(5)].map((_, i) => (
-                                                    <Star key={i} sx={{ fontSize: 16, color: i < Math.floor(influencer.avaliacao || 0) ? "gold" : "rgba(255,255,255,0.3)" }} />
+                                                    <Star key={i} sx={{ fontSize: 16, color: i < Math.round(rating) ? "gold" : "rgba(255,255,255,0.3)" }} />
                                                 ))}
-                                                <Typography variant="caption" ml={0.5} color="white">{(influencer.avaliacao || 0).toFixed(1)}</Typography>
+                                                <Typography variant="caption" ml={0.5} color="white">
+                                                    {rating > 0 ? rating.toFixed(1) : "N/A"}
+                                                </Typography>
+                                                {influencer.qtdAvaliacoes > 0 && (
+                                                   <Typography variant="caption" color="rgba(255,255,255,0.5)" ml={0.5}>
+                                                       ({influencer.qtdAvaliacoes})
+                                                   </Typography>
+                                                )}
                                             </Box>
 
                                             {/* Redes */}

@@ -136,6 +136,8 @@ export const deleteInfluencer = asyncHandler(async (req, res) => {
     res.status(200).json({ message: 'Influenciador removido com sucesso.' });
 });
 
+// No arquivo influencerController.js
+
 export const getInfluencerById = asyncHandler(async (req, res) => {
     const influencer = await Influencer.findById(req.params.id).populate('agent', 'name');
 
@@ -150,24 +152,17 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
     const isAdAgent = req.user.role === 'AD_AGENT';
 
     if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
-        // Inicializa as promessas
-        let youtubePromise = Promise.resolve(null);
-        let instagramPromise = Promise.resolve(null);
-        let twitchPromise = Promise.resolve(null);
-        let tiktokPromise = Promise.resolve(null);
+        // ... (Mantenha a lógica de Promises do Youtube, Instagram, Twitch, TikTok igual ao que você já tem) ...
+        
+        // --- CÓDIGO EXISTENTE DE PROMISES (Resumido para foco na correção) ---
+        let youtubePromise = influencer.social?.youtube ? getYoutubeStats(influencer.social.youtube) : Promise.resolve(null);
+        let instagramPromise = influencer.social?.instagram ? getInstagramStats(influencer.social.instagram) : Promise.resolve(null);
+        let twitchPromise = influencer.social?.twitch ? getTwitchStats(influencer.social.twitch) : Promise.resolve(null);
+        let tiktokPromise = influencer.social?.tiktok ? getTikTokStats(influencer.social.tiktok) : Promise.resolve(null);
 
-        // Dispara chamadas apenas se o link existir
-        if (influencer.social?.youtube) youtubePromise = getYoutubeStats(influencer.social.youtube);
-        if (influencer.social?.instagram) instagramPromise = getInstagramStats(influencer.social.instagram);
-        if (influencer.social?.twitch) twitchPromise = getTwitchStats(influencer.social.twitch);
-        if (influencer.social?.tiktok) tiktokPromise = getTikTokStats(influencer.social.tiktok);
-
-        // Aguarda todas (usando allSettled para que uma falha não trave as outras)
         const [youtubeResult, instagramResult, twitchResult, tiktokResult] = await Promise.allSettled([
             youtubePromise, instagramPromise, twitchPromise, tiktokPromise
         ]);
-
-        const responseData = influencer.toObject();
 
         // --- LÓGICA DE SOMA (AGREGAÇÃO) ---
         let totalFollowers = 0;
@@ -176,24 +171,11 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
         let engagementSum = 0;
         let platformsWithEngagement = 0;
 
-        // Função auxiliar para somar dados de forma segura
         const aggregateData = (stats) => {
             if (!stats) return;
-
-            // 1. Seguidores (Inscritos + Followers)
-            const followers = Number(stats.subscriberCount || stats.followers || 0);
-            totalFollowers += followers;
-
-            // 2. Visualizações (Views Totais ou Médias dependendo da API)
-            // Twitch e YT tem totalViews/viewCount. Instagram/TikTok as vezes tem avgViews.
-            const views = Number(stats.viewCount || stats.totalViews || stats.avgViews || 0);
-            totalViews += views;
-
-            // 3. Curtidas (Likes ou AvgLikes)
-            const likes = Number(stats.likes || stats.avgLikes || 0);
-            totalLikes += likes;
-
-            // 4. Taxa de Engajamento (Para média)
+            totalFollowers += Number(stats.subscriberCount || stats.followers || 0);
+            totalViews += Number(stats.viewCount || stats.totalViews || stats.avgViews || 0);
+            totalLikes += Number(stats.likes || stats.avgLikes || 0);
             const er = Number(stats.engagementRate || 0);
             if (er > 0) {
                 engagementSum += er;
@@ -201,7 +183,8 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
             }
         };
 
-        // Adiciona dados individuais e soma no total
+        const responseData = influencer.toObject();
+
         if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
             responseData.youtubeStats = youtubeResult.value;
             aggregateData(youtubeResult.value);
@@ -219,13 +202,10 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
             aggregateData(tiktokResult.value);
         }
 
-        // Calcula a média de engajamento (Ex: (5% + 3%) / 2 = 4%)
         const avgEngagement = platformsWithEngagement > 0 
             ? (engagementSum / platformsWithEngagement).toFixed(2) 
             : 0;
 
-        // ✅ INJETA OS DADOS SOMADOS NA RESPOSTA
-        // O Frontend poderá acessar via: influencer.aggregatedStats.followers
         responseData.aggregatedStats = {
             followers: totalFollowers,
             views: totalViews,
@@ -234,11 +214,23 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
             platformsActive: platformsWithEngagement
         };
 
-        // Atualiza campos raiz do influenciador com os totais calculados (opcional, para facilitar exibição rápida)
-        responseData.followersCount = totalFollowers; 
-        responseData.engagementRate = Number(avgEngagement);
-        responseData.views = totalViews;
-        responseData.curtidas = totalLikes;
+        // =================================================================
+        // 🔥 A CORREÇÃO MÁGICA ESTÁ AQUI EMBAIXO 🔥
+        // Salvamos os dados calculados no banco de dados para a lista ler depois
+        // =================================================================
+        
+        influencer.followersCount = totalFollowers;
+        influencer.views = totalViews;
+        // Se o seu model tiver campo 'likes' ou 'curtidas', use aqui. Vou usar 'curtidas' baseado no seu código anterior.
+        influencer.curtidas = totalLikes; 
+        influencer.engagementRate = Number(avgEngagement);
+        
+        // Salva silenciosamente (sem travar a resposta se der erro leve)
+        try {
+            await influencer.save();
+        } catch (error) {
+            console.error("Erro ao salvar estatísticas atualizadas no banco:", error.message);
+        }
 
         res.json(responseData);
 
@@ -429,15 +421,57 @@ export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
 export const getInfluencersByAgent = asyncHandler(async (req, res) => {
     const { agentId } = req.params;
     
-    // CORREÇÃO: Retornamos os dados necessários e garantimos que niches e imagens venham.
-    // Se quiser retornar TUDO, basta remover o .select
-    const influencers = await Influencer.find({ agent: agentId })
-        .select('name profileImageUrl realName social niches agent'); 
+    // 1. Busca os influenciadores do agente (usando .lean() para performance)
+    const influencers = await Influencer.find({ agent: agentId }).lean(); 
 
-    // CORREÇÃO: Retorna array vazio em vez de erro 404 se não encontrar nada
-    // Isso evita que o frontend trate como "Erro de API"
-    if (influencers) {
-        res.status(200).json(influencers);
+    if (influencers && influencers.length > 0) {
+        // 2. Processa cada influenciador para adicionar dados das Reviews e Totais
+        const influencersWithData = await Promise.all(influencers.map(async (inf) => {
+            
+            // A. Busca reviews para calcular a nota e tags
+            const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
+
+            // B. Calcula média de Estrelas
+            const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
+            const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
+
+            // C. Calcula Top 3 Tags
+            const tagCounts = {};
+            reviews.forEach(review => {
+                if (review.tags && Array.isArray(review.tags)) {
+                    review.tags.forEach(tag => {
+                        const normalizedTag = tag.trim(); 
+                        tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
+                    });
+                }
+            });
+
+            const topTags = Object.entries(tagCounts)
+                .sort(([, countA], [, countB]) => countB - countA) 
+                .slice(0, 3) 
+                .map(([tag]) => tag); 
+
+            // D. Prepara o objeto de estatísticas somadas
+            // Se o influenciador tiver dados salvos de 'followersCount', etc., usamos eles.
+            // Caso contrário, enviamos 0. (Esses dados são atualizados quando se abre o perfil detalhado)
+            const stats = {
+                followers: inf.followersCount || 0,
+                views: inf.views || 0,
+                likes: inf.curtidas || 0, // Usando o campo 'curtidas' do seu model
+                engagementRate: inf.engagementRate || 0
+            };
+
+            return {
+                ...inf,
+                // Adiciona dados calculados
+                avaliacao: avgRating, 
+                tags: topTags,
+                aggregatedStats: stats, // Envia formatado para o front
+                qtdAvaliacoes: reviews.length
+            };
+        }));
+
+        res.status(200).json(influencersWithData);
     } else {
         res.status(200).json([]); 
     }

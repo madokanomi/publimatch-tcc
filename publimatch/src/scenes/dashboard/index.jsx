@@ -259,7 +259,7 @@ const Dashboard = () => {
        <Fade in={true} timeout={1000}>
         <Box ml="25px">
             <Box display="flex" justifyContent="space-between" alignItems="center">
-                <Header title={`Bem Vindo, ${user.name}!`} subtitle="Dashboard" />
+                <Header title={`Bem-Vindo, ${user.name}!`} subtitle="Dashboard" />
             </Box>
 
             <Box 

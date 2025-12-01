@@ -463,15 +463,18 @@ if (showErrorDialog) {
                   <Box textAlign="center">
                     <IconButton component="label">
                       <AddPhotoAlternateIcon fontSize="large" sx={{ width: 70, height: 70 }} />
-                      <input
-                        hidden
-                        accept="image/*"
-                        type="file"
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (file) setImagemFundo(URL.createObjectURL(file));
-                        }}
-                      />
+                    <input
+  hidden
+  accept="image/*"
+  type="file"
+  onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImagemFundo(URL.createObjectURL(file)); // Atualiza o preview visual
+      setArquivoImagemFundo(file); // ✅ CORREÇÃO: Armazena o arquivo para envio
+    }
+  }}
+/>
                     </IconButton>
                     <Typography variant="body2">Insira a imagem de fundo</Typography>
                   </Box>
@@ -507,15 +510,18 @@ if (showErrorDialog) {
                       }}
                     >
                       <AiFillEdit size={24} />
-                      <input
-                        hidden
-                        accept="image/*"
-                        type="file"
-                        onChange={(e) => {
-                          const file = e.target.files[0];
-                          if (file) setImagemFundo(URL.createObjectURL(file));
-                        }}
-                      />
+                   <input
+  hidden
+  accept="image/*"
+  type="file"
+  onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImagemFundo(URL.createObjectURL(file)); // Atualiza o preview visual
+      setArquivoImagemFundo(file); // ✅ CORREÇÃO: Armazena o arquivo para envio
+    }
+  }}
+/>
                     </IconButton>
                   </>
                 )}
@@ -544,15 +550,18 @@ if (showErrorDialog) {
                       cursor: "pointer",
                     }}
                   />
-                  <input
-                    hidden
-                    accept="image/*"
-                    type="file"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) setImagemPerfil(URL.createObjectURL(file));
-                    }}
-                  />
+                <input
+  hidden
+  accept="image/*"
+  type="file"
+  onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImagemPerfil(URL.createObjectURL(file)); // Atualiza o preview visual
+      setArquivoImagemPerfil(file); // ✅ CORREÇÃO: Armazena o arquivo para envio
+    }
+  }}
+/>
                 </IconButton>
 
                 {!imagemPerfil && !formData.imagem && (
@@ -586,15 +595,18 @@ if (showErrorDialog) {
                     }}
                   >
                     <AiFillEdit size={24} />
-                    <input
-                      hidden
-                      accept="image/*"
-                      type="file"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) setImagemPerfil(URL.createObjectURL(file));
-                      }}
-                    />
+                 <input
+  hidden
+  accept="image/*"
+  type="file"
+  onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImagemPerfil(URL.createObjectURL(file)); // Atualiza o preview visual
+      setArquivoImagemPerfil(file); // ✅ CORREÇÃO: Armazena o arquivo para envio
+    }
+  }}
+/>
                   </IconButton>
                 )}
               </Box>
