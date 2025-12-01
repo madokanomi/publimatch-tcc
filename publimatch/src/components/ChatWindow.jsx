@@ -212,6 +212,7 @@ const ChatWindow = () => {
   const initial = otherUser?.name ? otherUser.name[0].toUpperCase() : '?';
  const hasValidImage = otherUser?.profileImageUrl && otherUser.profileImageUrl !== "URL_DA_SUA_IMAGEM_PADRAO.png";
     // Linha modificada
+// Linha modificada
 const showAgentButton = 
   otherUser?.role !== 'AD_AGENT' && 
   otherUser?.role !== 'INFLUENCER' && 
