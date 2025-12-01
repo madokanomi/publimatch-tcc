@@ -191,11 +191,32 @@ const CampaignCandidates = ({ campaign }) => {
                 )}
             </Box>
 
-            <Dialog open={dialogOpen} onClose={handleCloseDialog} PaperProps={{ sx: { backgroundColor: "rgba(40, 2, 39, 0.85)", color: "white", backdropFilter: "blur(10px)", borderRadius: '20px', border: "1px solid rgba(255, 255, 255, 0.1)" } }}>
-                <DialogTitle sx={{ color: actionPink, fontWeight: 'bold' }}>{dialogContent.title}</DialogTitle>
-                <DialogContent><DialogContentText sx={{ color: "rgba(255, 255, 255, 0.8)" }}>{dialogContent.message}</DialogContentText></DialogContent>
+             <Dialog 
+                open={dialogOpen} 
+                onClose={handleCloseDialog} 
+                PaperProps={{ 
+                    sx: { 
+                        backgroundColor: "white", // Mudado para branco
+                        color: "black",           // Mudado para preto para ser legível
+                        borderRadius: '20px', 
+                        // Removi o border claro e o backdropFilter que eram para o tema escuro
+                        boxShadow: 24 
+                    } 
+                }}
+            >
+                <DialogTitle sx={{ color: actionPink, fontWeight: 'bold' }}>
+                    {dialogContent.title}
+                </DialogTitle>
+                <DialogContent>
+                    {/* Alterado de branco transparente para cinza escuro */}
+                    <DialogContentText sx={{ color: "rgba(0, 0, 0, 0.7)" }}> 
+                        {dialogContent.message}
+                    </DialogContentText>
+                </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDialog} sx={{ color: actionPink, fontWeight: 'bold' }}>OK</Button>
+                    <Button onClick={handleCloseDialog} sx={{ color: actionPink, fontWeight: 'bold' }}>
+                        OK
+                    </Button>
                 </DialogActions>
             </Dialog>
         </Box>
