@@ -97,11 +97,12 @@ const CampaignNotificationModal = () => {
 
             // 3. ✨ ENVIA MENSAGEM AUTOMÁTICA ✨
             const autoMessage = `Olá! Acabei de aceitar o convite para a campanha "${campaignTitle}". Estou à disposição para começarmos! 🚀`;
-            
-            await axios.post('http://localhost:5001/api/chat/message', {
-                conversationId: conversationData._id,
-                text: autoMessage
-            }, config);
+            
+            // ✅ CORREÇÃO:
+            // A rota é /send/:receiverId e o body espera apenas o { text }
+            await axios.post(`http://localhost:5001/api/chat/send/${adAgentId}`, {
+                text: autoMessage
+            }, config);
 
             closeModal();
             navigate(`/conversa/${conversationData._id}`);
