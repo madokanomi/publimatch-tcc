@@ -21,6 +21,7 @@ import {
     Tooltip, // Importado
     Badge    // Importado
 } from "@mui/material";
+import { Close as CloseIcon } from "@mui/icons-material"; // Importe o ícone de fechar
 import {
     Favorite,
     Visibility,
@@ -62,86 +63,89 @@ const fmt = (v) => {
     return `${num}`;
 };
 
-// --- NOVO COMPONENTE AUXILIAR PARA ÍCONES SOCIAIS COM STATUS ---
-const SocialIconWithStatus = ({ platform, url, isVerified, icon: Icon, onConnect, isOwner }) => {
-    // Se não tem URL cadastrada e não é o dono (para conectar), não exibe nada
-    if (!url && !isOwner) return null; 
+const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, onConnect, isOwner }) => {
+    // Se não tem URL e não é dono, esconde
+    if (!url && !isOwner) return null;
 
-    // Define o ícone de status (Badge)
-    const StatusBadge = () => {
+    const handleClick = () => {
         if (isVerified) {
-            return (
-                <Tooltip title="Conta Verificada Oficialmente">
-                    <CheckCircle sx={{ 
-                        fontSize: 14, 
-                        color: "#00d4ff", 
-                        position: "absolute", 
-                        bottom: -2, 
-                        right: -2, 
-                        backgroundColor: "black", 
-                        borderRadius: "50%",
-                        zIndex: 2
-                    }} />
-                </Tooltip>
-            );
+            if (url) window.open(url, '_blank');
+        } else {
+            if (isOwner) onConnect(platform);
+            else if (url) window.open(url, '_blank');
         }
-        // Se não verificado e for o dono, mostra alerta para conectar
-        if (!isVerified && isOwner) {
-            return (
-                <Tooltip title="Não Verificado - Clique para conectar">
-                    <ErrorOutline sx={{ 
-                        fontSize: 14, 
-                        color: "#ff9800", 
-                        position: "absolute", 
-                        bottom: -2, 
-                        right: -2, 
-                        backgroundColor: "black", 
-                        borderRadius: "50%",
-                        zIndex: 2
-                    }} />
-                </Tooltip>
-            );
-        }
-        return null;
     };
 
+    // --- VISUAL VERIFICADO (Expandido com Nome) ---
+    if (isVerified) {
+        return (
+            <Tooltip title="Conta Oficial Verificada">
+                <Box
+                    onClick={handleClick}
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        pl: 0.5,
+                        pr: 1.5,
+                        py: 0.5,
+                        borderRadius: "20px",
+                        backgroundColor: "rgba(0, 212, 255, 0.1)",
+                        border: "1px solid rgba(0, 212, 255, 0.3)",
+                        cursor: "pointer",
+                        transition: "all 0.3s",
+                        "&:hover": { backgroundColor: "rgba(0, 212, 255, 0.2)" }
+                    }}
+                >
+                    {/* Ícone Redondo */}
+                    <Box sx={{
+                        width: 28, height: 28, borderRadius: "50%",
+                        backgroundColor: "#00d4ff", display: "flex", alignItems: "center", justifyContent: "center"
+                    }}>
+                        <Icon sx={{ fontSize: 16, color: "black" }} />
+                    </Box>
+
+                    {/* Nome da Conta */}
+                    <Typography variant="body2" fontWeight="bold" color="#00d4ff" sx={{ fontSize: '13px' }}>
+                        {handle || "Verificado"} {/* Mostra o nome salvo ou fallback */}
+                    </Typography>
+
+                    {/* Selo de Check */}
+                    <Verified sx={{ fontSize: 16, color: "#00d4ff" }} />
+                </Box>
+            </Tooltip>
+        );
+    }
+
+    // --- VISUAL NÃO VERIFICADO (Bolinha normal) ---
     return (
-        <Box 
-            position="relative" 
-            mr={1}
-            sx={{ cursor: "pointer" }}
-            onClick={() => {
-                if (isVerified) {
-                    // Se verificado, apenas abre o link
-                    if (url) window.open(url, '_blank');
-                } else {
-                    // Se não verificado:
-                    // 1. Se for dono -> Chama função de conectar (OAuth)
-                    // 2. Se for visitante -> Abre o link se existir
-                    if (isOwner) {
-                        onConnect(platform);
-                    } else if (url) {
-                        window.open(url, '_blank');
-                    }
-                }
-            }}
-        >
-            <Box sx={{ 
-                width: 32, 
-                height: 32, 
-                borderRadius: "50%", 
-                backgroundColor: isVerified ? "rgba(0, 212, 255, 0.1)" : "rgba(255,255,255,0.1)", 
-                border: isVerified ? "1px solid rgba(0,212,255,0.5)" : (isOwner && !isVerified ? "1px solid rgba(255,152,0,0.5)" : "1px solid rgba(255,255,255,0.2)"),
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "center", 
-                transition: "all 0.3s",
-                "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" } 
-            }}>
-                <Icon sx={{ fontSize: 16, color: isVerified ? "#00d4ff" : (isOwner && !isVerified ? "#ffcc80" : "white") }} />
+        <Tooltip title={isOwner ? "Clique para conectar e verificar" : "Perfil não verificado"}>
+            <Box 
+                position="relative" 
+                onClick={handleClick}
+                sx={{ 
+                    cursor: "pointer", 
+                    width: 36, 
+                    height: 36, 
+                    borderRadius: "50%", 
+                    backgroundColor: "rgba(255,255,255,0.1)", 
+                    border: isOwner ? "1px dashed rgba(255,152,0,0.7)" : "1px solid rgba(255,255,255,0.2)",
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "center", 
+                    transition: "all 0.3s",
+                    "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" } 
+                }}
+            >
+                <Icon sx={{ fontSize: 18, color: isOwner ? "#ffcc80" : "white" }} />
+                {isOwner && (
+                    <ErrorOutline sx={{ 
+                        fontSize: 14, color: "#ff9800", position: "absolute", bottom: -2, right: -2, 
+                        backgroundColor: "black", borderRadius: "50%" 
+                    }} />
+                )}
             </Box>
-            <StatusBadge />
-        </Box>
+        </Tooltip>
     );
 };
 // -------------------------------------------------------------
@@ -189,7 +193,7 @@ const Sobrespec = () => {
              window.location.reload(); // Forma mais simples para garantir que o ícone azul apareça
         }
     }, []);
-    
+
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -392,6 +396,7 @@ const Sobrespec = () => {
         profileImageUrl: imagem = '',
         backgroundImageUrl: imagemFundo = '',
         social = {},
+        socialHandles = {},
         socialVerification = {}, // Dados de verificação do backend
         isVerified = false       // Status geral de verificado
     } = influencer;
@@ -456,40 +461,45 @@ const Sobrespec = () => {
                                     </Box>
 
                                     {/* ÍCONES SOCIAIS COM STATUS DE VERIFICAÇÃO */}
-                                    <Box display="flex" gap={1}>
-                                        <SocialIconWithStatus 
-                                            platform="youtube"
-                                            url={social.youtube}
-                                            isVerified={socialVerification?.youtube}
-                                            icon={YouTubeIcon}
-                                            onConnect={handleConnectAccount}
-                                            isOwner={isOwner}
-                                        />
-                                        <SocialIconWithStatus 
-                                            platform="instagram"
-                                            url={social.instagram}
-                                            isVerified={socialVerification?.instagram}
-                                            icon={InstagramIcon}
-                                            onConnect={handleConnectAccount}
-                                            isOwner={isOwner}
-                                        />
-                                        <SocialIconWithStatus 
-                                            platform="twitch"
-                                            url={social.twitch}
-                                            isVerified={socialVerification?.twitch}
-                                            icon={SiTwitch}
-                                            onConnect={handleConnectAccount}
-                                            isOwner={isOwner}
-                                        />
-                                        <SocialIconWithStatus 
-                                            platform="tiktok"
-                                            url={social.tiktok}
-                                            isVerified={socialVerification?.tiktok}
-                                            icon={MusicNoteIcon}
-                                            onConnect={handleConnectAccount}
-                                            isOwner={isOwner}
-                                        />
-                                    </Box>
+{/* LISTA DE REDES SOCIAIS */}
+<Box display="flex" flexWrap="wrap" gap={1.5} mt={1}>
+    <SocialIconWithStatus 
+        platform="youtube"
+        url={social.youtube}
+        handle={socialHandles?.youtube} // Passa o nome do canal
+        isVerified={socialVerification?.youtube}
+        icon={YouTubeIcon}
+        onConnect={handleConnectAccount}
+        isOwner={isOwner}
+    />
+    <SocialIconWithStatus 
+        platform="instagram"
+        url={social.instagram}
+        handle={socialHandles?.instagram} // Passa o @ do insta
+        isVerified={socialVerification?.instagram}
+        icon={InstagramIcon}
+        onConnect={handleConnectAccount}
+        isOwner={isOwner}
+    />
+    <SocialIconWithStatus 
+        platform="twitch"
+        url={social.twitch}
+        handle={socialHandles?.twitch} // Passa o nome da twitch
+        isVerified={socialVerification?.twitch}
+        icon={SiTwitch}
+        onConnect={handleConnectAccount}
+        isOwner={isOwner}
+    />
+    <SocialIconWithStatus 
+        platform="tiktok"
+        url={social.tiktok}
+        handle={socialHandles?.tiktok}
+        isVerified={socialVerification?.tiktok}
+        icon={MusicNoteIcon}
+        onConnect={handleConnectAccount}
+        isOwner={isOwner}
+    />
+</Box>
 
                                     {/* ALERTA SE NÃO VERIFICADO (VISÍVEL APENAS PARA O DONO) */}
                                     {!isVerified && isOwner && (

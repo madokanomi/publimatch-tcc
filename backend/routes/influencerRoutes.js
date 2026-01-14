@@ -12,7 +12,9 @@ import {
     getInfluencerCampaigns,
     getInfluencersByAgent,
     summarizeInfluencerBio,
-    analyzeInfluencerStats
+    analyzeInfluencerStats,
+    unlinkSocialAccount
+
 } from '../controllers/influencerController.js';
 
 const router = express.Router();
@@ -69,6 +71,6 @@ router.route('/:id')
     );
 
     router.post('/analyze-stats', protect, analyzeInfluencerStats);
-
+    router.delete('/:id/social/:platform', protect, unlinkSocialAccount);
     router.post('/summary', protect, summarizeInfluencerBio);
 export default router;

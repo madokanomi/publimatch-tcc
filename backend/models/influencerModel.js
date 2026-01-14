@@ -38,10 +38,19 @@ agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         tiktok: { type: Boolean, default: false },
         twitch: { type: Boolean, default: false },
     },
+
+    socialHandles: {
+        youtube: { type: String, default: '' },   // Ex: "Canal do Enzo"
+        instagram: { type: String, default: '' }, // Ex: "enzo.oficial"
+        tiktok: { type: String, default: '' },
+        twitch: { type: String, default: '' },    // Ex: "enzogamer"
+    },
+
+    
     
     // Campo para saber se o perfil geral é verificado (opcional, se quiser um selo geral)
     isVerified: { type: Boolean, default: false },
-    
+
 }, { timestamps: true });
 
 const Influencer = mongoose.model('Influencer', influencerSchema);

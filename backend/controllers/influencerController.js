@@ -885,3 +885,36 @@ export const verifySocialPlatform = asyncHandler(async (req, res) => {
         socialVerification: influencer.socialVerification 
     });
 });
+
+
+export const unlinkSocialAccount = asyncHandler(async (req, res) => {
+    const { id, platform } = req.params;
+    
+    // Verifica se o usuário tem permissão (Dono ou Agente)
+    // (Adicione aqui sua lógica de verificação de permissão se necessário, igual aos outros endpoints)
+
+    const influencer = await Influencer.findById(id);
+
+    if (!influencer) {
+        res.status(404);
+        throw new Error('Influenciador não encontrado.');
+    }
+
+    // 1. Limpa os dados da plataforma específica
+    if (influencer.socialVerification) influencer.socialVerification[platform] = false;
+    if (influencer.socialHandles) influencer.socialHandles[platform] = "";
+    if (influencer.social) influencer.social[platform] = ""; // Opcional: Limpa o link também
+
+    // 2. Recalcula se o perfil ainda é verificado globalmente
+    // Verifica se sobrou alguma rede true em socialVerification
+    const hasAnyVerified = Object.values(influencer.socialVerification || {}).some(Boolean);
+    influencer.isVerified = hasAnyVerified;
+
+    await influencer.save();
+
+    res.status(200).json({ 
+        message: `Conta ${platform} desconectada com sucesso.`,
+        influencer // Retorna o objeto atualizado
+    });
+});
+
