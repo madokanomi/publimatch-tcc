@@ -13,7 +13,8 @@ import {
   TextField,
   DialogActions,
   DialogContentText,
-  CircularProgress
+CircularProgress,
+Tooltip
 } from "@mui/material";
 import {
   Favorite as FavoriteIcon,
@@ -28,6 +29,8 @@ import Header from "../../../components/Header";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import axios from "axios";
+import VerifiedIcon from '@mui/icons-material/Verified';
+
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -113,14 +116,39 @@ const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate
         return () => { isMounted = false; };
     }, [inf]);
 
+    // --- DENTRO DE InfluencerRow (Antes do return) ---
+
+// --- DENTRO DE InfluencerRow (Antes do return) ---
+
     const avatarImg = inf.imagem || inf.profileImageUrl || "";
-    const curtidas = inf.curtidas ?? inf.likes ?? inf.inscritos ?? inf.followers ?? inf.followersCount ?? 0;
-    const views = inf.views ?? inf.visualizacoes ?? inf.viewsCount ?? 0;
-    const seguidores = inf.seguidores ?? inf.followers ?? inf.followersCount ?? 0;
-    const mediaConversao = inf.mediaConversao ?? inf.conversao ?? inf.conversionRate ?? inf.conversaoPercent ?? 0;
     
-    const avaliacao = ratingStats.avg;
-    const numReviews = ratingStats.count;
+    // ✅ LÓGICA CORRIGIDA:
+    // O backend agora envia um 'aggregatedStats' confiável. Usamos ele como fonte primária.
+    const rawStats = inf.aggregatedStats || {};
+
+    // 1. Seguidores
+    const seguidores = rawStats.followers || inf.followersCount || inf.seguidores || 0;
+    
+    // 2. Views (Visualizações) - Tenta no objeto stats, depois na raiz
+    const views = rawStats.views || inf.views || inf.visualizacoes || 0;
+    
+    // 3. Likes (Curtidas) - Tenta no objeto stats, depois na raiz
+    const curtidas = rawStats.likes || inf.curtidas || inf.likes || 0;
+    
+    // 4. Engajamento
+    const mediaConversao = rawStats.engagementRate || inf.engagementRate || inf.mediaConversao || 0;
+
+    // 5. Avaliação
+    const avaliacao = inf.averageRating ?? ratingStats.avg ?? 0;
+    const numReviews = inf.reviewsCount ?? ratingStats.count ?? 0;
+
+    // Debug no console para você verificar se os dados estão chegando
+    // (Pode remover depois que confirmar que funcionou)
+    // console.log(`Influencer: ${inf.name} | Likes: ${curtidas} | Views: ${views}`);
+
+// ... return ( ...
+
+// ... return ( ...
 
     return (
       <motion.div
@@ -172,6 +200,11 @@ const InfluencerRow = React.memo(({ inf, handleEdit, handleDeleteClick, navigate
                 <Typography variant="subtitle1" color="white" sx={{ fontSize: "20px" }} fontWeight={700} noWrap>
                   {inf.name}
                 </Typography>
+                {inf.isVerified && (
+        <Tooltip title="Influenciador Verificado">
+            <VerifiedIcon sx={{ color: "#00d4ff", fontSize: 18 }} />
+        </Tooltip>
+    )}
                 <Typography variant="caption" sx={{ fontSize: "13px" }} color="rgba(255,255,255,0.6)" noWrap>
                   {inf.realName ?? ""}
                 </Typography>

@@ -18,6 +18,8 @@ import {
     Snackbar,
     Alert,
     TextField,
+    Tooltip, // Importado
+    Badge    // Importado
 } from "@mui/material";
 import {
     Favorite,
@@ -34,6 +36,9 @@ import {
     Business,
     BarChart,
     Campaign,
+    CheckCircle,    // Novo
+    ErrorOutline,   // Novo
+    Verified,       // Novo
 } from "@mui/icons-material";
 import StarIcon from "@mui/icons-material/Star";
 import { useParams, useNavigate } from "react-router-dom";
@@ -56,6 +61,90 @@ const fmt = (v) => {
     if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
     return `${num}`;
 };
+
+// --- NOVO COMPONENTE AUXILIAR PARA ÍCONES SOCIAIS COM STATUS ---
+const SocialIconWithStatus = ({ platform, url, isVerified, icon: Icon, onConnect, isOwner }) => {
+    // Se não tem URL cadastrada e não é o dono (para conectar), não exibe nada
+    if (!url && !isOwner) return null; 
+
+    // Define o ícone de status (Badge)
+    const StatusBadge = () => {
+        if (isVerified) {
+            return (
+                <Tooltip title="Conta Verificada Oficialmente">
+                    <CheckCircle sx={{ 
+                        fontSize: 14, 
+                        color: "#00d4ff", 
+                        position: "absolute", 
+                        bottom: -2, 
+                        right: -2, 
+                        backgroundColor: "black", 
+                        borderRadius: "50%",
+                        zIndex: 2
+                    }} />
+                </Tooltip>
+            );
+        }
+        // Se não verificado e for o dono, mostra alerta para conectar
+        if (!isVerified && isOwner) {
+            return (
+                <Tooltip title="Não Verificado - Clique para conectar">
+                    <ErrorOutline sx={{ 
+                        fontSize: 14, 
+                        color: "#ff9800", 
+                        position: "absolute", 
+                        bottom: -2, 
+                        right: -2, 
+                        backgroundColor: "black", 
+                        borderRadius: "50%",
+                        zIndex: 2
+                    }} />
+                </Tooltip>
+            );
+        }
+        return null;
+    };
+
+    return (
+        <Box 
+            position="relative" 
+            mr={1}
+            sx={{ cursor: "pointer" }}
+            onClick={() => {
+                if (isVerified) {
+                    // Se verificado, apenas abre o link
+                    if (url) window.open(url, '_blank');
+                } else {
+                    // Se não verificado:
+                    // 1. Se for dono -> Chama função de conectar (OAuth)
+                    // 2. Se for visitante -> Abre o link se existir
+                    if (isOwner) {
+                        onConnect(platform);
+                    } else if (url) {
+                        window.open(url, '_blank');
+                    }
+                }
+            }}
+        >
+            <Box sx={{ 
+                width: 32, 
+                height: 32, 
+                borderRadius: "50%", 
+                backgroundColor: isVerified ? "rgba(0, 212, 255, 0.1)" : "rgba(255,255,255,0.1)", 
+                border: isVerified ? "1px solid rgba(0,212,255,0.5)" : (isOwner && !isVerified ? "1px solid rgba(255,152,0,0.5)" : "1px solid rgba(255,255,255,0.2)"),
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                transition: "all 0.3s",
+                "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" } 
+            }}>
+                <Icon sx={{ fontSize: 16, color: isVerified ? "#00d4ff" : (isOwner && !isVerified ? "#ffcc80" : "white") }} />
+            </Box>
+            <StatusBadge />
+        </Box>
+    );
+};
+// -------------------------------------------------------------
 
 const Sobrespec = () => {
     const { id } = useParams();
@@ -81,14 +170,35 @@ const Sobrespec = () => {
     const [password, setPassword] = useState("");
     const [showFinalizeSuccess, setShowFinalizeSuccess] = useState(false);
 
+    // Identificação do Usuário Logado
+    const [currentUser, setCurrentUser] = useState(null);
+
+    useEffect(() => {
+        const queryParams = new URLSearchParams(window.location.search);
+        const status = queryParams.get('status');
+        const platform = queryParams.get('platform');
+
+        if (status === 'success' && platform) {
+            // Limpa a URL para ficar bonita
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            // Exibe mensagem de sucesso
+            setShowFinalizeSuccess(true); // Reusando seu snackbar ou crie um novo
+            // Opcional: Forçar um reload dos dados do influenciador para atualizar o ícone
+            // fetchData(); // Se você extrair a função fetchData do useEffect principal
+             window.location.reload(); // Forma mais simples para garantir que o ícone azul apareça
+        }
+    }, []);
+    
     useEffect(() => {
         const fetchData = async () => {
             try {
-    // Tenta pegar do localStorage OU do sessionStorage
-const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('user');
+                // Tenta pegar do localStorage OU do sessionStorage
+                const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('user');
                 if (!userInfoString) throw new Error('Utilizador não autenticado.');
                 
                 const userInfo = JSON.parse(userInfoString);
+                setCurrentUser(userInfo); // Salva o usuário atual
                 const token = userInfo?.token;
                 
                 if (!token) throw new Error('Token inválido.');
@@ -102,7 +212,6 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
                 
                 setInfluencer(influencerResponse.data);
                 
-                // Garante que reviews seja um array, mesmo se a API falhar ou retornar objeto
                 if (Array.isArray(reviewsResponse.data)) {
                     setReviews(reviewsResponse.data);
                 } else {
@@ -127,9 +236,7 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
         }
     }, [id]);
 
-    // --- CORREÇÃO PRINCIPAL AQUI ---
     const { averageRating, totalReviews } = useMemo(() => {
-        // Verifica explicitamente se é um array antes de rodar .reduce ou .length
         if (!Array.isArray(reviews) || reviews.length === 0) {
             return { averageRating: 0, totalReviews: 0 };
         }
@@ -149,6 +256,7 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
     if (error) return <Box display="flex" justifyContent="center" alignItems="center" height="50vh"><Typography color="error">{error}</Typography></Box>;
     if (!influencer) return <Box p={5}><Typography>Influenciador não encontrado.</Typography></Box>;
 
+    
     // --- MANIPULADORES ---
     const handleToggleSection = (section) => setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
     const handleOpenHireDialog = () => setOpenHireDialog(true);
@@ -173,6 +281,27 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
     const handleCloseFinalizeDialog = () => { setOpenFinalizeDialog(false); setPassword(""); };
     const handleConfirmFinalize = () => { handleCloseFinalizeDialog(); setShowFinalizeSuccess(true); };
 
+    // --- NOVA LÓGICA DE CONEXÃO ---
+    // Verifica se é o dono (compara ID da conta de usuário ou do agente)
+    const isOwner = currentUser && (
+        (influencer.userAccount && influencer.userAccount === currentUser._id) || 
+        (influencer.agent && influencer.agent._id === currentUser._id)
+    );
+
+   const handleConnectAccount = (platform) => {
+        if (!isOwner) return;
+        
+        // Mapeia o nome da plataforma para a rota correta
+        let route = platform;
+        if (platform === 'youtube') route = 'google';
+        if (platform === 'instagram') route = 'facebook'; // Usamos Facebook Login para verificar Instagram
+
+        // Redireciona a janela atual para o backend, passando o ID do influenciador
+        // O backend vai cuidar de mandar para o Google/Meta/Twitch
+        window.location.href = `http://localhost:5001/api/auth/${route}?influencerId=${id}`;
+    };
+
+    
     const availableCampaigns = [
         { id: 1, name: "Campanha Lançamento iPhone 17" },
         { id: 2, name: "Campanha Antigos 2" },
@@ -184,7 +313,6 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
         exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: "easeIn" } }
     };
 
-    // Renderização segura do AboutMe
     const renderAboutMeContent = () => {
         if (!influencer.aboutMe) {
             return (
@@ -194,15 +322,11 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
             );
         }
         try {
-            // Verifica se parece JSON antes de tentar parsear
             const isJson = typeof influencer.aboutMe === 'string' && (influencer.aboutMe.startsWith('{') || influencer.aboutMe.startsWith('['));
             const content = isJson ? JSON.parse(influencer.aboutMe) : influencer.aboutMe;
-            
-            // Se for objeto (Rich Text do Tiptap)
             if (typeof content === 'object') {
                  return <TiptapContent content={content} />;
             }
-            // Se for string simples
             return (
                 <Typography variant="body1" lineHeight={1.8} fontSize="16px" color="white">
                     {content}
@@ -245,10 +369,10 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
                     <motion.div key="estatisticas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit">
                         <Estatisticas 
                              youtubeData={influencer.youtubeStats || {}} 
-    instagramData={influencer.instagramStats || {}} 
-    twitchData={influencer.twitchStats || {}} // Adicionar
-    tiktokData={influencer.tiktokStats || {}} // Adicionar
-    socialLinks={influencer.social || {}}
+                            instagramData={influencer.instagramStats || {}} 
+                            twitchData={influencer.twitchStats || {}}
+                            tiktokData={influencer.tiktokStats || {}}
+                            socialLinks={influencer.social || {}}
                         />
                     </motion.div>
                 );
@@ -257,7 +381,6 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
         }
     };
 
-    // Destructuring seguro com valores padrão
     const {
         name: nome = 'Nome não disponível',
         realName: nomeReal = '',
@@ -269,14 +392,16 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
         profileImageUrl: imagem = '',
         backgroundImageUrl: imagemFundo = '',
         social = {},
+        socialVerification = {}, // Dados de verificação do backend
+        isVerified = false       // Status geral de verificado
     } = influencer;
 
     const avaliacao = averageRating || 0;
     const numReviews = totalReviews || 0;
-    // Tenta pegar viewsCount e likes, se não existir usa 0
     const views = influencer.viewsCount || 0; 
     const likes = influencer.likes || 0;
 
+    
     return (
         <Box pr={3} pl={3}>
             <Box mb={1}>
@@ -303,7 +428,17 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
                                 <Avatar src={imagem} sx={{ width: 120, height: 120, border: "4px solid white" }} />
                                 <Box>
                                     <Typography variant="body2" sx={{ fontStyle: "italic", opacity: 0.9, mb: 0.2, fontSize: "14px" }}>"{descricao}"</Typography>
-                                    <Typography variant="h3" fontWeight="bold" mb={0}>{nome}</Typography>
+                                    
+                                    {/* NOME + VERIFICADO */}
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                        <Typography variant="h3" fontWeight="bold" mb={0}>{nome}</Typography>
+                                        {isVerified && (
+                                            <Tooltip title="Influenciador Verificado">
+                                                <Verified sx={{ color: "#00d4ff", fontSize: 24, mt: 1 }} />
+                                            </Tooltip>
+                                        )}
+                                    </Box>
+
                                     <Typography variant="h6" mb={0.5} sx={{ opacity: 0.9 }}><PersonOutlined sx={{ paddingTop: "5px" }} /> {nomeReal}, {idade} anos</Typography>
                                     
                                     <Box display="flex" alignItems="center" gap={0.5} mb={1}>
@@ -320,12 +455,52 @@ const userInfoString = localStorage.getItem('user') || sessionStorage.getItem('u
                                         ))}
                                     </Box>
 
+                                    {/* ÍCONES SOCIAIS COM STATUS DE VERIFICAÇÃO */}
                                     <Box display="flex" gap={1}>
-                                        {social.youtube && <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.youtube, '_blank')}><YouTubeIcon sx={{ fontSize: 16 }} /></Box>}
-                                        {social.instagram && <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.instagram, '_blank')}><InstagramIcon sx={{ fontSize: 16 }} /></Box>}
-                                        {social.twitch && <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.twitch, '_blank')}><SiTwitch sx={{ fontSize: 16 }} /></Box>}
-                                        {social.tiktok && <Box sx={{ width: 32, height: 32, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", "&:hover": { backgroundColor: "rgba(255,255,255,0.3)" } }} onClick={() => window.open(social.tiktok, '_blank')}><MusicNoteIcon sx={{ fontSize: 16 }} /></Box>}
+                                        <SocialIconWithStatus 
+                                            platform="youtube"
+                                            url={social.youtube}
+                                            isVerified={socialVerification?.youtube}
+                                            icon={YouTubeIcon}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
+                                        <SocialIconWithStatus 
+                                            platform="instagram"
+                                            url={social.instagram}
+                                            isVerified={socialVerification?.instagram}
+                                            icon={InstagramIcon}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
+                                        <SocialIconWithStatus 
+                                            platform="twitch"
+                                            url={social.twitch}
+                                            isVerified={socialVerification?.twitch}
+                                            icon={SiTwitch}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
+                                        <SocialIconWithStatus 
+                                            platform="tiktok"
+                                            url={social.tiktok}
+                                            isVerified={socialVerification?.tiktok}
+                                            icon={MusicNoteIcon}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
                                     </Box>
+
+                                    {/* ALERTA SE NÃO VERIFICADO (VISÍVEL APENAS PARA O DONO) */}
+                                    {!isVerified && isOwner && (
+                                        <Box mt={2} p={1} bgcolor="rgba(255, 152, 0, 0.15)" borderRadius="10px" border="1px solid rgba(255, 152, 0, 0.3)" maxWidth="400px">
+                                            <Typography variant="caption" color="#ffcc80" display="flex" alignItems="center">
+                                                <ErrorOutline sx={{ fontSize: 16, mr: 1 }} />
+                                                Perfil não verificado. Conecte suas contas acima para validar suas estatísticas.
+                                            </Typography>
+                                        </Box>
+                                    )}
+
                                 </Box>
                             </Box>
 

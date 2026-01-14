@@ -20,7 +20,9 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import youtubeRoutes from './routes/yotubeRoutes.js';
-
+import passport from 'passport';
+import './config/passportSocial.js'; // Importa a configuração que criamos
+import authSocialRoutes from './routes/authSocialRoutes.js';
 // --- CONFIGURAÇÃO INICIAL ---
 dotenv.config();
 connectDB();
@@ -47,6 +49,8 @@ app.use((req, res, next) => {
     next();
 });
 
+app.use(passport.initialize());
+
 // ❌ A LINHA ABAIXO FOI REMOVIDA
 // const server = http.createServer(app); // Erro! 'server' já foi importado de socket.js
 
@@ -63,7 +67,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/youtube', youtubeRoutes);
-
+app.use('/api/auth', authSocialRoutes);
 // --- INICIALIZAÇÃO DO SERVIDOR ---
 const PORT = process.env.PORT || 5001;
 

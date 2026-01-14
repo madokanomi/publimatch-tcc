@@ -4,5 +4,5 @@ npm install @emotion/react@^11.14.0 @emotion/styled@^11.14.1 @fullcalendar/timeg
 
 
 <h1>instalar dependencias do backend:</h1><br/>
-npm install bcryptjs@^3.0.2 cloudinary@^2.7.0 cors@^2.8.5 date-fns@^4.1.0 dotenv@^17.2.2 express@^5.1.0 express-async-handler@^1.2.0 jsonwebtoken@^9.0.2 mongoose@^8.18.1 multer@^2.0.2 nodemailer@^7.0.6 socket.io@^4.8.1
+npm install bcryptjs@^3.0.2 cloudinary@^2.7.0 cors@^2.8.5 date-fns@^4.1.0 dotenv@^17.2.2 express@^5.1.0 express-async-handler@^1.2.0 jsonwebtoken@^9.0.2 mongoose@^8.18.1 multer@^2.0.2 nodemailer@^7.0.6 socket.io@^4.8.1 passport passport-google-oauth20 passport-facebook passport-twitch-new express-session
 

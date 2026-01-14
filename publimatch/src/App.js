@@ -98,6 +98,7 @@ function App() {
             {/* 👇 2. ROTA EXCLUSIVA PARA ADMINS DE EMPRESA 👇 */}
             <Route element={<CompanyAdminProtectedRoute />}>
               <Route path="/equipe" element={<Equipe />} />
+              
             </Route>
             
             {/* == Rotas EXCLUSIVAS para AGENTE DE PUBLICIDADE == */}

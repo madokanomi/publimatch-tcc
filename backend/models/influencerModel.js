@@ -32,7 +32,16 @@ agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     engagementRate: { type: Number, default: 0 },
     contactEmail: { type: String },
 
-
+    socialVerification: {
+        youtube: { type: Boolean, default: false },
+        instagram: { type: Boolean, default: false },
+        tiktok: { type: Boolean, default: false },
+        twitch: { type: Boolean, default: false },
+    },
+    
+    // Campo para saber se o perfil geral é verificado (opcional, se quiser um selo geral)
+    isVerified: { type: Boolean, default: false },
+    
 }, { timestamps: true });
 
 const Influencer = mongoose.model('Influencer', influencerSchema);

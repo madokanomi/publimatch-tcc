@@ -102,21 +102,79 @@ export const registerInfluencer = asyncHandler(async (req, res) => {
     });
 });
 
+// No arquivo: controllers/influencerController.js
+
+// No arquivo: controllers/influencerController.js
+
+// No arquivo: controllers/influencerController.js
+
 export const getMyInfluencers = asyncHandler(async (req, res) => {
     const { campaignId } = req.query;
-    let agentInfluencers = await Influencer.find({ agent: req.user._id });
+    
+    // Busca influenciadores do agente logado
+    let agentInfluencers = await Influencer.find({ agent: req.user._id }).lean();
 
+    // Filtra se estiver escolhendo para campanha
     if (campaignId) {
         const applications = await Application.find({ campaign: campaignId }).select('influencer');
-        const appliedInfluencerIds = new Set(
-            applications.map(app => app.influencer.toString())
-        );
-        agentInfluencers = agentInfluencers.filter(
-            influencer => !appliedInfluencerIds.has(influencer._id.toString())
-        );
+        const appliedIds = new Set(applications.map(app => app.influencer.toString()));
+        agentInfluencers = agentInfluencers.filter(inf => !appliedIds.has(inf._id.toString()));
     }
-    
-    res.status(200).json(agentInfluencers);
+
+    if (agentInfluencers && agentInfluencers.length > 0) {
+        const influencersWithData = await Promise.all(agentInfluencers.map(async (inf) => {
+            
+            // A. Busca Reviews (Nota) se necessário
+            let avgRating = inf.averageRating || 0;
+            let reviewsCount = inf.reviewsCount || 0;
+
+            if (inf.averageRating === undefined) {
+                const reviews = await Review.find({ influencer: inf._id }).select('rating');
+                const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
+                avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
+                reviewsCount = reviews.length;
+            }
+
+            // --- B. PADRONIZAÇÃO BLINDADA DE ESTATÍSTICAS ---
+            // O ERRO ESTAVA AQUI: Antes ele ignorava o inf.aggregatedStats do banco.
+            // Agora ele checa: 1. Raiz -> 2. AggregatedStats do Banco -> 3. Redes Sociais -> 4. Zero
+            
+            const dbStats = inf.aggregatedStats || {}; // Pega o que já está salvo no banco
+
+            const stats = {
+                followers: inf.followersCount || dbStats.followers || inf.seguidores || 0,
+                
+                // Prioridade para Views:
+                views: inf.views || dbStats.views || inf.visualizacoes || 0,
+                
+                // Prioridade para Likes (Curtidas):
+                likes: inf.curtidas || dbStats.likes || inf.likes || 0,
+                
+                // Prioridade para Engajamento:
+                engagementRate: inf.engagementRate || dbStats.engagementRate || inf.mediaConversao || 0
+            };
+
+            return {
+                ...inf,
+                // Dados Raiz atualizados
+                averageRating: avgRating,
+                reviewsCount: reviewsCount,
+                
+                // Atualiza a raiz para facilitar leituras simples
+                followersCount: stats.followers,
+                views: stats.views,
+                curtidas: stats.likes,
+                engagementRate: stats.engagementRate,
+
+                // Envia o objeto stats consolidado
+                aggregatedStats: stats 
+            };
+        }));
+
+        res.status(200).json(influencersWithData);
+    } else {
+        res.status(200).json([]);
+    }
 });
 
 export const deleteInfluencer = asyncHandler(async (req, res) => {
@@ -790,4 +848,40 @@ export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
         analysis: "Análise indisponível. Recomendamos verificar manualmente se o conteúdo do influenciador está alinhado com as métricas apresentadas." 
     });
   }
+});
+
+// Adicione esta função para lidar com o callback de sucesso do login social
+export const verifySocialPlatform = asyncHandler(async (req, res) => {
+    const { influencerId, platform, token } = req.body; // Token vindo do Google/Facebook
+
+    // 1. (Aqui entraria a lógica de validar o Token na API do Google/Meta para garantir segurança real)
+    // const isValid = await validateTokenWithProvider(platform, token);
+    
+    // Para este exemplo, vamos assumir que o frontend fez o OAuth e mandou o ok
+    const influencer = await Influencer.findById(influencerId);
+
+    if (!influencer) {
+        res.status(404);
+        throw new Error('Influenciador não encontrado');
+    }
+
+    // Verifica se o usuário logado é o dono da conta
+    if (influencer.userAccount && influencer.userAccount.toString() !== req.user._id.toString()) {
+         res.status(403);
+         throw new Error('Apenas o dono do perfil pode verificar as redes sociais.');
+    }
+
+    // 2. Atualiza o status
+    if (!influencer.socialVerification) influencer.socialVerification = {};
+    influencer.socialVerification[platform] = true;
+
+    // Se tiver pelo menos uma rede verificada, marca o perfil geral como verificado
+    influencer.isVerified = true;
+
+    await influencer.save();
+
+    res.status(200).json({ 
+        message: `${platform} verificado com sucesso!`, 
+        socialVerification: influencer.socialVerification 
+    });
 });
