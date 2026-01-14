@@ -37,21 +37,33 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
 
         // 2. Atualiza Dados (Priorizando dados customizados da API se houver)
         if (platform === 'youtube') {
-            // Usa os dados que pegamos da API do YouTube (veja a estratégia abaixo)
             const channelTitle = customData.title || profile.displayName;
             const channelId = customData.id || profile.id;
-
             influencer.socialHandles.youtube = channelTitle;
-            // AQUI ESTÁ A CORREÇÃO: Usa o ID do Canal (UC...), não o ID do Google
             influencer.social.youtube = `https://www.youtube.com/channel/${channelId}`;
+            
+            // Salva token se disponível no customData (adaptação futura)
         } 
         else if (platform === 'twitch') {
             influencer.socialHandles.twitch = profile.display_name;
             influencer.social.twitch = `https://www.twitch.tv/${profile.login}`;
         }
         else if (platform === 'instagram') {
-            influencer.socialHandles.instagram = profile.displayName;
-            // Para instagram mantemos o link que já estava ou não alteramos pois a API do FB não retorna link direto fácil
+            // Lógica atualizada para Instagram
+            // Se conseguimos pegar o username via Graph API, salvamos.
+            if (customData.username) {
+                influencer.socialHandles.instagram = customData.username;
+                influencer.social.instagram = `https://www.instagram.com/${customData.username}`;
+            } else {
+                // Fallback: Usa o nome do Facebook se não achar Insta (menos ideal, mas evita crash)
+                influencer.socialHandles.instagram = profile.displayName || "Verificado via Meta";
+            }
+            
+            // Salva token de acesso se necessário para uso futuro no endpoint de estatísticas
+            if (req.authInfo && req.authInfo.accessToken) {
+               // Se você quiser salvar o token, precisaria passar para aqui. 
+               // Mas por enquanto vamos focar em funcionar o OAuth básico.
+            }
         }
 
         await influencer.save();
@@ -62,7 +74,8 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
         return done(error, null);
     }
 };
-// 1. Google (YouTube) - COM CORREÇÃO DE API
+
+// 1. Google (YouTube)
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -71,31 +84,15 @@ passport.use(new GoogleStrategy({
   },
   async (req, accessToken, refreshToken, profile, done) => {
     try {
-        // --- CHAMADA EXTRA PARA A API DO YOUTUBE ---
-        // O profile.id padrão é do Google Account, não do Canal. Precisamos buscar o canal.
         const youtubeResponse = await axios.get('https://www.googleapis.com/youtube/v3/channels', {
-            params: {
-                part: 'snippet,id',
-                mine: 'true' // Pega o canal do usuário logado
-            },
-            headers: {
-                Authorization: `Bearer ${accessToken}`
-            }
+            params: { part: 'snippet,id', mine: 'true' },
+            headers: { Authorization: `Bearer ${accessToken}` }
         });
 
         let channelData = {};
-        
-        // Se encontrou um canal vinculado à conta
         if (youtubeResponse.data.items && youtubeResponse.data.items.length > 0) {
             const item = youtubeResponse.data.items[0];
-            channelData = {
-                id: item.id, // Este é o ID correto que começa com "UC..."
-                title: item.snippet.title // Nome oficial do canal
-            };
-        } else {
-            console.warn("Nenhum canal do YouTube encontrado para esta conta Google.");
-            // Fallback para o nome do perfil Google, mas sem ID de canal válido o link vai quebrar
-            // Idealmente você poderia lançar um erro aqui se ter canal for obrigatório
+            channelData = { id: item.id, title: item.snippet.title };
         }
 
         return verifyAccount(req, profile, 'youtube', done, channelData);
@@ -112,12 +109,46 @@ passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
     callbackURL: "/api/auth/facebook/callback",
-    profileFields: ['id', 'displayName', 'email'],
+    // Removido 'email' dos profileFields para evitar erro se o escopo não for concedido
+    profileFields: ['id', 'displayName'], 
     passReqToCallback: true
   },
   async (req, accessToken, refreshToken, profile, done) => {
-    return verifyAccount(req, profile, 'instagram', done); 
-    // Nota: O login é via Facebook, mas validamos como "Ecossistema Meta/Instagram"
+    try {
+        // --- BUSCA CONTA INSTAGRAM VINCULADA ---
+        // 1. Busca as páginas do Facebook que o usuário administra
+        // 2. Solicita o campo 'instagram_business_account' para ver se tem vínculo
+        // NOTA: Sem o escopo 'instagram_basic', este campo pode não vir, 
+        // mas tentamos 'pages_show_list' que às vezes permite leitura básica.
+        const pagesResponse = await axios.get(`https://graph.facebook.com/v19.0/me/accounts`, {
+            params: {
+                access_token: accessToken,
+                fields: 'name,instagram_business_account{id,username,profile_picture_url}'
+            }
+        });
+
+        let instagramData = {};
+
+        // Procura a primeira página que tenha uma conta de Instagram vinculada
+        const linkedPage = pagesResponse.data?.data?.find(page => page.instagram_business_account);
+
+        if (linkedPage && linkedPage.instagram_business_account) {
+            instagramData = {
+                id: linkedPage.instagram_business_account.id,
+                username: linkedPage.instagram_business_account.username
+            };
+            // console.log("Instagram Business encontrado:", instagramData.username);
+        } else {
+            console.warn("Nenhuma conta de Instagram Business vinculada encontrada nas páginas deste usuário ou permissão insuficiente.");
+        }
+
+        return verifyAccount(req, profile, 'instagram', done, instagramData);
+
+    } catch (error) {
+        console.error("Erro na Graph API (Instagram):", error.response?.data || error.message);
+        // Não falha o login inteiro, apenas segue sem os dados extras do Insta
+        return verifyAccount(req, profile, 'instagram', done, {});
+    }
   }
 ));
 
