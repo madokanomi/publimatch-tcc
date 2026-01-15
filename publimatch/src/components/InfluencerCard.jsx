@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Box, Typography, Card, Avatar, IconButton, Chip, Button, Menu, MenuItem } from "@mui/material";
-import { Star, Favorite, Visibility, Groups, BarChart } from "@mui/icons-material";
+import { Box, Typography, Card, Avatar, IconButton, Chip, Button, Menu, MenuItem, Tooltip } from "@mui/material";
+import { Star, Favorite, Visibility, Groups, BarChart, Verified, Lock } from "@mui/icons-material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import { Link } from "react-router-dom";
 import { SiTwitch } from "react-icons/si";
@@ -33,7 +33,8 @@ const InfluencerCard = ({
     _id, name, realName, description, profileImageUrl, backgroundImageUrl,
     niches, social, 
     tags, // Top 3 tags vindas do backend
-    avaliacao // Média de avaliação calculada no backend
+    avaliacao, // Média de avaliação calculada no backend
+    isVerified // ✅ Novo campo
   } = influencer;
 
   // Lógica para usar dados agregados (se existirem) ou campos diretos
@@ -63,21 +64,41 @@ const InfluencerCard = ({
         color: "white",
         position: "relative",
         height: "100%",
-         outline: estaSelecionado
-      ? "3px solid #ff00d4"
-      : "3px solid rgba(0,0,0,0)",
-      boxShadow: "0px 4px 20px rgba(0, 0, 0, 0.4)",
+        // Se não for verificado, reduz ligeiramente a opacidade para dar destaque aos verificados
+        opacity: isVerified ? 1 : 0.85,
+        filter: isVerified ? "none" : "grayscale(20%)",
+        outline: estaSelecionado
+          ? "3px solid #ff00d4"
+          : isVerified ? "1px solid rgba(0, 212, 255, 0.3)" : "3px solid rgba(0,0,0,0)",
+        boxShadow: isVerified 
+          ? "0px 4px 25px rgba(0, 212, 255, 0.15)" // Glow azul leve para verificados
+          : "0px 4px 20px rgba(0, 0, 0, 0.4)",
         display: "flex",
         flexDirection: "column",
-        transition: "border 0.3s ease",
+        transition: "all 0.3s ease",
       }}
     >
       {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start">
         <Box display="flex" alignItems="center" gap={2}>
-          <Avatar src={profileImageUrl} sx={{ width: 90, height: 90,  boxShadow: "0px 4px 20px rgba(255, 255, 255, 0.16)", }} />
+          <Avatar 
+            src={profileImageUrl} 
+            sx={{ 
+                width: 90, height: 90,  
+                boxShadow: "0px 4px 20px rgba(255, 255, 255, 0.16)", 
+                border: isVerified ? "2px solid #00d4ff" : "none"
+            }} 
+          />
           <Box>
-            <Typography variant="h5" fontWeight="bold">{name}</Typography>
+            <Box display="flex" alignItems="center" gap={0.5}>
+                <Typography variant="h5" fontWeight="bold">{name}</Typography>
+                {/* ✅ Ícone de Verificado no Card */}
+                {isVerified && (
+                    <Tooltip title="Verificado">
+                        <Verified sx={{ color: "#00d4ff", fontSize: 20 }} />
+                    </Tooltip>
+                )}
+            </Box>
             <Typography variant="body2" color="white">{realName}</Typography>
             <Box display="flex" gap={1} mt={0.5}>
              {social?.tiktok && <MusicNoteIcon />}
