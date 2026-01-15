@@ -8,12 +8,55 @@ import cloudinary from '../config/cloudinaryConfig.js';
 import Invite from '../models/inviteModel.js';
 import Campaign from '../models/campaignModel.js';
 import Application from '../models/applicationModel.js';
-import { getYoutubeStats, getYoutubeAdvancedAnalytics } from '../config/youtubeHelper.js';
+import { getYoutubeStats, getYoutubeAdvancedAnalytics, getCommunityContext } from '../config/youtubeHelper.js';
 import { getInstagramStats, getAuthenticatedInstagramStats } from '../config/instagramHelper.js'; // Import atualizado
 import Review from '../models/reviewModel.js'; 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getTwitchStats } from '../config/twitchHelper.js'; 
 import { getTikTokStats } from '../config/tiktokHelper.js'; 
+
+
+// Função auxiliar interna para processar comentários com IA
+const processCommentsWithAI = async (comments) => {
+    if (!comments || comments.length === 0) return null;
+
+    const commentsText = comments.join(" | ");
+    try {
+        const apiKey = process.env.GROQ_API_KEY;
+        const url = "https://api.groq.com/openai/v1/chat/completions";
+        const systemPrompt = `
+            Você é um Especialista em Antropologia Digital. 
+            Analise os comentários de um canal do YouTube.
+            Retorne APENAS um JSON (sem markdown, sem crase) com esta estrutura exata:
+            {
+                "sentiment_score": (inteiro 0 a 100),
+                "brand_safety_score": (inteiro 0 a 100),
+                "topics": ["topico1", "topico2", "topico3"],
+                "purchase_intent": "Baixa" | "Média" | "Alta",
+                "community_persona": "Resumo da tribo em 4 palavras",
+                "warnings": ["nenhum" ou lista de alertas de hate/polêmica]
+            }
+        `;
+
+        const response = await axios.post(url, {
+            model: "llama-3.3-70b-versatile",
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Analise estes comentários: ${commentsText}` }
+            ],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+        }, {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+
+        return JSON.parse(response.data.choices[0].message.content);
+    } catch (error) {
+        console.error("Erro interno na IA de comunidade:", error.message);
+        return null;
+    }
+};
+
 
 const uploadToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -242,17 +285,59 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
 
         const responseData = influencer.toObject();
 
-        if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
+   if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
             responseData.youtubeStats = youtubeResult.value;
-            if (advancedYoutubeResult.status === 'fulfilled' && advancedYoutubeResult.value) {
-                responseData.youtubeStats.advanced = advancedYoutubeResult.value;
+
+            // Verifica se tem Token
+            const hasYoutubeToken = !!influencer.apiData?.youtube?.accessToken;
+
+            if (hasYoutubeToken) {
                 responseData.youtubeStats.isAuthenticated = true;
+                
+                // Garante que o objeto advanced existe
+                responseData.youtubeStats.advanced = {};
+
+                // 1. Se o Analytics Avançado (Gráficos) funcionou, adiciona:
+                if (advancedYoutubeResult.status === 'fulfilled' && advancedYoutubeResult.value) {
+                    responseData.youtubeStats.advanced = {
+                        ...responseData.youtubeStats.advanced,
+                        ...advancedYoutubeResult.value
+                    };
+                }
+
+                // 2. --- INJEÇÃO DA IA (A PARTE QUE FALTAVA) ---
+                // Verifica se temos a playlist de uploads vinda do Stats Básico
+                if (responseData.youtubeStats.uploadsPlaylistId) {
+                    try {
+                        console.log("Buscando comentários para IA..."); // Log para debug
+                        const comments = await getCommunityContext(
+                            influencer.apiData.youtube.accessToken, 
+                            responseData.youtubeStats.uploadsPlaylistId
+                        );
+
+                        if (comments && comments.length > 0) {
+                            const aiAnalysis = await processCommentsWithAI(comments);
+                            if (aiAnalysis) {
+                                // AQUI ESTÁ O PULO DO GATO:
+                                responseData.youtubeStats.advanced.communityAnalysis = aiAnalysis;
+                                console.log("IA gerada com sucesso:", aiAnalysis.community_persona);
+                            }
+                        } else {
+                            responseData.youtubeStats.advanced.communityAnalysis = {
+                                community_persona: "Sem comentários suficientes para análise."
+                            };
+                        }
+                    } catch (err) {
+                        console.error("Erro ao gerar IA:", err.message);
+                    }
+                }
+                // ---------------------------------------------
+
             } else {
                 responseData.youtubeStats.isAuthenticated = false;
             }
-            aggregateData(youtubeResult.value);
         }
-
+        
         // Aqui, instagramResult.value já será o dado real (se autenticado) ou o mock
         if (instagramResult.status === 'fulfilled' && instagramResult.value) {
             responseData.instagramStats = instagramResult.value;
