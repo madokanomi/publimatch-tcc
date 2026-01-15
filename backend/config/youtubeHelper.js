@@ -330,3 +330,115 @@ export const checkYoutubeHashtag = async (channelUrl, hashtag) => {
         return null;
     }
 };
+export const getYoutubeAdvancedAnalytics = async (accessToken, channelId) => {
+    if (!accessToken) return null;
+
+    const analyticsUrl = 'https://youtubeanalytics.googleapis.com/v2/reports';
+    const endDate = new Date().toISOString().split('T')[0];
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30); // Últimos 30 dias
+    const startDateStr = startDate.toISOString().split('T')[0];
+
+    const commonParams = {
+        ids: 'channel==MINE',
+        startDate: startDateStr,
+        endDate: endDate,
+    };
+
+    try {
+        // Usamos Promise.all para fazer 4 requisições simultâneas (rápido)
+        const [demoRes, geoRes, deviceRes, trafficRes, engagementRes] = await Promise.all([
+            // 1. Demografia (Já existente)
+            axios.get(analyticsUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: { ...commonParams, metrics: 'viewerPercentage', dimensions: 'ageGroup,gender', sort: 'gender,ageGroup' }
+            }),
+            // 2. Geografia (Já existente)
+            axios.get(analyticsUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: { ...commonParams, metrics: 'views', dimensions: 'country', sort: '-views', maxResults: 5 }
+            }),
+            // 3. Tipos de Dispositivo (NOVO) - Mobile, Desktop, TV
+            axios.get(analyticsUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: { ...commonParams, metrics: 'views', dimensions: 'deviceType', sort: '-views' }
+            }),
+            // 4. Fontes de Tráfego (NOVO) - Search, Suggested, External
+            axios.get(analyticsUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: { ...commonParams, metrics: 'views', dimensions: 'insightTrafficSourceType', sort: '-views' }
+            }),
+            // 5. Engajamento Profundo (NOVO) - Shares e Subs
+            axios.get(analyticsUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+                params: { ...commonParams, metrics: 'shares,subscribersGained,subscribersLost,averageViewDuration' } 
+                // Sem dimension = totais do período
+            })
+        ]);
+
+        // --- Processamento dos Dados ---
+
+        // (Lógica de Age/Gender/Country anterior mantém aqui...)
+        const demographics = { ageGroup: [], gender: [], countries: [], devices: [], traffic: [], engagement: {} };
+
+        // ... processamento anterior de demo/geo ...
+        if (demoRes.data.rows) {
+             const ageMap = {};
+             const genderMap = {};
+             demoRes.data.rows.forEach(row => {
+                 const age = row[0].replace('age', '');
+                 const gender = row[1];
+                 const value = row[2];
+                 ageMap[age] = (ageMap[age] || 0) + value;
+                 genderMap[gender] = (genderMap[gender] || 0) + value;
+             });
+             demographics.ageGroup = Object.keys(ageMap).map(k => ({ name: k, value: ageMap[k] }));
+             demographics.gender = Object.keys(genderMap).map(k => ({ name: k === 'female' ? 'Feminino' : 'Masculino', value: genderMap[k] }));
+        }
+        if (geoRes.data.rows) {
+             demographics.countries = geoRes.data.rows.map(r => ({ name: r[0], value: r[1] }));
+        }
+
+        // --- NOVOS PROCESSAMENTOS ---
+
+        // 3. Dispositivos (Traduzindo códigos da API)
+        const deviceNames = {
+            'MOBILE': 'Celular', 'DESKTOP': 'PC/Note', 'TV': 'Smart TV', 'TABLET': 'Tablet', 'GAME_CONSOLE': 'Console'
+        };
+        if (deviceRes.data.rows) {
+            demographics.devices = deviceRes.data.rows.map(r => ({
+                name: deviceNames[r[0]] || r[0],
+                value: r[1] // Views
+            }));
+        }
+
+        // 4. Tráfego (Onde o usuário estava antes)
+        const trafficNames = {
+            'YT_SEARCH': 'Busca YouTube', 'RELATED_VIDEO': 'Sugeridos', 'EXT_URL': 'Externo (Google/Whats)',
+            'SUBSCRIBER': 'Feed Inscritos', 'PLAYLIST': 'Playlists', 'YT_OTHER_PAGE': 'Outros'
+        };
+        if (trafficRes.data.rows) {
+            demographics.traffic = trafficRes.data.rows.slice(0, 5).map(r => ({
+                name: trafficNames[r[0]] || r[0],
+                value: r[1]
+            }));
+        }
+
+        // 5. Métricas Totais de Engajamento
+        if (engagementRes.data.rows && engagementRes.data.rows[0]) {
+            const r = engagementRes.data.rows[0];
+            demographics.engagement = {
+                shares: r[0],
+                subsGained: r[1],
+                subsLost: r[2],
+                avgViewDuration: r[3] // Segundos
+            };
+        }
+
+        return demographics;
+
+    } catch (error) {
+        console.error('Erro no Analytics Avançado:', error.message);
+        return null;
+    }
+};

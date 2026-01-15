@@ -65,94 +65,90 @@ const fmt = (v) => {
     return `${num}`;
 };
 
-const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, onConnect, onRequestDisconnect, isOwner }) => {  // Se não tem URL e não é dono, não mostra nada
+// -------------------------------------------------------------
+// COMPONENTE ATUALIZADO: SocialIconWithStatus
+// -------------------------------------------------------------
+const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, onConnect, onRequestDisconnect, isOwner }) => {
+    // Se não tem URL e não é dono, não mostra nada
     if (!url && !isOwner) return null;
 
-    const handleClick = () => {
-        if (isVerified) {
-            if (url) window.open(url, '_blank');
-        } else {
-            if (isOwner) onConnect(platform);
-            else if (url) window.open(url, '_blank');
+    const handleClick = (e) => {
+        // Se estiver verificado e tiver URL, abre o perfil
+        if (isVerified && url) {
+            window.open(url, '_blank');
+        } 
+        // Se não verificado e for dono, inicia conexão
+        else if (!isVerified && isOwner) {
+            onConnect(platform);
         }
     };
 
-   const handleDeleteClick = (e) => {
-        e.stopPropagation(); 
+    const handleDeleteClick = (e) => {
+        e.stopPropagation(); // Impede que o clique propague e abra o link/conectar
         if (isOwner) {
-            onRequestDisconnect(platform); // Abre o diálogo no pai
+            onRequestDisconnect(platform); // Abre o diálogo de confirmação no pai
         }
     };
 
-    // --- VISUAL VERIFICADO (Pílula com botão de remover) ---
-   if (isVerified) {
+    const iconColorUnverified = isOwner ? "#ffcc80" : "rgba(255,255,255,0.5)";
+    const iconColorVerified = "black";
+
+    // --- VISUAL VERIFICADO (Pílula com Nome da Conta + Botão Remover) ---
+    if (isVerified) {
         return (
-            <Tooltip title={isOwner ? "Conta Verificada" : "Conta Oficial Verificada"}>
+            <Tooltip title={isOwner ? "Conta Conectada (Clique para ver)" : `Ir para ${handle || "perfil"}`}>
                 <Box
                     component={motion.div}
                     initial="idle"
                     whileHover="hover"
                     onClick={handleClick}
-                    layout // Isso faz o layout fluir suavemente
+                    layout
                     sx={{
                         display: "flex",
                         alignItems: "center",
                         gap: 1,
                         pl: 0.5,
-                        pr: 1.5, // Padding base da direita
+                        pr: isOwner ? 1 : 2, // Espaço extra na direita se não tiver botão de fechar
                         py: 0.5,
                         borderRadius: "20px",
                         backgroundColor: "rgba(0, 212, 255, 0.1)",
                         border: "1px solid rgba(0, 212, 255, 0.3)",
                         cursor: "pointer",
-                        overflow: "hidden", // Importante para a animação
-                        position: "relative"
+                        overflow: "hidden",
+                        position: "relative",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                             backgroundColor: "rgba(0, 212, 255, 0.2)",
+                             boxShadow: "0 0 10px rgba(0, 212, 255, 0.2)"
+                        }
                     }}
                 >
-                    {/* Fundo que brilha no hover (opcional, mas fica bonito) */}
-                    <Box
-                        component={motion.div}
-                        variants={{
-                            idle: { opacity: 0 },
-                            hover: { opacity: 1 }
-                        }}
-                        transition={{ duration: 0.3 }}
-                        sx={{
-                            position: "absolute", inset: 0,
-                            backgroundColor: "rgba(0, 212, 255, 0.1)",
-                            zIndex: 0
-                        }}
-                    />
-
-                    {/* Conteúdo Principal (Ícone + Texto) */}
-                    <Box sx={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                        <Box sx={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#00d4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            <Icon sx={{ fontSize: 16, color: "black" }} />
-                        </Box>
-
-                        <Typography variant="body2" fontWeight="bold" color="#00d4ff" sx={{ fontSize: '13px', whiteSpace: "nowrap" }}>
-                            {handle || "Verificado"}
-                        </Typography>
-
-                        <Verified sx={{ fontSize: 16, color: "#00d4ff" }} />
+                    {/* Ícone da Rede */}
+                    <Box sx={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#00d4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                       <Icon 
+                            size={16} 
+                            style={{ color: iconColorVerified }} 
+                            sx={{ fontSize: 16, color: iconColorVerified }} 
+                        />
                     </Box>
 
-                    {/* BOTÃO DE REMOVER (Animação de Expansão Lateral) */}
+                    {/* Texto: Nome da Conta / Handle */}
+                    <Typography variant="body2" fontWeight="bold" color="#00d4ff" sx={{ fontSize: '13px', whiteSpace: "nowrap", maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {handle || "Conta Verificada"} 
+                    </Typography>
+
+                    <Verified sx={{ fontSize: 16, color: "#00d4ff" }} />
+
+                    {/* BOTÃO DE REMOVER (Apenas para o Dono) */}
                     {isOwner && (
                         <Box
                             component={motion.div}
                             variants={{
                                 idle: { width: 0, opacity: 0, marginLeft: 0 },
-                                hover: { width: "auto", opacity: 1, marginLeft: 2 }
+                                hover: { width: "auto", opacity: 1, marginLeft: 8 }
                             }}
-                            transition={{ duration: 0.3, ease: "easeOut" }}
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                overflow: "hidden",
-                                position: "relative",
-                                zIndex: 2
-                            }}
+                            transition={{ duration: 0.2 }}
+                            sx={{ display: "flex", alignItems: "center" }}
                         >
                             <Box
                                 component="span"
@@ -161,16 +157,16 @@ const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, o
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    width: 22,
-                                    height: 22,
+                                    width: 20,
+                                    height: 20,
                                     borderRadius: "50%",
+                                    backgroundColor: "rgba(255,255,255,0.2)",
                                     color: "white",
-                                   
-                                    "&:hover": { backgroundColor: "#0000000e", transform: "scale(1.1)" },
+                                    "&:hover": { backgroundColor: "#ff1744", transform: "scale(1.1)" },
                                     transition: "0.2s"
                                 }}
                             >
-                                <CloseIcon sx={{ fontSize: 14 }} />
+                                <CloseIcon sx={{ fontSize: 12 }} />
                             </Box>
                         </Box>
                     )}
@@ -179,14 +175,14 @@ const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, o
         );
     }
 
-    // --- VISUAL NÃO VERIFICADO ---
-    return (
-        <Tooltip title={isOwner ? "Clique para conectar e verificar" : "Perfil não verificado"}>
+    // --- VISUAL NÃO VERIFICADO (Botão Redondo para Conectar) ---
+return (
+        <Tooltip title={isOwner ? `Conectar ${platform}` : "Não verificado"}>
             <Box 
-                position="relative" 
                 onClick={handleClick}
                 sx={{ 
-                    cursor: "pointer", 
+                    position: "relative", // ✅ ADICIONADO: Isso segura o ícone absolute dentro do botão
+                    cursor: isOwner ? "pointer" : "default", 
                     width: 36, 
                     height: 36, 
                     borderRadius: "50%", 
@@ -196,21 +192,30 @@ const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, o
                     alignItems: "center", 
                     justifyContent: "center", 
                     transition: "all 0.3s",
-                    "&:hover": { backgroundColor: "rgba(255,255,255,0.2)" } 
+                    "&:hover": isOwner ? { backgroundColor: "rgba(255,152,0,0.15)", borderColor: "#ff9800" } : {}
                 }}
             >
-                <Icon sx={{ fontSize: 18, color: isOwner ? "#ffcc80" : "white" }} />
+               <Icon 
+                    size={18}
+                    style={{ color: iconColorUnverified }} 
+                    sx={{ fontSize: 18, color: iconColorUnverified }} 
+                />
                 {isOwner && (
                     <ErrorOutline sx={{ 
-                        fontSize: 14, color: "#ff9800", position: "absolute", bottom: -2, right: -2, 
-                        backgroundColor: "black", borderRadius: "50%" 
+                        fontSize: 14, 
+                        color: "#ff9800", 
+                        position: "absolute", 
+                        bottom: -2, 
+                        right: -2, 
+                        backgroundColor: "black", // Fundo preto para destacar
+                        borderRadius: "50%",
+                        border: "1px solid rgba(0,0,0,0.5)" // Borda opcional para acabamento
                     }} />
                 )}
             </Box>
         </Tooltip>
     );
 };
-// -------------------------------------------------------------
 
 const Sobrespec = () => {
     const { id } = useParams();
@@ -243,17 +248,14 @@ const Sobrespec = () => {
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
     const [isDisconnecting, setIsDisconnecting] = useState(false);
 
-    // 1. Abre o diálogo (substitui o window.confirm)
-    const handleRequestDisconnect = (platform) => {
+   const handleRequestDisconnect = (platform) => {
         setDisconnectDialog({ open: true, platform });
     };
 
-    // 2. Fecha o diálogo
     const handleCloseDisconnectDialog = () => {
         setDisconnectDialog({ open: false, platform: null });
     };
 
-    // 3. Executa a desconexão (chamado pelo botão "Sim" do diálogo)
     const confirmDisconnect = async () => {
         const platform = disconnectDialog.platform;
         if (!platform) return;
@@ -264,28 +266,38 @@ const Sobrespec = () => {
             const token = userInfo?.token;
             const config = { headers: { Authorization: `Bearer ${token}` } };
 
+            // Chama o backend para limpar os dados
             await axios.delete(`http://localhost:5001/api/influencers/${id}/social/${platform}`, config);
 
-            // Atualiza estado local
+            // ATUALIZAÇÃO DO ESTADO LOCAL (Para refletir na UI sem reload)
             setInfluencer(prev => ({
                 ...prev,
-                socialVerification: { ...prev.socialVerification, [platform]: false },
-                socialHandles: { ...prev.socialHandles, [platform]: "" },
-                social: { ...prev.social, [platform]: "" } // Limpa link se desejar
+                isVerified: false, // Atualiza verificação geral (simplificado)
+                socialVerification: {
+                    ...prev.socialVerification,
+                    [platform]: false // Remove o check de verificado
+                },
+                socialHandles: {
+                    ...prev.socialHandles,
+                    [platform]: "" // Remove o nome da conta
+                },
+                social: {
+                    ...prev.social,
+                    [platform]: "" // Remove o link
+                },
+                // Zera as estatísticas daquela plataforma visualmente
+                [`${platform}Stats`]: {} 
             }));
 
-            // Fecha diálogo e mostra sucesso
-            handleCloseDisconnectDialog();
-            setSnackbar({ open: true, message: `Conta do ${platform} desconectada com sucesso!`, severity: "success" });
-
+            setSnackbar({ open: true, message: `Conta ${platform} desconectada com sucesso!`, severity: "success" });
         } catch (error) {
             console.error("Erro ao desconectar:", error);
             setSnackbar({ open: true, message: "Erro ao desconectar conta.", severity: "error" });
         } finally {
             setIsDisconnecting(false);
+            handleCloseDisconnectDialog();
         }
     };
-
 
     const handleDisconnectAccount = async (platform) => {
         try {
@@ -609,85 +621,47 @@ const Sobrespec = () => {
 
                                     {/* ÍCONES SOCIAIS COM STATUS DE VERIFICAÇÃO */}
                                     {/* LISTA DE REDES SOCIAIS */}
-                                    <Box display="flex" flexWrap="wrap" gap={1.5} mt={1}>
+                            <Box display="flex" flexWrap="wrap" gap={1.5} mt={1}>
                                         <SocialIconWithStatus 
                                             platform="youtube"
-                                            url={social.youtube}
-                                            handle={socialHandles?.youtube} // Passa o nome do canal
+                                            url={social?.youtube}
+                                            handle={socialHandles?.youtube} // ✅ Passando o nome do canal
                                             isVerified={socialVerification?.youtube}
                                             icon={YouTubeIcon}
                                             onConnect={handleConnectAccount}
+                                            onRequestDisconnect={handleRequestDisconnect} // ✅ Passando a função correta
                                             isOwner={isOwner}
                                         />
                                         <SocialIconWithStatus 
                                             platform="instagram"
-                                            url={social.instagram}
-                                            handle={socialHandles?.instagram} // Passa o @ do insta
+                                            url={social?.instagram}
+                                            handle={socialHandles?.instagram} // ✅ Passando o @usuario
                                             isVerified={socialVerification?.instagram}
                                             icon={InstagramIcon}
                                             onConnect={handleConnectAccount}
+                                            onRequestDisconnect={handleRequestDisconnect}
                                             isOwner={isOwner}
                                         />
                                         <SocialIconWithStatus 
                                             platform="twitch"
-                                            url={social.twitch}
-                                            handle={socialHandles?.twitch} // Passa o nome da twitch
+                                            url={social?.twitch}
+                                            handle={socialHandles?.twitch} // ✅ Passando o nome do canal
                                             isVerified={socialVerification?.twitch}
                                             icon={SiTwitch}
                                             onConnect={handleConnectAccount}
+                                            onRequestDisconnect={handleRequestDisconnect}
                                             isOwner={isOwner}
                                         />
                                         <SocialIconWithStatus 
                                             platform="tiktok"
-                                            url={social.tiktok}
-                                            handle={socialHandles?.tiktok}
+                                            url={social?.tiktok}
+                                            handle={socialHandles?.tiktok} // ✅ Passando o @usuario
                                             isVerified={socialVerification?.tiktok}
                                             icon={MusicNoteIcon}
                                             onConnect={handleConnectAccount}
+                                            onRequestDisconnect={handleRequestDisconnect}
                                             isOwner={isOwner}
                                         />
-                                    </Box>
-
-                                    {/* ✅ BOTÃO DE CONTRATAR COM LÓGICA DE BLOQUEIO */}
-                                    <Box mt={3}>
-                                        {isVerified ? (
-                                            <Button 
-                                                variant="contained" 
-                                                onClick={handleOpenHireDialog}
-                                                startIcon={<Campaign />}
-                                                sx={{ 
-                                                    background: "linear-gradient(45deg, #d900c7, #ff4081)",
-                                                    color: "white",
-                                                    fontWeight: "bold",
-                                                    padding: "10px 24px",
-                                                    borderRadius: "12px",
-                                                    boxShadow: "0 4px 15px rgba(217, 0, 199, 0.4)",
-                                                    "&:hover": { background: "linear-gradient(45deg, #b000a0, #e91e63)" }
-                                                }}
-                                            >
-                                                CONTRATAR INFLUENCIADOR
-                                            </Button>
-                                        ) : (
-                                            <Tooltip title="Este influenciador ainda não verificou suas redes sociais. Contratação bloqueada por segurança.">
-                                                <span>
-                                                    <Button 
-                                                        variant="contained" 
-                                                        disabled
-                                                        startIcon={<Lock />}
-                                                        sx={{ 
-                                                            background: "rgba(255, 255, 255, 0.1)",
-                                                            color: "rgba(255, 255, 255, 0.5) !important",
-                                                            fontWeight: "bold",
-                                                            padding: "10px 24px",
-                                                            borderRadius: "12px",
-                                                            border: "1px solid rgba(255, 255, 255, 0.2)"
-                                                        }}
-                                                    >
-                                                        CONTRATAÇÃO BLOQUEADA
-                                                    </Button>
-                                                </span>
-                                            </Tooltip>
-                                        )}
                                     </Box>
 
                                     {/* ALERTA SE NÃO VERIFICADO (VISÍVEL APENAS PARA O DONO) */}

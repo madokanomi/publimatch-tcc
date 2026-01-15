@@ -8,7 +8,7 @@ import cloudinary from '../config/cloudinaryConfig.js';
 import Invite from '../models/inviteModel.js';
 import Campaign from '../models/campaignModel.js';
 import Application from '../models/applicationModel.js';
-import { getYoutubeStats } from '../config/youtubeHelper.js';
+import { getYoutubeStats, getYoutubeAdvancedAnalytics } from '../config/youtubeHelper.js';
 import { getInstagramStats } from '../config/instagramHelper.js';
 import Review from '../models/reviewModel.js'; // ✅ Importante para as tags
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -201,8 +201,19 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
         let twitchPromise = influencer.social?.twitch ? getTwitchStats(influencer.social.twitch) : Promise.resolve(null);
         let tiktokPromise = influencer.social?.tiktok ? getTikTokStats(influencer.social.tiktok) : Promise.resolve(null);
 
-        const [youtubeResult, instagramResult, twitchResult, tiktokResult] = await Promise.allSettled([
-            youtubePromise, instagramPromise, twitchPromise, tiktokPromise
+
+        let advancedYoutubePromise = Promise.resolve(null);
+        
+        // Verifica se tem conta conectada e token salvo
+        // Nota: precisamos adicionar '+apiData.youtube.accessToken' no select do findById ou fazer uma query separada segura
+        const infWithSecrets = await Influencer.findById(influencer._id).select('+apiData.youtube.accessToken');
+        
+        if (influencer.socialVerification?.youtube && infWithSecrets?.apiData?.youtube?.accessToken) {
+            advancedYoutubePromise = getYoutubeAdvancedAnalytics(infWithSecrets.apiData.youtube.accessToken);
+        }
+
+        const [youtubeResult, instagramResult, twitchResult, tiktokResult, advancedYoutubeResult] = await Promise.allSettled([
+            youtubePromise, instagramPromise, twitchPromise, tiktokPromise, advancedYoutubePromise
         ]);
 
         let totalFollowers = 0;
@@ -225,8 +236,17 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
 
         const responseData = influencer.toObject();
 
-        if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
+      if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
             responseData.youtubeStats = youtubeResult.value;
+            
+            // SE tivermos dados avançados, misturamos aqui
+            if (advancedYoutubeResult.status === 'fulfilled' && advancedYoutubeResult.value) {
+                responseData.youtubeStats.advanced = advancedYoutubeResult.value;
+                responseData.youtubeStats.isAuthenticated = true;
+            } else {
+                responseData.youtubeStats.isAuthenticated = false;
+            }
+            
             aggregateData(youtubeResult.value);
         }
         if (instagramResult.status === 'fulfilled' && instagramResult.value) {

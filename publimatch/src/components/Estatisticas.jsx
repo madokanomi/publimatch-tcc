@@ -20,7 +20,9 @@ import WcIcon from '@mui/icons-material/Wc';
 import CakeIcon from '@mui/icons-material/Cake';
 import { SiTwitch } from "react-icons/si";
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; // Ícone da IA
-
+import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
+import TrafficIcon from '@mui/icons-material/Traffic';
+import ShareIcon from '@mui/icons-material/Share';
 import TagIcon from '@mui/icons-material/Tag';
 import CategoryIcon from '@mui/icons-material/Category';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -185,6 +187,26 @@ const StatCard = ({ title, value, subtext, icon: Icon, color, gradient }) => (
     </Box>
 );
 
+const AuthenticationLock = ({ platformName }) => (
+    <Box sx={{
+        position: 'absolute', inset: 0, zIndex: 10,
+        backdropFilter: "blur(8px)",
+        backgroundColor: "rgba(0,0,0,0.6)",
+        display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+        borderRadius: "20px",
+        textAlign: "center", p: 3
+    }}>
+        <WorkspacePremiumIcon sx={{ fontSize: 48, color: "#ff0055ff", mb: 2 }} />
+        <Typography variant="h6" fontWeight="bold" color="white">
+            Dados Demográficos Bloqueados
+        </Typography>
+        <Typography variant="body2" color="rgba(255,255,255,0.7)" mb={2}>
+            O influenciador precisa conectar a conta do {platformName} oficialmente para exibir idade, gênero e geografia real.
+        </Typography>
+        <Chip label="Não Verificado" color="error" variant="outlined" />
+    </Box>
+);
+
 // --- Componente Principal ---
 
 // No início do componente Estatisticas.jsx
@@ -261,9 +283,7 @@ export default function Estatisticas({ youtubeData, instagramData, tiktokData, t
         return [];
     }
 
-    
-
-
+  
     
     // Mapeia labels baseados na documentação: m=Male, f=Female [cite: 169]
     return instagramData.audienceGender.map(g => {
@@ -310,6 +330,32 @@ export default function Estatisticas({ youtubeData, instagramData, tiktokData, t
               fill: "#7B1FA2"
           }));
   }, [instagramData]);
+
+    
+const isYoutubeAuthenticated = safeYoutubeData.isAuthenticated && safeYoutubeData.advanced;
+
+const youtubeAgeData = useMemo(() => {
+     if (isYoutubeAuthenticated && safeYoutubeData.advanced.ageGroup) {
+         return safeYoutubeData.advanced.ageGroup.map((a, i) => ({
+             name: a.name,
+             value: Number(a.value).toFixed(1),
+             fill: `rgba(255, 0, 0, ${0.9 - (i * 0.1)})` // Vermelho para YouTube
+         }));
+     }
+     return []; // Vazio se não autenticado
+  }, [safeYoutubeData]);
+
+  const youtubeGenderData = useMemo(() => {
+      if (isYoutubeAuthenticated && safeYoutubeData.advanced.gender) {
+          return safeYoutubeData.advanced.gender.map(g => ({
+             name: g.name,
+             value: Number(g.value).toFixed(1),
+             fill: g.name === 'Feminino' ? "#F50057" : "#2979FF"
+          }));
+      }
+      return [];
+  }, [safeYoutubeData]);
+
   // --- Renderização Condicional ---
 
   const renderContent = () => {
@@ -492,6 +538,159 @@ export default function Estatisticas({ youtubeData, instagramData, tiktokData, t
                         </ResponsiveContainer>
                     </Box>
                 </Box>
+                <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "1fr 1fr 1fr" }} gap={2} mt={3}>
+    
+    {/* Idade */}
+    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+        {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
+        
+        <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <CakeIcon sx={{color: "#FF0000"}} fontSize="small"/>
+            <Typography variant="subtitle2" fontWeight="bold">Faixa Etária</Typography>
+        </Box>
+        <Box height={150}>
+            <ResponsiveContainer>
+                <BarChart data={isYoutubeAuthenticated ? youtubeAgeData : [{name:'Demo', value:100}]} layout="vertical">
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" width={50} tick={{fill: "#aaa", fontSize: 11}} axisLine={false} tickLine={false}/>
+                    <Tooltip content={<CustomTooltip unit="%" />} cursor={{fill: 'transparent'}} />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={16}>
+                        {youtubeAgeData.map((entry, index) => (
+                             <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </Box>
+    </Box>
+
+    {/* Gênero */}
+    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+        {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
+
+        <Box display="flex" alignItems="center" gap={1} mb={2}>
+             <WcIcon sx={{color: "#FF0000"}} fontSize="small"/>
+             <Typography variant="subtitle2" fontWeight="bold">Gênero</Typography>
+        </Box>
+        {/* ... Copiar estrutura do gráfico de Pizza do Instagram, usando youtubeGenderData ... */}
+         <Box height={150} display="flex" alignItems="center">
+            <ResponsiveContainer>
+                <PieChart>
+                    <Pie data={isYoutubeAuthenticated ? youtubeGenderData : [{name:'Demo', value:1}]} cx="50%" cy="50%" outerRadius={60} dataKey="value" stroke="none">
+                        {youtubeGenderData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip unit="%" />} />
+                    <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{fontSize: '12px', color: '#aaa'}}/>
+                </PieChart>
+            </ResponsiveContainer>
+        </Box>
+    </Box>
+
+    {/* Países (Geografia) */}
+    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+         {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
+         
+         <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <PublicIcon sx={{color: "#FF0000"}} fontSize="small"/>
+            <Typography variant="subtitle2" fontWeight="bold">Principais Países</Typography>
+        </Box>
+        <Box height={150} display="flex" flexDirection="column" gap={1} justifyContent="center">
+            {isYoutubeAuthenticated && safeYoutubeData.advanced?.countries ? (
+                safeYoutubeData.advanced.countries.map((country, idx) => (
+                    <Box key={idx} display="flex" alignItems="center" justifyContent="space-between" px={2}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <Typography variant="caption" fontWeight="bold" sx={{color: '#fff', minWidth: 20}}>{country.name}</Typography>
+                             {/* Barra de progresso visual */}
+                             <Box width={100} height={6} bgcolor="rgba(255,255,255,0.1)" borderRadius={1}>
+                                <Box width="100%" height="100%" bgcolor="#FF0000" borderRadius={1} /> 
+                                {/* Nota: Para ser preciso, calcule a % em relação ao total de views */}
+                            </Box>
+                        </Box>
+                        <Typography variant="caption" color="rgba(255,255,255,0.6)">{formatNumber(country.value)}</Typography>
+                    </Box>
+                ))
+            ) : (
+                <Typography variant="caption" align="center" color="rgba(255,255,255,0.3)">Dados geográficos indisponíveis</Typography>
+            )}
+        </Box>
+    </Box>
+    {/* --- LINHA 4: COMPORTAMENTO E TECNOLOGIA (NOVO) --- */}
+<Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "1fr 1fr" }} gap={2} mt={2}>
+
+    {/* Dispositivos */}
+    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+        {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
+        
+        <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <PhoneIphoneIcon sx={{color: "#FF0000"}} fontSize="small"/>
+            <Typography variant="subtitle2" fontWeight="bold">Dispositivos</Typography>
+        </Box>
+        <Box height={200}>
+            <ResponsiveContainer>
+                <PieChart>
+                    <Pie 
+                        data={isYoutubeAuthenticated ? safeYoutubeData.advanced?.devices : [{name:'Demo', value:1}]} 
+                        cx="50%" cy="50%" innerRadius={40} outerRadius={70} 
+                        dataKey="value" stroke="none" paddingAngle={5}
+                    >
+                        {(isYoutubeAuthenticated ? safeYoutubeData.advanced?.devices : []).map((entry, index) => (
+                             <Cell key={`cell-${index}`} fill={['#FF0000', '#212121', '#555', '#999'][index % 4]} />
+                        ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{fontSize: '11px', color:'#aaa'}} />
+                </PieChart>
+            </ResponsiveContainer>
+        </Box>
+    </Box>
+
+    {/* Fontes de Tráfego */}
+    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+        {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
+
+        <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <TrafficIcon sx={{color: "#FF0000"}} fontSize="small"/>
+            <Typography variant="subtitle2" fontWeight="bold">Origem do Tráfego</Typography>
+        </Box>
+        <Box height={200}>
+            <ResponsiveContainer>
+                <BarChart layout="vertical" data={isYoutubeAuthenticated ? safeYoutubeData.advanced?.traffic : [{name:'Demo', value:100}]} margin={{left: 10}}>
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" width={90} tick={{fill: "#aaa", fontSize: 10}} axisLine={false} tickLine={false}/>
+                    <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
+                    <Bar dataKey="value" barSize={12} radius={[0, 4, 4, 0]}>
+                         {/* Gradiente vermelho */}
+                         <Cell fill="#FF0000" />
+                         <Cell fill="#D32F2F" />
+                         <Cell fill="#B71C1C" />
+                    </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+        </Box>
+    </Box>
+</Box>
+
+{/* --- CARD EXTRA: METRICAS DE CONVERSÃO (Compartilhamentos) --- */}
+<Box mt={2} display="flex" gap={2}>
+    <StatCard 
+        title="Compartilhamentos (30d)" 
+        value={isYoutubeAuthenticated ? formatNumber(safeYoutubeData.advanced?.engagement?.shares) : "N/A"} 
+        icon={ShareIcon} color="#fff" 
+        subtext="Índice de Viralidade"
+    />
+     <StatCard 
+        title="Retenção Média" 
+        value={isYoutubeAuthenticated && safeYoutubeData.advanced?.engagement?.avgViewDuration ? 
+               `${Math.floor(safeYoutubeData.advanced.engagement.avgViewDuration / 60)}m ${safeYoutubeData.advanced.engagement.avgViewDuration % 60}s` 
+               : "N/A"} 
+        icon={AccessTimeIcon} color="#fff" 
+        subtext="Tempo de tela"
+    />
+</Box>
+
+</Box>
             </Box>
         );
 

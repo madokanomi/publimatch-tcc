@@ -16,9 +16,14 @@ router.get('/google', (req, res, next) => {
     if (!state) return res.status(400).json({ message: "Influencer ID necessário" });
 
     passport.authenticate('google', { 
-        scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube.readonly'],
+        scope: [
+            'profile', 
+            'email', 
+            'https://www.googleapis.com/auth/youtube.readonly',
+            'https://www.googleapis.com/auth/yt-analytics.readonly' // <--- ADICIONAR ESTE ESCOPO
+        ],
         state: state,
-        accessType: 'offline', // Importante para receber o refresh_token
+        accessType: 'offline',
         prompt: 'consent'
     })(req, res, next);
 });

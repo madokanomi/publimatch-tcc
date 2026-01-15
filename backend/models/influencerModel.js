@@ -46,6 +46,13 @@ agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         twitch: { type: String, default: '' },    // Ex: "enzogamer"
     },
 
+    apiData: {
+        youtube: {
+            accessToken: { type: String, select: false }, // select: false protege de queries comuns
+            refreshToken: { type: String, select: false },
+            channelId: String
+        },
+    },
     
     
     // Campo para saber se o perfil geral é verificado (opcional, se quiser um selo geral)
