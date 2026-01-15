@@ -1,4 +1,5 @@
 import axios from 'axios';
+import ytdl from 'ytdl-core';
 
 /**
  * Extrai o identificador do canal a partir de várias URLs possíveis
@@ -300,7 +301,7 @@ export const checkYoutubeHashtag = async (channelUrl, hashtag) => {
     const videoCount = videoItems.length; // Usamos length, 'totalResults' pode ser impreciso
 
     if (videoCount === 0) {
-        return { count: 0, totalViews: 0 }; // Nenhum vídeo encontrado
+        return { count: 0, totalViews: 0, videos: [] }; // Nenhum vídeo encontrado
     }
 
     // 3. Pegar os IDs de todos os vídeos encontrados
@@ -311,25 +312,148 @@ export const checkYoutubeHashtag = async (channelUrl, hashtag) => {
         const statsUrl = 'https://www.googleapis.com/youtube/v3/videos';
         const statsResponse = await axios.get(statsUrl, {
             params: {
-                part: 'statistics',
+                part: 'statistics,snippet', // Adicionado 'snippet' para pegar Título e Thumb
                 id: videoIds,
                 key: apiKey
             }
         });
 
-        // 5. Somar as visualizações
+        // 5. Somar as visualizações e montar lista de vídeos
         let totalViews = 0;
+        const videos = [];
+
         statsResponse.data.items.forEach(video => {
-            totalViews += parseInt(video.statistics.viewCount, 10);
+            const views = parseInt(video.statistics.viewCount, 10);
+            totalViews += views;
+            
+            videos.push({
+                id: video.id,
+                title: video.snippet.title,
+                thumb: video.snippet.thumbnails?.medium?.url || video.snippet.thumbnails?.default?.url,
+                views: views,
+                publishedAt: video.snippet.publishedAt
+            });
         });
 
-        return { count: videoCount, totalViews: totalViews };
+        return { count: videoCount, totalViews: totalViews, videos: videos };
 
     } catch (error) {
         console.error('Erro ao buscar estatísticas dos vídeos (videos.list):', error.message);
         return null;
     }
 };
+
+/**
+ * Função Auxiliar para converter stream do ytdl para Buffer
+ */
+const streamToBuffer = (stream) => {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.on('data', (chunk) => chunks.push(chunk));
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+        stream.on('error', (err) => reject(err));
+    });
+};
+
+/**
+ * ✨ SCRAPING + AI AUDIO TRANSCRIPTION
+ * Tenta extrair legendas via HTML. Se falhar, baixa o áudio e usa o Gemini para transcrever.
+ */
+export const getVideoTranscript = async (videoId) => {
+    // 1. TENTATIVA RÁPIDA: Scraping de Legendas (Gratuito e Rápido)
+    try {
+        // Baixar o HTML da página do vídeo
+        const { data: videoHtml } = await axios.get(`https://www.youtube.com/watch?v=${videoId}`);
+
+        // Procurar pelo objeto "captionTracks" dentro do HTML
+        const captionTracksRegex = /"captionTracks":(\[.*?\])/;
+        const match = videoHtml.match(captionTracksRegex);
+
+        if (!match || !match[1]) {
+            throw new Error('Legendas automáticas não encontradas no HTML.');
+        }
+
+        const captionTracks = JSON.parse(match[1]);
+
+        // Priorizar português ou inglês
+        const track = captionTracks.find(t => t.languageCode === 'pt' || t.languageCode === 'pt-BR') 
+                   || captionTracks.find(t => t.languageCode === 'en')
+                   || captionTracks[0];
+
+        if (!track || !track.baseUrl) {
+            throw new Error('Nenhuma trilha válida encontrada.');
+        }
+
+        const { data: transcriptXml } = await axios.get(track.baseUrl);
+
+        const cleanText = transcriptXml
+            .replace(/&amp;#39;/g, "'")
+            .replace(/&amp;/g, "&")
+            .replace(/&quot;/g, '"')
+            .replace(/<[^>]+>/g, ' ') 
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        return cleanText;
+
+    } catch (scrapingError) {
+        console.log(`[YouTube] Scraping falhou (${scrapingError.message}). Tentando download de áudio + Gemini...`);
+        
+        // 2. TENTATIVA ROBUSTA: Download de Áudio + Gemini 2.5 (Custa tokens, mais lento)
+        try {
+            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            
+            // Configuração para baixar a menor qualidade de áudio possível (rápido e leve para upload)
+            const audioStream = ytdl(videoUrl, { 
+                quality: 'lowestaudio', 
+                filter: 'audioonly' 
+            });
+
+            // Converter Stream -> Buffer -> Base64
+            const audioBuffer = await streamToBuffer(audioStream);
+            const base64Audio = audioBuffer.toString('base64');
+
+            // Chamar Gemini API via REST para evitar erro de dependência '@google/genai'
+            const geminiApiKey = process.env.API_KEY;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+            
+            const payload = {
+                contents: [{
+                    parts: [
+                        { 
+                            inlineData: { 
+                                mimeType: 'audio/mp3', 
+                                data: base64Audio 
+                            } 
+                        },
+                        { 
+                            text: "Transcreva o áudio deste vídeo em português. Se houver falas, transcreva o texto. Se for apenas música, descreva o estilo." 
+                        }
+                    ]
+                }]
+            };
+
+            const { data } = await axios.post(geminiUrl, payload);
+            
+            // Extrair o texto da resposta da API REST
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!text) throw new Error("Resposta da IA vazia ou inválida.");
+
+            return text;
+
+        } catch (aiError) {
+            console.error('[YouTube] Erro fatal na transcrição (Scraping e IA falharam):', aiError.message);
+            if (aiError.response) {
+                console.error('[Gemini API Error]', aiError.response.data);
+            }
+            return null;
+        }
+    }
+};
+
+
+// ... restante do código (getYoutubeAdvancedAnalytics, etc) permanece igual
 export const getYoutubeAdvancedAnalytics = async (accessToken, channelId) => {
     if (!accessToken) return null;
 
@@ -494,4 +618,3 @@ export const getCommunityContext = async (accessToken, uploadsPlaylistId) => {
         return [];
     }
 };
-
