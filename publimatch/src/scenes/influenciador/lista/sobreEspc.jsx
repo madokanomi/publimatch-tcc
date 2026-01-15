@@ -93,6 +93,20 @@ const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, o
     const iconColorUnverified = isOwner ? "#ffcc80" : "rgba(255,255,255,0.5)";
     const iconColorVerified = "black";
 
+    // Verifica se é Twitch para aplicar props específicas do React-Icons
+    const isTwitch = platform === 'twitch';
+
+    const getIconProps = (color, size) => {
+        if (isTwitch) {
+            // React Icons (SiTwitch) usa 'size' e 'style'
+            return { size: size, style: { color: color } };
+        } else {
+            // Material UI Icons usam 'sx' e 'fontSize'
+            return { sx: { fontSize: size, color: color } };
+        }
+    };
+
+
     // --- VISUAL VERIFICADO (Pílula com Nome da Conta + Botão Remover) ---
     if (isVerified) {
         return (
@@ -124,14 +138,10 @@ const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, o
                     }}
                 >
                     {/* Ícone da Rede */}
-                    <Box sx={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#00d4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                       <Icon 
-                            size={16} 
-                            style={{ color: iconColorVerified }} 
-                            sx={{ fontSize: 16, color: iconColorVerified }} 
-                        />
+                 <Box sx={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#00d4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {/* Aplica as props corretas dependendo da biblioteca do ícone */}
+                        <Icon {...getIconProps(iconColorVerified, 16)} />
                     </Box>
-
                     {/* Texto: Nome da Conta / Handle */}
                     <Typography variant="body2" fontWeight="bold" color="#00d4ff" sx={{ fontSize: '13px', whiteSpace: "nowrap", maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {handle || "Conta Verificada"} 
@@ -160,9 +170,9 @@ const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, o
                                     width: 20,
                                     height: 20,
                                     borderRadius: "50%",
-                                    backgroundColor: "rgba(255,255,255,0.2)",
+                                    backgroundColor: "rgba(255, 255, 255, 0)",
                                     color: "white",
-                                    "&:hover": { backgroundColor: "#ff1744", transform: "scale(1.1)" },
+                                    "&:hover": { backgroundColor: "#00000018", transform: "scale(1.1)" },
                                     transition: "0.2s"
                                 }}
                             >
@@ -195,11 +205,7 @@ return (
                     "&:hover": isOwner ? { backgroundColor: "rgba(255,152,0,0.15)", borderColor: "#ff9800" } : {}
                 }}
             >
-               <Icon 
-                    size={18}
-                    style={{ color: iconColorUnverified }} 
-                    sx={{ fontSize: 18, color: iconColorUnverified }} 
-                />
+              <Icon {...getIconProps(iconColorUnverified, 18)} />
                 {isOwner && (
                     <ErrorOutline sx={{ 
                         fontSize: 14, 

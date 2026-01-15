@@ -831,3 +831,53 @@ export const unlinkSocialAccount = asyncHandler(async (req, res) => {
         influencer 
     });
 });
+
+
+export const analyzeCommunityVibe = asyncHandler(async (req, res) => {
+    const { comments } = req.body; // Array de strings vindo do helper acima
+
+    if (!comments || comments.length < 5) {
+        return res.status(200).json({ status: "insufficient_data" });
+    }
+
+    const commentsText = comments.join(" | ");
+
+    try {
+        const apiKey = process.env.GROQ_API_KEY;
+        const url = "https://api.groq.com/openai/v1/chat/completions";
+
+        const systemPrompt = `
+            Você é um Especialista em Antropologia Digital e Marketing. 
+            Analise os comentários de um canal do YouTube e extraia insights estratégicos em formato JSON PURO.
+            
+            Retorne APENAS o JSON com esta estrutura exata:
+            {
+                "sentiment_score": 0 a 100 (onde 100 é extremamente positivo),
+                "brand_safety_score": 0 a 100 (onde 100 é seguro/limpo e 0 é tóxico/perigoso),
+                "topics": ["topico1", "topico2", "topico3", "topico4", "topico5"],
+                "purchase_intent": "Baixa" | "Média" | "Alta",
+                "community_persona": "Uma frase curta definindo a tribo (ex: Gamers exigentes que amam hardware)",
+                "warnings": ["Lista de alertas se houver (ex: discurso de ódio, golpes, reclamações de áudio)"]
+            }
+        `;
+
+        const response = await axios.post(url, {
+            model: "llama-3.3-70b-versatile",
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: `Analise estes comentários: ${commentsText}` }
+            ],
+            temperature: 0.3, // Baixa temperatura para ser consistente no JSON
+            response_format: { type: "json_object" } // Garante retorno JSON
+        }, {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+        });
+
+        const analysis = JSON.parse(response.data.choices[0].message.content);
+        res.json(analysis);
+
+    } catch (error) {
+        console.error("Erro na análise de comunidade:", error);
+        res.status(500).json({ message: "Falha na IA" });
+    }
+});

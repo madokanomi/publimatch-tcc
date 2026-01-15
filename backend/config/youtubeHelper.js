@@ -442,3 +442,56 @@ export const getYoutubeAdvancedAnalytics = async (accessToken, channelId) => {
         return null;
     }
 };
+
+
+/**
+ * Busca os comentários mais relevantes dos últimos vídeos para análise de IA
+ */
+export const getCommunityContext = async (accessToken, uploadsPlaylistId) => {
+    try {
+        // 1. Pegar os IDs dos 3 últimos vídeos enviados
+        const playlistRes = await axios.get('https://www.googleapis.com/youtube/v3/playlistItems', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            params: {
+                part: 'contentDetails',
+                playlistId: uploadsPlaylistId, // ID da playlist "Uploads" que já pegamos antes
+                maxResults: 3
+            }
+        });
+
+        const videoIds = playlistRes.data.items.map(item => item.contentDetails.videoId);
+        let allComments = [];
+
+        // 2. Para cada vídeo, pegar os top 15 comentários (Order: RELEVANCE)
+        // Usamos Promise.all para ser rápido
+        const commentPromises = videoIds.map(async (videoId) => {
+            try {
+                const commentRes = await axios.get('https://www.googleapis.com/youtube/v3/commentThreads', {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                    params: {
+                        part: 'snippet',
+                        videoId: videoId,
+                        maxResults: 15,
+                        order: 'relevance', // Pega os mais curtidos/engajados, não os mais recentes
+                        textFormat: 'plainText'
+                    }
+                });
+                return commentRes.data.items.map(item => item.snippet.topLevelComment.snippet.textDisplay);
+            } catch (err) {
+                return []; // Se um vídeo tiver comentários desativados, ignora
+            }
+        });
+
+        const results = await Promise.all(commentPromises);
+        
+        // Junta tudo num array único e limpa quebras de linha excessivas
+        allComments = results.flat().map(c => c.replace(/\n/g, ' ').substring(0, 200)); // Limita caracteres para economizar tokens da IA
+
+        return allComments; // Retorna array de strings
+
+    } catch (error) {
+        console.error("Erro ao buscar contexto da comunidade:", error.message);
+        return [];
+    }
+};
+

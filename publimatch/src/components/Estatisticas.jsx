@@ -2,6 +2,11 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Box, Typography, Select, MenuItem, FormControl, InputLabel, Grid, LinearProgress, Divider, CircularProgress, Fade } from "@mui/material";
 import { useAuth } from "../auth/AuthContext";
 import axios from "axios";
+import GppGoodIcon from '@mui/icons-material/GppGood'; // Escudo (Brand Safety)
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'; // Intenção de Compra
+import ForumIcon from '@mui/icons-material/Forum'; // Tópicos
+import WarningAmberIcon from '@mui/icons-material/WarningAmber'; // Alertas
+
 // Ícones
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
@@ -139,6 +144,118 @@ const VideoCard = ({ video }) => (
         </Box>
     </Box>
 );
+
+const CommunityAnalysis = ({ data }) => {
+    if (!data) return null;
+
+    // Define cor do Brand Safety
+    const getSafetyColor = (score) => {
+        if (score >= 80) return "#00E676"; // Verde
+        if (score >= 50) return "#FFC107"; // Amarelo
+        return "#FF1744"; // Vermelho
+    };
+
+    return (
+        <Box sx={{ mt: 3, p: 3, bgcolor: "rgba(30, 30, 40, 0.6)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.1)" }}>
+            <Box display="flex" alignItems="center" gap={1} mb={3}>
+                <ForumIcon sx={{ color: "#d8b4fe" }} />
+                <Typography variant="h6" fontWeight="bold" color="white">
+                    Raio-X da Comunidade (IA)
+                </Typography>
+            </Box>
+
+            <Grid container spacing={3}>
+                {/* Coluna 1: Scores e Persona */}
+                <Grid item xs={12} md={4}>
+                    <Box display="flex" flexDirection="column" gap={2}>
+                        
+                        {/* Persona Card */}
+                        <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.05)", borderRadius: "12px", borderLeft: "4px solid #d8b4fe" }}>
+                            <Typography variant="caption" color="rgba(255,255,255,0.6)">PERFIL DA TRIBO</Typography>
+                            <Typography variant="body2" color="white" fontWeight="500" mt={0.5}>
+                                "{data.community_persona}"
+                            </Typography>
+                        </Box>
+
+                        {/* Brand Safety Meter */}
+                        <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.05)", borderRadius: "12px" }}>
+                            <Box display="flex" justifyContent="space-between" mb={1}>
+                                <Typography variant="caption" color="rgba(255,255,255,0.6)" display="flex" alignItems="center" gap={0.5}>
+                                    <GppGoodIcon fontSize="inherit"/> BRAND SAFETY
+                                </Typography>
+                                <Typography variant="caption" fontWeight="bold" color={getSafetyColor(data.brand_safety_score)}>
+                                    {data.brand_safety_score}/100
+                                </Typography>
+                            </Box>
+                            <LinearProgress 
+                                variant="determinate" 
+                                value={data.brand_safety_score} 
+                                sx={{ 
+                                    height: 8, borderRadius: 4, bgcolor: "rgba(255,255,255,0.1)",
+                                    "& .MuiLinearProgress-bar": { backgroundColor: getSafetyColor(data.brand_safety_score) }
+                                }} 
+                            />
+                        </Box>
+
+                        {/* Intenção de Compra */}
+                        <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.05)", borderRadius: "12px", display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Typography variant="caption" color="rgba(255,255,255,0.6)" display="flex" alignItems="center" gap={0.5}>
+                                <ShoppingCartIcon fontSize="inherit"/> INTENÇÃO DE COMPRA
+                            </Typography>
+                            <Chip 
+                                label={data.purchase_intent} 
+                                size="small" 
+                                sx={{ 
+                                    bgcolor: data.purchase_intent === 'Alta' ? 'rgba(0, 230, 118, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                                    color: data.purchase_intent === 'Alta' ? '#00E676' : 'white',
+                                    fontWeight: 'bold'
+                                }} 
+                            />
+                        </Box>
+                    </Box>
+                </Grid>
+
+                {/* Coluna 2: Tópicos e Alertas */}
+                <Grid item xs={12} md={8}>
+                    <Box height="100%" display="flex" flexDirection="column" gap={2}>
+                        
+                        {/* Tópicos Principais (Chips) */}
+                        <Box>
+                            <Typography variant="caption" color="rgba(255,255,255,0.5)" mb={1} display="block">TÓPICOS MAIS COMENTADOS</Typography>
+                            <Box display="flex" flexWrap="wrap" gap={1}>
+                                {data.topics.map((topic, i) => (
+                                    <Chip 
+                                        key={i} 
+                                        label={topic} 
+                                        sx={{ 
+                                            bgcolor: "rgba(147, 51, 234, 0.15)", 
+                                            color: "#d8b4fe", 
+                                            border: "1px solid rgba(147, 51, 234, 0.3)" 
+                                        }} 
+                                    />
+                                ))}
+                            </Box>
+                        </Box>
+
+                        {/* Alertas (Se houver) */}
+                        {data.warnings && data.warnings.length > 0 && (
+                            <Box sx={{ mt: 'auto', p: 2, bgcolor: "rgba(255, 23, 68, 0.1)", borderRadius: "12px", border: "1px solid rgba(255, 23, 68, 0.3)" }}>
+                                <Typography variant="caption" color="#FF1744" fontWeight="bold" display="flex" alignItems="center" gap={1} mb={1}>
+                                    <WarningAmberIcon fontSize="small"/> PONTOS DE ATENÇÃO
+                                </Typography>
+                                {data.warnings.map((warn, i) => (
+                                    <Typography key={i} variant="body2" color="rgba(255, 200, 200, 0.9)" sx={{ display: 'list-item', ml: 2 }}>
+                                        {warn}
+                                    </Typography>
+                                ))}
+                            </Box>
+                        )}
+                    </Box>
+                </Grid>
+            </Grid>
+        </Box>
+    );
+};
 
 
 const StatCard = ({ title, value, subtext, icon: Icon, color, gradient }) => (
@@ -455,6 +572,24 @@ const youtubeAgeData = useMemo(() => {
                 </Grid>
             </Grid>
         </Box>
+
+        <Fade in={true} timeout={1000}>
+            <Box>
+                 {/* Verificação de segurança para renderizar apenas se houver dados */}
+                {safeYoutubeData.advanced?.communityAnalysis ? (
+                    <CommunityAnalysis data={safeYoutubeData.advanced.communityAnalysis} />
+                ) : (
+                    // Fallback opcional caso não tenha dados ainda
+                    <Box sx={{ mt: 3, p: 3, bgcolor: "rgba(30, 30, 40, 0.28)", borderRadius: "20px", border: "1px dashed rgba(255,255,255,0.1)", textAlign: 'center' }}>
+                         <Typography variant="body2" color="rgba(255,255,255,0.4)">
+                             Dados de análise de comunidade indisponíveis no momento.
+                         </Typography>
+                    </Box>
+                )}
+            </Box>
+        </Fade>
+
+        
                 {/* LINHA 2: ENGAJAMENTO & ÚLTIMOS UPLOADS (Layout Assimétrico) */}
                 <Grid container spacing={3}>
                     {/* Coluna Esquerda: Métricas de Engajamento */}
@@ -644,6 +779,7 @@ const youtubeAgeData = useMemo(() => {
                 </PieChart>
             </ResponsiveContainer>
         </Box>
+        
     </Box>
 
     {/* Fontes de Tráfego */}
