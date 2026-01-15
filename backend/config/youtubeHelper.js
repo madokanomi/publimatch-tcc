@@ -111,7 +111,7 @@ export const getYoutubeStats = async (url) => {
             subscriberCount: stats.subscriberCount,
             videoCount: stats.videoCount,
             hiddenSubscriberCount: stats.hiddenSubscriberCount,
-            
+            uploadsPlaylistId: uploadsPlaylistId,
             // Perfil
             country: snippet.country || 'Global',
             publishedAt: snippet.publishedAt,
