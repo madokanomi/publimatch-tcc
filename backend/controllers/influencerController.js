@@ -76,6 +76,7 @@ export const registerInfluencer = asyncHandler(async (req, res) => {
         agent: req.user._id,
         profileImageUrl,
         backgroundImageUrl,
+        isVerified: false // Padrão ao criar
     });
 
     if (!influencer) {
@@ -101,12 +102,6 @@ export const registerInfluencer = asyncHandler(async (req, res) => {
         message: "Influenciador cadastrado com sucesso!"
     });
 });
-
-// No arquivo: controllers/influencerController.js
-
-// No arquivo: controllers/influencerController.js
-
-// No arquivo: controllers/influencerController.js
 
 export const getMyInfluencers = asyncHandler(async (req, res) => {
     const { campaignId } = req.query;
@@ -136,21 +131,12 @@ export const getMyInfluencers = asyncHandler(async (req, res) => {
             }
 
             // --- B. PADRONIZAÇÃO BLINDADA DE ESTATÍSTICAS ---
-            // O ERRO ESTAVA AQUI: Antes ele ignorava o inf.aggregatedStats do banco.
-            // Agora ele checa: 1. Raiz -> 2. AggregatedStats do Banco -> 3. Redes Sociais -> 4. Zero
-            
-            const dbStats = inf.aggregatedStats || {}; // Pega o que já está salvo no banco
+            const dbStats = inf.aggregatedStats || {}; 
 
             const stats = {
                 followers: inf.followersCount || dbStats.followers || inf.seguidores || 0,
-                
-                // Prioridade para Views:
                 views: inf.views || dbStats.views || inf.visualizacoes || 0,
-                
-                // Prioridade para Likes (Curtidas):
                 likes: inf.curtidas || dbStats.likes || inf.likes || 0,
-                
-                // Prioridade para Engajamento:
                 engagementRate: inf.engagementRate || dbStats.engagementRate || inf.mediaConversao || 0
             };
 
@@ -194,8 +180,6 @@ export const deleteInfluencer = asyncHandler(async (req, res) => {
     res.status(200).json({ message: 'Influenciador removido com sucesso.' });
 });
 
-// No arquivo influencerController.js
-
 export const getInfluencerById = asyncHandler(async (req, res) => {
     const influencer = await Influencer.findById(req.params.id).populate('agent', 'name');
 
@@ -210,9 +194,8 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
     const isAdAgent = req.user.role === 'AD_AGENT';
 
     if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
-        // ... (Mantenha a lógica de Promises do Youtube, Instagram, Twitch, TikTok igual ao que você já tem) ...
+        // ... (Promises do Youtube, Instagram, Twitch, TikTok) ...
         
-        // --- CÓDIGO EXISTENTE DE PROMISES (Resumido para foco na correção) ---
         let youtubePromise = influencer.social?.youtube ? getYoutubeStats(influencer.social.youtube) : Promise.resolve(null);
         let instagramPromise = influencer.social?.instagram ? getInstagramStats(influencer.social.instagram) : Promise.resolve(null);
         let twitchPromise = influencer.social?.twitch ? getTwitchStats(influencer.social.twitch) : Promise.resolve(null);
@@ -222,7 +205,6 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
             youtubePromise, instagramPromise, twitchPromise, tiktokPromise
         ]);
 
-        // --- LÓGICA DE SOMA (AGREGAÇÃO) ---
         let totalFollowers = 0;
         let totalViews = 0;
         let totalLikes = 0;
@@ -271,19 +253,12 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
             engagementRate: Number(avgEngagement),
             platformsActive: platformsWithEngagement
         };
-
-        // =================================================================
-        // 🔥 A CORREÇÃO MÁGICA ESTÁ AQUI EMBAIXO 🔥
-        // Salvamos os dados calculados no banco de dados para a lista ler depois
-        // =================================================================
         
         influencer.followersCount = totalFollowers;
         influencer.views = totalViews;
-        // Se o seu model tiver campo 'likes' ou 'curtidas', use aqui. Vou usar 'curtidas' baseado no seu código anterior.
         influencer.curtidas = totalLikes; 
         influencer.engagementRate = Number(avgEngagement);
         
-        // Salva silenciosamente (sem travar a resposta se der erro leve)
         try {
             await influencer.save();
         } catch (error) {
@@ -337,10 +312,12 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
   res.status(200).json(updatedInfluencer);
 });
 
-// ✅ ATUALIZADO: Lógica para calcular tags e avaliação média na listagem geral
+// ✅ ATUALIZADO: Inclui ordenação por verificado e envio do campo isVerified
 export const getAllInfluencers = asyncHandler(async (req, res) => {
-    // 1. Busca TODOS os influenciadores
-    const influencers = await Influencer.find({}).lean(); 
+    // 1. Busca TODOS os influenciadores e ordena: Verificado (true) primeiro
+    const influencers = await Influencer.find({})
+        .sort({ isVerified: -1, createdAt: -1 }) 
+        .lean(); 
     
     if (influencers && influencers.length > 0) {
         const influencersWithData = await Promise.all(influencers.map(async (inf) => {
@@ -371,15 +348,10 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                 engagementRate: inf.engagementRate || 0
             };
 
-            // Se tiver redes sociais cadastradas...
             const hasSocials = (inf.social?.instagram || inf.social?.youtube || inf.social?.tiktok || inf.social?.twitch);
-            
-            // CORREÇÃO: Verifica se QUALQUER dado importante está zerado (Seguidores, Views OU Likes)
             const isDataMissing = hasSocials && (currentStats.followers === 0 || currentStats.views === 0 || currentStats.likes === 0);
 
             if (isDataMissing) {
-                // console.log(`Atualizando dados automaticamente para: ${inf.name}...`);
-                
                 const promises = [];
                 if (inf.social?.youtube) promises.push(getYoutubeStats(inf.social.youtube));
                 if (inf.social?.instagram) promises.push(getInstagramStats(inf.social.instagram));
@@ -388,7 +360,6 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
 
                 const results = await Promise.allSettled(promises);
 
-                // Variáveis para somar os novos resultados
                 let newFollowers = 0;
                 let newViews = 0;
                 let newLikes = 0;
@@ -398,22 +369,14 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                 results.forEach(res => {
                     if (res.status === 'fulfilled' && res.value) {
                         const val = res.value;
-
-                        // 1. SOMA SEGUIDORES
                         newFollowers += Number(val.subscriberCount || val.followers || 0);
+                        if (val.viewCount) newViews += Number(val.viewCount);
+                        else if (val.totalViews) newViews += Number(val.totalViews);
+                        else if (val.avgViews) newViews += Number(val.avgViews);
 
-                        // 2. SOMA VIEWS (Normalizando os nomes das propriedades)
-                        // Youtube usa viewCount, Twitch usa totalViews, Insta/TikTok usa avgViews ou videoCount
-                        if (val.viewCount) newViews += Number(val.viewCount); // Youtube Total
-                        else if (val.totalViews) newViews += Number(val.totalViews); // Twitch
-                        else if (val.avgViews) newViews += Number(val.avgViews); // Estimativa Insta
+                        if (val.likes) newLikes += Number(val.likes);
+                        else if (val.avgLikes) newLikes += Number(val.avgLikes);
 
-                        // 3. SOMA LIKES (Normalizando)
-                        // TikTok usa likes, Youtube/Insta usa avgLikes
-                        if (val.likes) newLikes += Number(val.likes); // TikTok Total
-                        else if (val.avgLikes) newLikes += Number(val.avgLikes); // Média Youtube/Insta
-
-                        // 4. SOMA ENGAJAMENTO
                         if (val.engagementRate) {
                             engagementSum += Number(val.engagementRate);
                             platformsCount++;
@@ -423,8 +386,6 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
 
                 const newEngagement = platformsCount > 0 ? (engagementSum / platformsCount).toFixed(2) : 0;
 
-                // Atualiza o objeto local para retorno imediato
-                // (Só substitui se o novo valor for maior que 0, para não zerar dados manuais sem querer)
                 currentStats = {
                     followers: newFollowers > 0 ? newFollowers : currentStats.followers,
                     views: newViews > 0 ? newViews : currentStats.views,
@@ -432,7 +393,6 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                     engagementRate: Number(newEngagement) > 0 ? Number(newEngagement) : currentStats.engagementRate
                 };
 
-                // SALVA NO BANCO DE DADOS
                 await Influencer.updateOne(
                     { _id: inf._id },
                     { 
@@ -451,17 +411,13 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                 ...inf,
                 avaliacao: avgRating || inf.avaliacao || 0, 
                 tags: topTags,
-                
-                // Envia aggregatedStats preenchido para o InfluencerCard
                 aggregatedStats: currentStats, 
-
                 qtdAvaliacoes: reviews.length,
-                
-                // Campos raiz para compatibilidade
                 followersCount: currentStats.followers,
                 views: currentStats.views,
                 curtidas: currentStats.likes,
-                engagementRate: currentStats.engagementRate
+                engagementRate: currentStats.engagementRate,
+                isVerified: inf.isVerified || false // Garante que o campo vai
             };
         }));
 
@@ -471,12 +427,9 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
     }
 });
 
-// No arquivo: controllers/influencerController.js
-
 export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
-  // 1. Busca o influenciador com TODOS os campos necessários para o Banner E para a aba Estatísticas
   const influencer = await Influencer.findById(req.params.id)
-    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl agent followersCount views curtidas engagementRate youtubeStats instagramStats twitchStats tiktokStats')
+    .select('name realName age description aboutMe niches social profileImageUrl backgroundImageUrl agent followersCount views curtidas engagementRate youtubeStats instagramStats twitchStats tiktokStats isVerified socialVerification')
     .populate('agent', 'name');
 
   if (!influencer) {
@@ -484,7 +437,6 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
     throw new Error('Perfil de influenciador não encontrado.');
   }
 
-  // 2. Prepara objeto de estatísticas atuais (lendo do banco)
   let currentStats = {
       followers: influencer.followersCount || 0,
       views: influencer.views || 0,
@@ -492,17 +444,11 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
       engagementRate: influencer.engagementRate || 0
   };
 
-  // 3. Extrai os links das redes sociais
   const socialLinks = influencer.social || {};
-  
-  // Verifica se tem redes sociais E se os dados estão zerados (Gatilho para Auto-Repair)
   const hasSocials = (socialLinks.instagram || socialLinks.youtube || socialLinks.tiktok || socialLinks.twitch);
   const isDataMissing = hasSocials && (currentStats.followers === 0 || currentStats.views === 0 || currentStats.likes === 0);
 
   if (isDataMissing) {
-      // console.log(`Atualizando dados detalhados (Auto-Repair) para: ${influencer.name}...`);
-      
-      // Definimos as tarefas para saber qual resultado pertence a qual rede
       const tasks = [
           { platform: 'youtube', check: socialLinks.youtube, fn: () => getYoutubeStats(socialLinks.youtube) },
           { platform: 'instagram', check: socialLinks.instagram, fn: () => getInstagramStats(socialLinks.instagram) },
@@ -510,42 +456,34 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
           { platform: 'tiktok', check: socialLinks.tiktok, fn: () => getTikTokStats(socialLinks.tiktok) }
       ];
 
-      // Filtra apenas as redes que existem
       const activeTasks = tasks.filter(t => t.check);
-      
-      // Executa em paralelo
       const results = await Promise.allSettled(activeTasks.map(t => t.fn()));
 
-      // Variáveis para somar os totais
       let newFollowers = 0;
       let newViews = 0;
       let newLikes = 0;
       let engagementSum = 0;
       let platformsCount = 0;
 
-      // Processa os resultados
       results.forEach((res, index) => {
           if (res.status === 'fulfilled' && res.value) {
               const val = res.value;
               const platform = activeTasks[index].platform;
 
-              // ✅ SALVA O OBJETO DETALHADO NO DOCUMENTO DO MONGOOSE
-              // Isso garante que os gráficos funcionem na próxima carga
               if (platform === 'youtube') influencer.youtubeStats = val;
               if (platform === 'instagram') influencer.instagramStats = val;
               if (platform === 'twitch') influencer.twitchStats = val;
               if (platform === 'tiktok') influencer.tiktokStats = val;
               
-              // --- Lógica de Soma dos Totais ---
               newFollowers += Number(val.subscriberCount || val.followers || 0);
               
-              if (val.viewCount) newViews += Number(val.viewCount); // Youtube
-              else if (val.totalViews) newViews += Number(val.totalViews); // Twitch
-              else if (val.avgViews) newViews += Number(val.avgViews); // Instagram
-              else if (val.videoCount) newViews += Number(val.videoCount * 100); // TikTok (estimativa)
+              if (val.viewCount) newViews += Number(val.viewCount);
+              else if (val.totalViews) newViews += Number(val.totalViews);
+              else if (val.avgViews) newViews += Number(val.avgViews);
+              else if (val.videoCount) newViews += Number(val.videoCount * 100);
 
-              if (val.likes) newLikes += Number(val.likes); // TikTok
-              else if (val.avgLikes) newLikes += Number(val.avgLikes); // Youtube/Insta
+              if (val.likes) newLikes += Number(val.likes);
+              else if (val.avgLikes) newLikes += Number(val.avgLikes);
 
               if (val.engagementRate) {
                   engagementSum += Number(val.engagementRate);
@@ -556,7 +494,6 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
 
       const newEngagement = platformsCount > 0 ? (engagementSum / platformsCount).toFixed(2) : 0;
 
-      // Atualiza os totais locais
       currentStats = {
           followers: newFollowers > 0 ? newFollowers : currentStats.followers,
           views: newViews > 0 ? newViews : currentStats.views,
@@ -564,7 +501,6 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
           engagementRate: Number(newEngagement) > 0 ? Number(newEngagement) : currentStats.engagementRate
       };
 
-      // 🔥 SALVA TUDO NO BANCO DE DADOS (Totais + Detalhados)
       influencer.followersCount = currentStats.followers;
       influencer.views = currentStats.views;
       influencer.curtidas = currentStats.likes;
@@ -577,15 +513,12 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
       }
   }
 
-  // 4. Retorna os dados completos para o Frontend
   const responseData = {
       ...influencer.toObject(),
-      // Garante que o frontend receba os valores mais atualizados
       followersCount: currentStats.followers,
       views: currentStats.views,
       curtidas: currentStats.likes,
       engagementRate: currentStats.engagementRate,
-      // Garante o envio dos objetos detalhados atualizados
       youtubeStats: influencer.youtubeStats,
       instagramStats: influencer.instagramStats,
       twitchStats: influencer.twitchStats,
@@ -594,9 +527,6 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
 
   res.json(responseData);
 });
-
-// ✅ ATUALIZADO: Mantém a segurança do perfil público (histórico vs tudo)
-// backend/controllers/influencerController.js
 
 export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
   const { id: influencerId } = req.params;
@@ -607,14 +537,12 @@ export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
     throw new Error('O ID do influenciador é necessário.');
   }
 
-  // Busca o influenciador para confirmar permissões
   const influencerProfile = await Influencer.findById(influencerId);
   if (!influencerProfile) {
       res.status(404);
       throw new Error('Influenciador não encontrado');
   }
 
-  // Verifica permissões (Dono, Agente ou Admin vê tudo)
   let hasFullAccess = false;
   if (userRequesting) {
       const isOwner = influencerProfile.userAccount && influencerProfile.userAccount.toString() === userRequesting._id.toString();
@@ -624,20 +552,16 @@ export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
   }
 
   if (hasFullAccess) {
-      // ✅ VISÃO PRIVADA (Sobrespec): Retorna Convites, Ativas e Histórico
       const [invites, participating, history] = await Promise.all([
-        // Convites pendentes
         Invite.find({ influencer: influencerId, status: 'PENDING' })
           .populate({ path: 'campaign', select: 'title logo endDate createdBy' })
           .populate('adAgent', 'name'),
 
-        // Campanhas Ativas (Aberta, Planejamento, Ativa)
         Campaign.find({
           participatingInfluencers: influencerId,
           status: { $in: ['Aberta', 'Planejamento', 'Ativa'] },
         }),
 
-        // ✅ Histórico (Concluída, Finalizada, Encerrada)
         Campaign.find({
           participatingInfluencers: influencerId,
           status: { $in: ['Concluída', 'Finalizada', 'Encerrada'] },
@@ -647,7 +571,6 @@ export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
       res.status(200).json({ invites, participating, history });
 
   } else {
-      // VISÃO PÚBLICA
       const history = await Campaign.find({
           participatingInfluencers: influencerId,
           status: { $in: ['Concluída', 'Finalizada', 'Encerrada'] }, 
@@ -674,26 +597,18 @@ export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     res.status(200).json(campaign.participatingInfluencers);
 });
 
-// controllers/influencerController.js
-
 export const getInfluencersByAgent = asyncHandler(async (req, res) => {
     const { agentId } = req.params;
     
-    // 1. Busca os influenciadores do agente (usando .lean() para performance)
     const influencers = await Influencer.find({ agent: agentId }).lean(); 
 
     if (influencers && influencers.length > 0) {
-        // 2. Processa cada influenciador para adicionar dados das Reviews e Totais
         const influencersWithData = await Promise.all(influencers.map(async (inf) => {
             
-            // A. Busca reviews para calcular a nota e tags
             const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
-
-            // B. Calcula média de Estrelas
             const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
             const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
 
-            // C. Calcula Top 3 Tags
             const tagCounts = {};
             reviews.forEach(review => {
                 if (review.tags && Array.isArray(review.tags)) {
@@ -709,23 +624,20 @@ export const getInfluencersByAgent = asyncHandler(async (req, res) => {
                 .slice(0, 3) 
                 .map(([tag]) => tag); 
 
-            // D. Prepara o objeto de estatísticas somadas
-            // Se o influenciador tiver dados salvos de 'followersCount', etc., usamos eles.
-            // Caso contrário, enviamos 0. (Esses dados são atualizados quando se abre o perfil detalhado)
             const stats = {
                 followers: inf.followersCount || 0,
                 views: inf.views || 0,
-                likes: inf.curtidas || 0, // Usando o campo 'curtidas' do seu model
+                likes: inf.curtidas || 0,
                 engagementRate: inf.engagementRate || 0
             };
 
             return {
                 ...inf,
-                // Adiciona dados calculados
                 avaliacao: avgRating, 
                 tags: topTags,
-                aggregatedStats: stats, // Envia formatado para o front
-                qtdAvaliacoes: reviews.length
+                aggregatedStats: stats,
+                qtdAvaliacoes: reviews.length,
+                isVerified: inf.isVerified || false
             };
         }));
 
@@ -749,7 +661,6 @@ export const summarizeInfluencerBio = asyncHandler(async (req, res) => {
     const url = "https://api.groq.com/openai/v1/chat/completions";
 
     const response = await axios.post(url, {
-      // ✅ MODELO ATUALIZADO (O Llama 3.3 é o mais atual e potente)
       model: "llama-3.3-70b-versatile", 
       messages: [
         { 
@@ -776,15 +687,12 @@ export const summarizeInfluencerBio = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error("Erro na IA (Groq):", error?.response?.data || error.message);
-    
-    // Resposta de fallback para não quebrar o frontend
     res.status(200).json({ 
         summary: "Resumo indisponível no momento, mas o perfil está ativo e verificado." 
     });
   }
 });
 export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
-  // ✅ Agora extraímos também a 'bio'
   const { stats, bio } = req.body;
 
   if (!stats) {
@@ -797,10 +705,8 @@ export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
     const url = "https://api.groq.com/openai/v1/chat/completions";
 
     const statsString = JSON.stringify(stats);
-    // Limita o tamanho da bio para não estourar tokens se for muito grande
     const bioString = bio ? bio.substring(0, 500) : "Não informada"; 
 
-    // ✅ PROMPT ATUALIZADO: Cruzamento de Bio + Dados
     const prompt = `
       Atue como um Estrategista Sênior de Marketing.
       
@@ -826,7 +732,7 @@ export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
         { role: "user", content: prompt }
       ],
       temperature: 0.7,
-      max_tokens: 800 // Mais espaço para a análise combinada
+      max_tokens: 800 
     }, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -850,14 +756,11 @@ export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
   }
 });
 
-// Adicione esta função para lidar com o callback de sucesso do login social
 export const verifySocialPlatform = asyncHandler(async (req, res) => {
-    const { influencerId, platform, token } = req.body; // Token vindo do Google/Facebook
+    const { influencerId, platform, token } = req.body; 
 
-    // 1. (Aqui entraria a lógica de validar o Token na API do Google/Meta para garantir segurança real)
     // const isValid = await validateTokenWithProvider(platform, token);
     
-    // Para este exemplo, vamos assumir que o frontend fez o OAuth e mandou o ok
     const influencer = await Influencer.findById(influencerId);
 
     if (!influencer) {
@@ -865,17 +768,14 @@ export const verifySocialPlatform = asyncHandler(async (req, res) => {
         throw new Error('Influenciador não encontrado');
     }
 
-    // Verifica se o usuário logado é o dono da conta
     if (influencer.userAccount && influencer.userAccount.toString() !== req.user._id.toString()) {
          res.status(403);
          throw new Error('Apenas o dono do perfil pode verificar as redes sociais.');
     }
 
-    // 2. Atualiza o status
     if (!influencer.socialVerification) influencer.socialVerification = {};
     influencer.socialVerification[platform] = true;
 
-    // Se tiver pelo menos uma rede verificada, marca o perfil geral como verificado
     influencer.isVerified = true;
 
     await influencer.save();
@@ -890,9 +790,6 @@ export const verifySocialPlatform = asyncHandler(async (req, res) => {
 export const unlinkSocialAccount = asyncHandler(async (req, res) => {
     const { id, platform } = req.params;
     
-    // Verifica se o usuário tem permissão (Dono ou Agente)
-    // (Adicione aqui sua lógica de verificação de permissão se necessário, igual aos outros endpoints)
-
     const influencer = await Influencer.findById(id);
 
     if (!influencer) {
@@ -900,13 +797,10 @@ export const unlinkSocialAccount = asyncHandler(async (req, res) => {
         throw new Error('Influenciador não encontrado.');
     }
 
-    // 1. Limpa os dados da plataforma específica
     if (influencer.socialVerification) influencer.socialVerification[platform] = false;
     if (influencer.socialHandles) influencer.socialHandles[platform] = "";
-    if (influencer.social) influencer.social[platform] = ""; // Opcional: Limpa o link também
+    if (influencer.social) influencer.social[platform] = ""; 
 
-    // 2. Recalcula se o perfil ainda é verificado globalmente
-    // Verifica se sobrou alguma rede true em socialVerification
     const hasAnyVerified = Object.values(influencer.socialVerification || {}).some(Boolean);
     influencer.isVerified = hasAnyVerified;
 
@@ -914,7 +808,6 @@ export const unlinkSocialAccount = asyncHandler(async (req, res) => {
 
     res.status(200).json({ 
         message: `Conta ${platform} desconectada com sucesso.`,
-        influencer // Retorna o objeto atualizado
+        influencer 
     });
 });
-
