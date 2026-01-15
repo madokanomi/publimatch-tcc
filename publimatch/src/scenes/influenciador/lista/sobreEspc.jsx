@@ -18,10 +18,10 @@ import {
     Snackbar,
     Alert,
     TextField,
-    Tooltip, // Importado
-    Badge    // Importado
+    Tooltip, 
+    Badge    
 } from "@mui/material";
-import { Close as CloseIcon } from "@mui/icons-material"; // Importe o ícone de fechar
+import { Close as CloseIcon } from "@mui/icons-material";
 import {
     Favorite,
     Visibility,
@@ -37,9 +37,10 @@ import {
     Business,
     BarChart,
     Campaign,
-    CheckCircle,    // Novo
-    ErrorOutline,   // Novo
-    Verified,       // Novo
+    CheckCircle,    
+    ErrorOutline,   
+    Verified,
+    Lock // ✅ Importado para o botão bloqueado
 } from "@mui/icons-material";
 import StarIcon from "@mui/icons-material/Star";
 import { useParams, useNavigate } from "react-router-dom";
@@ -187,10 +188,9 @@ const Sobrespec = () => {
             window.history.replaceState({}, document.title, window.location.pathname);
             
             // Exibe mensagem de sucesso
-            setShowFinalizeSuccess(true); // Reusando seu snackbar ou crie um novo
-            // Opcional: Forçar um reload dos dados do influenciador para atualizar o ícone
-            // fetchData(); // Se você extrair a função fetchData do useEffect principal
-             window.location.reload(); // Forma mais simples para garantir que o ícone azul apareça
+            setShowFinalizeSuccess(true); 
+            // Força reload para garantir que o ícone azul apareça
+            window.location.reload(); 
         }
     }, []);
 
@@ -461,45 +461,87 @@ const Sobrespec = () => {
                                     </Box>
 
                                     {/* ÍCONES SOCIAIS COM STATUS DE VERIFICAÇÃO */}
-{/* LISTA DE REDES SOCIAIS */}
-<Box display="flex" flexWrap="wrap" gap={1.5} mt={1}>
-    <SocialIconWithStatus 
-        platform="youtube"
-        url={social.youtube}
-        handle={socialHandles?.youtube} // Passa o nome do canal
-        isVerified={socialVerification?.youtube}
-        icon={YouTubeIcon}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-    <SocialIconWithStatus 
-        platform="instagram"
-        url={social.instagram}
-        handle={socialHandles?.instagram} // Passa o @ do insta
-        isVerified={socialVerification?.instagram}
-        icon={InstagramIcon}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-    <SocialIconWithStatus 
-        platform="twitch"
-        url={social.twitch}
-        handle={socialHandles?.twitch} // Passa o nome da twitch
-        isVerified={socialVerification?.twitch}
-        icon={SiTwitch}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-    <SocialIconWithStatus 
-        platform="tiktok"
-        url={social.tiktok}
-        handle={socialHandles?.tiktok}
-        isVerified={socialVerification?.tiktok}
-        icon={MusicNoteIcon}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-</Box>
+                                    {/* LISTA DE REDES SOCIAIS */}
+                                    <Box display="flex" flexWrap="wrap" gap={1.5} mt={1}>
+                                        <SocialIconWithStatus 
+                                            platform="youtube"
+                                            url={social.youtube}
+                                            handle={socialHandles?.youtube} // Passa o nome do canal
+                                            isVerified={socialVerification?.youtube}
+                                            icon={YouTubeIcon}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
+                                        <SocialIconWithStatus 
+                                            platform="instagram"
+                                            url={social.instagram}
+                                            handle={socialHandles?.instagram} // Passa o @ do insta
+                                            isVerified={socialVerification?.instagram}
+                                            icon={InstagramIcon}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
+                                        <SocialIconWithStatus 
+                                            platform="twitch"
+                                            url={social.twitch}
+                                            handle={socialHandles?.twitch} // Passa o nome da twitch
+                                            isVerified={socialVerification?.twitch}
+                                            icon={SiTwitch}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
+                                        <SocialIconWithStatus 
+                                            platform="tiktok"
+                                            url={social.tiktok}
+                                            handle={socialHandles?.tiktok}
+                                            isVerified={socialVerification?.tiktok}
+                                            icon={MusicNoteIcon}
+                                            onConnect={handleConnectAccount}
+                                            isOwner={isOwner}
+                                        />
+                                    </Box>
+
+                                    {/* ✅ BOTÃO DE CONTRATAR COM LÓGICA DE BLOQUEIO */}
+                                    <Box mt={3}>
+                                        {isVerified ? (
+                                            <Button 
+                                                variant="contained" 
+                                                onClick={handleOpenHireDialog}
+                                                startIcon={<Campaign />}
+                                                sx={{ 
+                                                    background: "linear-gradient(45deg, #d900c7, #ff4081)",
+                                                    color: "white",
+                                                    fontWeight: "bold",
+                                                    padding: "10px 24px",
+                                                    borderRadius: "12px",
+                                                    boxShadow: "0 4px 15px rgba(217, 0, 199, 0.4)",
+                                                    "&:hover": { background: "linear-gradient(45deg, #b000a0, #e91e63)" }
+                                                }}
+                                            >
+                                                CONTRATAR INFLUENCIADOR
+                                            </Button>
+                                        ) : (
+                                            <Tooltip title="Este influenciador ainda não verificou suas redes sociais. Contratação bloqueada por segurança.">
+                                                <span>
+                                                    <Button 
+                                                        variant="contained" 
+                                                        disabled
+                                                        startIcon={<Lock />}
+                                                        sx={{ 
+                                                            background: "rgba(255, 255, 255, 0.1)",
+                                                            color: "rgba(255, 255, 255, 0.5) !important",
+                                                            fontWeight: "bold",
+                                                            padding: "10px 24px",
+                                                            borderRadius: "12px",
+                                                            border: "1px solid rgba(255, 255, 255, 0.2)"
+                                                        }}
+                                                    >
+                                                        CONTRATAÇÃO BLOQUEADA
+                                                    </Button>
+                                                </span>
+                                            </Tooltip>
+                                        )}
+                                    </Box>
 
                                     {/* ALERTA SE NÃO VERIFICADO (VISÍVEL APENAS PARA O DONO) */}
                                     {!isVerified && isOwner && (
