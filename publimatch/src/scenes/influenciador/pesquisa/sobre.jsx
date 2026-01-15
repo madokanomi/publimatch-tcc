@@ -8,7 +8,7 @@ import {
 import { 
   Favorite, Visibility, Groups, Menu as MenuIcon, ArrowBack,
   TrendingUp, Star, YouTube, Instagram, SportsEsports,
-  MusicNote, PersonOutlined, Business, BarChart, Campaign,  AutoAwesome 
+  MusicNote, PersonOutlined, Business, BarChart, Campaign,  AutoAwesome, Verified 
 } from "@mui/icons-material";
 import StarIcon from "@mui/icons-material/Star";
 import YouTubeIcon from "@mui/icons-material/YouTube";
@@ -613,6 +613,7 @@ const InfluencerProfile = () => {
     engagementRate = 0,
     // Avaliação calculada no frontend via reviews
     avaliacao = stats.averageRating,
+    isVerified = false,
   } = influencer || {};
 
 
@@ -680,7 +681,14 @@ const InfluencerProfile = () => {
                 <Avatar src={imagem} sx={{ width: 120, height: 120, border: "4px solid white" }} />
                 <Box>
                   <Typography variant="body2" sx={{ fontStyle: "italic", opacity: 0.9, mb: 0.2, fontSize: "14px" }}>"{descricao}"</Typography>
-                  <Typography variant="h3" fontWeight="bold" mb={0}>{nome}</Typography>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="h3" fontWeight="bold" mb={0}>{nome}</Typography>
+                    {isVerified && (
+                      <Tooltip title="Verificado">
+                        <Verified sx={{ color: "#00d4ff", fontSize: 32 }} />
+                      </Tooltip>
+                    )}
+                  </Box>
                     <Typography variant="h6" mb={0.5} sx={{ opacity: 0.9 }}>
                     <PersonOutlinedIcon sx={{paddingTop:"5px"}}/>  {nomeReal}, {idade} anos
                   </Typography>
@@ -707,7 +715,36 @@ const InfluencerProfile = () => {
                   </Box>
                   {canHire && (
                     <Box mt={1.2}>
-                      <Button variant="contained" startIcon={<Favorite />} onClick={handleOpenHireDialog} sx={{ background: "#f9f1f1ff", px: 4, py: 1.5, color:"#ff00a6ff", borderRadius: "25px", fontWeight: "bold", fontSize: "16px", transition: "0.2s all ease-in-out", textTransform: "none", boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)", "&:hover": { background: "#ffffffff", transform: "scale(1.05)", borderRadius:"10px", boxShadow: "0px 0px 15px 4px rgba(255, 55, 235, 0.53)", }, }}> Contratar </Button>
+                      {isVerified ? (
+                        <Button variant="contained" startIcon={<Favorite />} onClick={handleOpenHireDialog} sx={{ background: "#f9f1f1ff", px: 4, py: 1.5, color:"#ff00a6ff", borderRadius: "25px", fontWeight: "bold", fontSize: "16px", transition: "0.2s all ease-in-out", textTransform: "none", boxShadow: "0px 0px 24.5px 4px rgba(255, 55, 235, 0.25)", "&:hover": { background: "#ffffffff", transform: "scale(1.05)", borderRadius:"10px", boxShadow: "0px 0px 15px 4px rgba(255, 55, 235, 0.53)", }, }}> Contratar </Button>
+                      ) : (
+                        <Tooltip title="Não é possível contratar o influenciador pois não é uma conta verificada" arrow>
+                           <span style={{ cursor: 'not-allowed' }}>
+                              <Button 
+                                variant="contained" 
+                                startIcon={<Favorite />} 
+                                disabled
+                                sx={{ 
+                                  background: "#f9f1f1ff", 
+                                  px: 4, 
+                                  py: 1.5, 
+                                  color:"#ff00a6ff", 
+                                  borderRadius: "25px", 
+                                  fontWeight: "bold", 
+                                  fontSize: "16px", 
+                                  textTransform: "none", 
+                                  boxShadow: "none",
+                                  opacity: 0.5,
+                                  "&.Mui-disabled": {
+                                     background: "rgba(249, 241, 241, 0.5)",
+                                     color: "rgba(255, 0, 166, 0.5)"
+                                  }
+                                }}> 
+                                Contratar 
+                              </Button>
+                           </span>
+                        </Tooltip>
+                      )}
                     </Box>
                   )}
                 </Box>
