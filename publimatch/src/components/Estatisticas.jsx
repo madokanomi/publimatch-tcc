@@ -2,12 +2,11 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Box, Typography, Select, MenuItem, FormControl, InputLabel, Grid, LinearProgress, Divider, CircularProgress, Fade } from "@mui/material";
 import { useAuth } from "../auth/AuthContext";
 import axios from "axios";
-import GppGoodIcon from '@mui/icons-material/GppGood'; // Escudo (Brand Safety)
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'; // Intenção de Compra
-import ForumIcon from '@mui/icons-material/Forum'; // Tópicos
-import WarningAmberIcon from '@mui/icons-material/WarningAmber'; // Alertas
+import GppGoodIcon from '@mui/icons-material/GppGood'; 
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart'; 
+import ForumIcon from '@mui/icons-material/Forum'; 
+import WarningAmberIcon from '@mui/icons-material/WarningAmber'; 
 
-// Ícones
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -24,7 +23,7 @@ import PublicIcon from '@mui/icons-material/Public';
 import WcIcon from '@mui/icons-material/Wc';
 import CakeIcon from '@mui/icons-material/Cake';
 import { SiTwitch } from "react-icons/si";
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; // Ícone da IA
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; 
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import TrafficIcon from '@mui/icons-material/Traffic';
 import ShareIcon from '@mui/icons-material/Share';
@@ -32,8 +31,8 @@ import TagIcon from '@mui/icons-material/Tag';
 import CategoryIcon from '@mui/icons-material/Category';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import UpdateIcon from '@mui/icons-material/Update';
-import { Chip } from "@mui/material"; // Importe Chip
-// Recharts
+import { Chip } from "@mui/material"; 
+
 import {
   ResponsiveContainer,
   PieChart,
@@ -49,9 +48,8 @@ import {
   Bar,
   Legend
 } from "recharts";
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'; // Novo
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'; 
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
-// --- Utilitários de Formatação ---
 
 const formatNumber = (num) => {
   if (!num) return "0";
@@ -70,7 +68,6 @@ const formatDate = (dateString) => {
     return date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
-// Calcula anos de existência
 const getChannelAge = (dateString) => {
     if (!dateString) return "";
     const created = new Date(dateString);
@@ -79,19 +76,17 @@ const getChannelAge = (dateString) => {
     return `${diff} anos`;
 };
 
-
-// --- Subcomponentes de UI ---
-
 const CustomTooltip = ({ active, payload, label, unit = "" }) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
       <Box sx={{
-          background: "rgba(10, 10, 10, 0.34)",
+          background: "rgba(10, 10, 10, 0.95)",
           border: "1px solid rgba(255, 255, 255, 0.1)",
           borderRadius: "8px",
           p: 1.5,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5)"
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+          zIndex: 100
       }}>
         <Typography variant="caption" sx={{ color: "#aaa", mb: 0.5, display: 'block' }}>
           {label || data.name}
@@ -99,7 +94,7 @@ const CustomTooltip = ({ active, payload, label, unit = "" }) => {
         <Box display="flex" alignItems="center" gap={1}>
             <Box width={8} height={8} borderRadius="50%" bgcolor={data.fill || data.color} />
             <Typography variant="body2" fontWeight="bold" color="white">
-            {`${formatNumber(data.value)}${unit}`}
+            {`${data.value}${unit}`}
             </Typography>
         </Box>
       </Box>
@@ -108,22 +103,18 @@ const CustomTooltip = ({ active, payload, label, unit = "" }) => {
   return null;
 };
 
-
 const VideoCard = ({ video }) => (
     <Box sx={{
         display: 'flex', gap: 2, p: 1.5,
         bgcolor: "rgba(255,255,255,0.02)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)",
         transition: "0.2s", "&:hover": { bgcolor: "rgba(255,255,255,0.05)" }
     }}>
-        {/* Thumbnail */}
         <Box sx={{ position: 'relative', width: 120, minWidth: 120, height: 68, borderRadius: "8px", overflow: "hidden" }}>
             <img src={video.thumbnail} alt={video.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: '0.2s', "&:hover": { opacity: 1 } }}>
                 <PlayCircleOutlineIcon sx={{ color: 'white' }} />
             </Box>
         </Box>
-        
-        {/* Detalhes */}
         <Box display="flex" flexDirection="column" justifyContent="center" flex={1}>
             <Typography variant="body2" color="white" fontWeight="600" sx={{
                 display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.2, mb: 0.5
@@ -147,14 +138,11 @@ const VideoCard = ({ video }) => (
 
 const CommunityAnalysis = ({ data }) => {
     if (!data) return null;
-
-    // Define cor do Brand Safety
     const getSafetyColor = (score) => {
-        if (score >= 80) return "#00E676"; // Verde
-        if (score >= 50) return "#FFC107"; // Amarelo
-        return "#FF1744"; // Vermelho
+        if (score >= 80) return "#00E676";
+        if (score >= 50) return "#FFC107"; 
+        return "#FF1744"; 
     };
-
     return (
         <Box sx={{ mt: 3, p: 3, bgcolor: "rgba(30, 30, 40, 0.6)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.1)" }}>
             <Box display="flex" alignItems="center" gap={1} mb={3}>
@@ -163,21 +151,15 @@ const CommunityAnalysis = ({ data }) => {
                     Raio-X da Comunidade (IA)
                 </Typography>
             </Box>
-
             <Grid container spacing={3}>
-                {/* Coluna 1: Scores e Persona */}
                 <Grid item xs={12} md={4}>
                     <Box display="flex" flexDirection="column" gap={2}>
-                        
-                        {/* Persona Card */}
                         <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.05)", borderRadius: "12px", borderLeft: "4px solid #d8b4fe" }}>
                             <Typography variant="caption" color="rgba(255,255,255,0.6)">PERFIL DA TRIBO</Typography>
                             <Typography variant="body2" color="white" fontWeight="500" mt={0.5}>
                                 "{data.community_persona}"
                             </Typography>
                         </Box>
-
-                        {/* Brand Safety Meter */}
                         <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.05)", borderRadius: "12px" }}>
                             <Box display="flex" justifyContent="space-between" mb={1}>
                                 <Typography variant="caption" color="rgba(255,255,255,0.6)" display="flex" alignItems="center" gap={0.5}>
@@ -196,8 +178,6 @@ const CommunityAnalysis = ({ data }) => {
                                 }} 
                             />
                         </Box>
-
-                        {/* Intenção de Compra */}
                         <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.05)", borderRadius: "12px", display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <Typography variant="caption" color="rgba(255,255,255,0.6)" display="flex" alignItems="center" gap={0.5}>
                                 <ShoppingCartIcon fontSize="inherit"/> INTENÇÃO DE COMPRA
@@ -214,12 +194,8 @@ const CommunityAnalysis = ({ data }) => {
                         </Box>
                     </Box>
                 </Grid>
-
-                {/* Coluna 2: Tópicos e Alertas */}
                 <Grid item xs={12} md={8}>
                     <Box height="100%" display="flex" flexDirection="column" gap={2}>
-                        
-                        {/* Tópicos Principais (Chips) */}
                         <Box>
                             <Typography variant="caption" color="rgba(255,255,255,0.5)" mb={1} display="block">TÓPICOS MAIS COMENTADOS</Typography>
                             <Box display="flex" flexWrap="wrap" gap={1}>
@@ -236,8 +212,6 @@ const CommunityAnalysis = ({ data }) => {
                                 ))}
                             </Box>
                         </Box>
-
-                        {/* Alertas (Se houver) */}
                         {data.warnings && data.warnings.length > 0 && (
                             <Box sx={{ mt: 'auto', p: 2, bgcolor: "rgba(255, 23, 68, 0.1)", borderRadius: "12px", border: "1px solid rgba(255, 23, 68, 0.3)" }}>
                                 <Typography variant="caption" color="#FF1744" fontWeight="bold" display="flex" alignItems="center" gap={1} mb={1}>
@@ -256,7 +230,6 @@ const CommunityAnalysis = ({ data }) => {
         </Box>
     );
 };
-
 
 const StatCard = ({ title, value, subtext, icon: Icon, color, gradient }) => (
     <Box sx={{
@@ -324,25 +297,18 @@ const AuthenticationLock = ({ platformName }) => (
     </Box>
 );
 
-// --- Componente Principal ---
-
-// No início do componente Estatisticas.jsx
 export default function Estatisticas({ youtubeData, instagramData, tiktokData, twitchData, socialLinks, description }) {
-  const { user } = useAuth(); // Para pegar o token
+  const { user } = useAuth(); 
   const safeYoutubeData = youtubeData || {};
   const [platform, setPlatform] = useState("geral");
   
-  // Estados da IA
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [loadingAi, setLoadingAi] = useState(false);
   const [hasFetchedAi, setHasFetchedAi] = useState(false);
 
-  // --- Efeito para chamar a IA automaticamente ---
  useEffect(() => {
     const fetchAnalysis = async () => {
         const hasAnyData = youtubeData || instagramData || tiktokData || twitchData;
-        
-        // Adicionei verificação se a description mudou para re-analisar se necessário
         if (!hasAnyData || hasFetchedAi || !user?.token) return;
 
         setLoadingAi(true);
@@ -359,7 +325,7 @@ export default function Estatisticas({ youtubeData, instagramData, tiktokData, t
             const { data } = await axios.post('http://localhost:5001/api/influencers/analyze-stats', 
                 { 
                   stats: aggregatedStats,
-                  bio: description // ✅ 2. Enviando a descrição para o backend
+                  bio: description 
                 },
                 { headers: { Authorization: `Bearer ${user.token}` } }
             );
@@ -374,67 +340,57 @@ export default function Estatisticas({ youtubeData, instagramData, tiktokData, t
 
     const timeout = setTimeout(fetchAnalysis, 1000);
     return () => clearTimeout(timeout);
-    
-    // ✅ Importante: Adicione 'description' nas dependências do useEffect se quiser que atualize ao mudar
   }, [youtubeData, instagramData, tiktokData, twitchData, hasFetchedAi, user, description]);
-  // ... resto do código
+
+
+  // --- DADOS DO INSTAGRAM REAIS ---
   
-  // Onde você usa youtubeData.subscriberCount, mude para:
-  // safeYoutubeData.subscriberCount
-
-  // --- Processamento de Dados (useMemo) ---
-
-  // 1. Qualidade do Público (Real vs Bots)
   const qualityData = useMemo(() => {
     const score = instagramData?.qualityScore ? Number(instagramData.qualityScore) : 95;
     return [
-      { name: "Audiência Real", value: score, fill: "#00E676" }, // Verde Neon
-      { name: "Suspeito/Massa", value: 100 - score, fill: "#FF1744" }, // Vermelho Neon
+      { name: "Audiência Real", value: score, fill: "#00E676" }, 
+      { name: "Suspeito/Massa", value: 100 - score, fill: "#FF1744" }, 
     ];
   }, [instagramData]);
 
-  // 2. Gênero da Audiência (Mapeia 'm'/'f' da API para Labels)
-// 2. Gênero da Audiência
+  // Gênero
   const genderData = useMemo(() => {
     if (!instagramData?.audienceGender || instagramData.audienceGender.length === 0) {
         return [];
     }
-
-  
-    
-    // Mapeia labels baseados na documentação: m=Male, f=Female [cite: 169]
     return instagramData.audienceGender.map(g => {
-        const isFemale = g.name === 'f';
+        // --- CORREÇÃO AQUI: Suporte a 'Feminino', 'Masculino', 'F', 'M' ---
+        const nameLower = g.name.toLowerCase();
+        const isFemale = nameLower === 'f' || nameLower === 'feminino' || nameLower === 'female';
+        const isMale = nameLower === 'm' || nameLower === 'masculino' || nameLower === 'male';
+        
+        let displayLabel = g.name;
+        if (isFemale) displayLabel = 'Feminino';
+        if (isMale) displayLabel = 'Masculino';
+
         return {
-            name: isFemale ? 'Feminino' : 'Masculino',
+            name: displayLabel,
             value: Number(g.value).toFixed(1),
             fill: isFemale ? "#F50057" : "#2979FF"
         };
     });
   }, [instagramData]);
 
-  // 3. Faixa Etária (Age)
- // 3. Faixa Etária (Age)
+  // Idade
   const ageData = useMemo(() => {
-    // Se não houver dados, retorna array vazio ou mock
-    if (!instagramData?.audienceAge || instagramData.audienceAge.length === 0) {
-        return []; 
-    }
+    if (!instagramData?.audienceAge || instagramData.audienceAge.length === 0) return [];
     
-    // O service já converteu para { name: "18_21", value: 15.0 }
-    // Apenas formatamos o label e ordenamos
     return instagramData.audienceAge
         .map((a, index) => ({
-            name: a.name.replace('_', '-'), // De "18_21" para "18-21" [cite: 172]
+            name: a.name.replace('_', '-'), 
             value: Number(a.value).toFixed(1),
             fill: `rgba(255, 255, 255, ${0.9 - (index * 0.1)})`
         }))
-        .sort((a, b) => b.value - a.value) // Ordena do maior para o menor
-        .slice(0, 5); // Pega top 5
+        .sort((a, b) => b.value - a.value) 
+        .slice(0, 5); 
   }, [instagramData]);
 
-  // 4. Top Países
-  // 4. Top Países
+  // Países
   const countryData = useMemo(() => {
       if (!instagramData?.audienceCountry || instagramData.audienceCountry.length === 0) return [];
       
@@ -442,25 +398,25 @@ export default function Estatisticas({ youtubeData, instagramData, tiktokData, t
           .sort((a, b) => b.value - a.value)
           .slice(0, 5)
           .map((c) => ({
-              name: c.name, // Ex: "US", "BR" [cite: 163]
+              name: c.name, 
               value: Number(c.value).toFixed(1),
               fill: "#7B1FA2"
           }));
   }, [instagramData]);
 
-    
-const isYoutubeAuthenticated = safeYoutubeData.isAuthenticated && safeYoutubeData.advanced;
+  // --- DADOS YOUTUBE ---
+  const isYoutubeAuthenticated = safeYoutubeData.isAuthenticated && safeYoutubeData.advanced;
 
-const youtubeAgeData = useMemo(() => {
+  const youtubeAgeData = useMemo(() => {
      if (isYoutubeAuthenticated && safeYoutubeData.advanced.ageGroup) {
          return safeYoutubeData.advanced.ageGroup.map((a, i) => ({
              name: a.name,
              value: Number(a.value).toFixed(1),
-             fill: `rgba(255, 0, 0, ${0.9 - (i * 0.1)})` // Vermelho para YouTube
+             fill: `rgba(255, 0, 0, ${0.9 - (i * 0.1)})` 
          }));
      }
-     return []; // Vazio se não autenticado
-  }, [safeYoutubeData]);
+     return []; 
+  }, [safeYoutubeData, isYoutubeAuthenticated]);
 
   const youtubeGenderData = useMemo(() => {
       if (isYoutubeAuthenticated && safeYoutubeData.advanced.gender) {
@@ -471,9 +427,7 @@ const youtubeAgeData = useMemo(() => {
           }));
       }
       return [];
-  }, [safeYoutubeData]);
-
-  // --- Renderização Condicional ---
+  }, [safeYoutubeData, isYoutubeAuthenticated]);
 
   const renderContent = () => {
     switch (platform) {
@@ -483,24 +437,19 @@ const youtubeAgeData = useMemo(() => {
 
         return (
     <Box display="flex" flexDirection="column" gap={3} key="youtube-content">
-        
-        {/* LINHA 1: DADOS PRINCIPAIS (Cards Básicos) */}
         <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(4, 1fr)" }} gap={2}>
-            {/* ... Cards Existentes (Inscritos, Views, etc) ... */}
              <StatCard title="Inscritos" value={formatNumber(safeYoutubeData.subscriberCount)} icon={GroupAddIcon} color="#FF0000" gradient="linear-gradient(135deg, #FF0000 0%, #FF8A80 100%)" />
              <StatCard title="Total de Views" value={formatNumber(safeYoutubeData.viewCount)} icon={VideoLibraryIcon} color="#FFFFFF" />
              <StatCard title="Idade do Canal" value={new Date(safeYoutubeData.publishedAt).getFullYear() || "-"} subtext={getChannelAge(safeYoutubeData.publishedAt)} icon={CalendarMonthIcon} color="#B388FF" />
              <StatCard title="País" value={safeYoutubeData.country || "Global"} icon={PublicIcon} color="#40C4FF" />
         </Box>
 
-        {/* --- NOVA SEÇÃO: INTELIGÊNCIA DE MERCADO (Brand Safety & SEO) --- */}
         <Box sx={{ p: 3, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
             <Typography variant="h6" fontWeight="bold" mb={3} display="flex" alignItems="center" gap={1} sx={{ color: "#d8b4fe" }}>
                 <AutoAwesomeIcon /> Inteligência de Nicho & Brand Safety
             </Typography>
 
             <Grid container spacing={3}>
-                {/* Coluna 1: Categorias e Formato */}
                 <Grid item xs={12} md={4}>
                     <Box display="flex" flexDirection="column" gap={3}>
                         <Box>
@@ -517,7 +466,6 @@ const youtubeAgeData = useMemo(() => {
                                 )}
                             </Box>
                         </Box>
-
                         <Box display="flex" gap={2}>
                             <Box flex={1} p={1.5} bgcolor="rgba(255,255,255,0.05)" borderRadius="12px">
                                 <Typography variant="caption" color="rgba(255,255,255,0.5)" display="block" mb={0.5}>Frequência de Postagem</Typography>
@@ -540,15 +488,12 @@ const youtubeAgeData = useMemo(() => {
                         </Box>
                     </Box>
                 </Grid>
-
-                {/* Coluna 2: SEO e Keywords */}
                 <Grid item xs={12} md={8}>
                     <Box>
                         <Typography variant="caption" color="rgba(255,255,255,0.5)" display="flex" alignItems="center" gap={0.5} mb={1}>
                             <TagIcon fontSize="small"/> PALAVRAS-CHAVE & SEO (Canal + Últimos Vídeos)
                         </Typography>
                         <Box display="flex" flexWrap="wrap" gap={0.8} sx={{ maxHeight: '120px', overflowY: 'auto', pr: 1 }}>
-                            {/* Combina Keywords do Canal com Tags Recentes */}
                             {[...(safeYoutubeData.channelKeywords || []), ...(safeYoutubeData.recentTags || [])].length > 0 ? (
                                 [...(safeYoutubeData.channelKeywords || []), ...(safeYoutubeData.recentTags || [])].slice(0, 25).map((tag, i) => (
                                     <Chip 
@@ -575,11 +520,9 @@ const youtubeAgeData = useMemo(() => {
 
         <Fade in={true} timeout={1000}>
             <Box>
-                 {/* Verificação de segurança para renderizar apenas se houver dados */}
                 {safeYoutubeData.advanced?.communityAnalysis ? (
                     <CommunityAnalysis data={safeYoutubeData.advanced.communityAnalysis} />
                 ) : (
-                    // Fallback opcional caso não tenha dados ainda
                     <Box sx={{ mt: 3, p: 3, bgcolor: "rgba(30, 30, 40, 0.28)", borderRadius: "20px", border: "1px dashed rgba(255,255,255,0.1)", textAlign: 'center' }}>
                          <Typography variant="body2" color="rgba(255,255,255,0.4)">
                              Dados de análise de comunidade indisponíveis no momento.
@@ -589,10 +532,7 @@ const youtubeAgeData = useMemo(() => {
             </Box>
         </Fade>
 
-        
-                {/* LINHA 2: ENGAJAMENTO & ÚLTIMOS UPLOADS (Layout Assimétrico) */}
                 <Grid container spacing={3}>
-                    {/* Coluna Esquerda: Métricas de Engajamento */}
                     <Grid item xs={12} md={4}>
                         <Box display="flex" flexDirection="column" gap={2} height="100%">
                             <StatCard 
@@ -614,8 +554,6 @@ const youtubeAgeData = useMemo(() => {
                             />
                         </Box>
                     </Grid>
-
-                    {/* Coluna Direita: Vídeos Recentes (Lista Visual) */}
                     <Grid item xs={12} md={8}>
                         <Box sx={{ 
                             p: 3, height: "100%", 
@@ -631,7 +569,6 @@ const youtubeAgeData = useMemo(() => {
                                     Performance dos últimos vídeos
                                 </Typography>
                             </Box>
-
                             <Box display="flex" flexDirection="column" gap={1.5} sx={{ overflowY: 'auto', maxHeight: '400px', pr: 1 }}>
                                 {recentVideos.length > 0 ? (
                                     recentVideos.map((video) => (
@@ -650,7 +587,6 @@ const youtubeAgeData = useMemo(() => {
                     </Grid>
                 </Grid>
                 
-                {/* Gráfico de Tendência (Mockado ou Real se tiver histórico) */}
                 <Box sx={{ p: 3, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
                     <Typography variant="h6" fontWeight="bold" mb={3} display="flex" alignItems="center" gap={1}>
                         <TrendingUpIcon sx={{ color: "#FF0000" }} /> Crescimento Estimado
@@ -674,11 +610,8 @@ const youtubeAgeData = useMemo(() => {
                     </Box>
                 </Box>
                 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "1fr 1fr 1fr" }} gap={2} mt={3}>
-    
-    {/* Idade */}
     <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
         {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
-        
         <Box display="flex" alignItems="center" gap={1} mb={2}>
             <CakeIcon sx={{color: "#FF0000"}} fontSize="small"/>
             <Typography variant="subtitle2" fontWeight="bold">Faixa Etária</Typography>
@@ -698,16 +631,12 @@ const youtubeAgeData = useMemo(() => {
             </ResponsiveContainer>
         </Box>
     </Box>
-
-    {/* Gênero */}
     <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
         {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
-
         <Box display="flex" alignItems="center" gap={1} mb={2}>
              <WcIcon sx={{color: "#FF0000"}} fontSize="small"/>
              <Typography variant="subtitle2" fontWeight="bold">Gênero</Typography>
         </Box>
-        {/* ... Copiar estrutura do gráfico de Pizza do Instagram, usando youtubeGenderData ... */}
          <Box height={150} display="flex" alignItems="center">
             <ResponsiveContainer>
                 <PieChart>
@@ -722,11 +651,8 @@ const youtubeAgeData = useMemo(() => {
             </ResponsiveContainer>
         </Box>
     </Box>
-
-    {/* Países (Geografia) */}
     <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
          {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
-         
          <Box display="flex" alignItems="center" gap={1} mb={2}>
             <PublicIcon sx={{color: "#FF0000"}} fontSize="small"/>
             <Typography variant="subtitle2" fontWeight="bold">Principais Países</Typography>
@@ -737,10 +663,8 @@ const youtubeAgeData = useMemo(() => {
                     <Box key={idx} display="flex" alignItems="center" justifyContent="space-between" px={2}>
                         <Box display="flex" alignItems="center" gap={1}>
                             <Typography variant="caption" fontWeight="bold" sx={{color: '#fff', minWidth: 20}}>{country.name}</Typography>
-                             {/* Barra de progresso visual */}
                              <Box width={100} height={6} bgcolor="rgba(255,255,255,0.1)" borderRadius={1}>
                                 <Box width="100%" height="100%" bgcolor="#FF0000" borderRadius={1} /> 
-                                {/* Nota: Para ser preciso, calcule a % em relação ao total de views */}
                             </Box>
                         </Box>
                         <Typography variant="caption" color="rgba(255,255,255,0.6)">{formatNumber(country.value)}</Typography>
@@ -751,13 +675,9 @@ const youtubeAgeData = useMemo(() => {
             )}
         </Box>
     </Box>
-    {/* --- LINHA 4: COMPORTAMENTO E TECNOLOGIA (NOVO) --- */}
 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "1fr 1fr" }} gap={2} mt={2}>
-
-    {/* Dispositivos */}
     <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
         {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
-        
         <Box display="flex" alignItems="center" gap={1} mb={2}>
             <PhoneIphoneIcon sx={{color: "#FF0000"}} fontSize="small"/>
             <Typography variant="subtitle2" fontWeight="bold">Dispositivos</Typography>
@@ -779,13 +699,9 @@ const youtubeAgeData = useMemo(() => {
                 </PieChart>
             </ResponsiveContainer>
         </Box>
-        
     </Box>
-
-    {/* Fontes de Tráfego */}
     <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
         {!isYoutubeAuthenticated && <AuthenticationLock platformName="YouTube" />}
-
         <Box display="flex" alignItems="center" gap={1} mb={2}>
             <TrafficIcon sx={{color: "#FF0000"}} fontSize="small"/>
             <Typography variant="subtitle2" fontWeight="bold">Origem do Tráfego</Typography>
@@ -797,7 +713,6 @@ const youtubeAgeData = useMemo(() => {
                     <YAxis dataKey="name" type="category" width={90} tick={{fill: "#aaa", fontSize: 10}} axisLine={false} tickLine={false}/>
                     <Tooltip content={<CustomTooltip />} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
                     <Bar dataKey="value" barSize={12} radius={[0, 4, 4, 0]}>
-                         {/* Gradiente vermelho */}
                          <Cell fill="#FF0000" />
                          <Cell fill="#D32F2F" />
                          <Cell fill="#B71C1C" />
@@ -807,8 +722,6 @@ const youtubeAgeData = useMemo(() => {
         </Box>
     </Box>
 </Box>
-
-{/* --- CARD EXTRA: METRICAS DE CONVERSÃO (Compartilhamentos) --- */}
 <Box mt={2} display="flex" gap={2}>
     <StatCard 
         title="Compartilhamentos (30d)" 
@@ -825,7 +738,6 @@ const youtubeAgeData = useMemo(() => {
         subtext="Tempo de tela"
     />
 </Box>
-
 </Box>
             </Box>
         );
@@ -833,9 +745,7 @@ const youtubeAgeData = useMemo(() => {
       case "instagram":
         return (
             <Box display="flex" flexDirection="column" gap={3} key="instagram-content">
-                {/* --- LINHA 1: KPIS PRINCIPAIS (Statistics API) --- */}
                 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(4, 1fr)" }} gap={2}>
-                    {/* Seguidores */}
                     <StatCard 
                         title="Seguidores" 
                         value={instagramData ? formatNumber(instagramData.followers) : "N/A"} 
@@ -843,8 +753,6 @@ const youtubeAgeData = useMemo(() => {
                         color="#D81B60" 
                         gradient="linear-gradient(135deg, #833AB4 0%, #FD1D1D 50%, #FCB045 100%)"
                     />
-                    
-                    {/* Engajamento (ER) */}
                     <StatCard 
                         title="Taxa de Engajamento" 
                         value={instagramData?.engagementRate ? `${instagramData.engagementRate}%` : "N/A"} 
@@ -852,8 +760,6 @@ const youtubeAgeData = useMemo(() => {
                         icon={TrendingUpIcon} 
                         color="#FF9800" 
                     />
-
-                    {/* Quality Score */}
                     <StatCard 
                         title="Quality Score" 
                         value={instagramData?.qualityScore || "N/A"} 
@@ -861,8 +767,6 @@ const youtubeAgeData = useMemo(() => {
                         icon={WorkspacePremiumIcon} 
                         color="#00E676" 
                     />
-
-                    {/* Média de Likes (KPI Composto) */}
                     <StatCard 
                         title="Média de Likes" 
                         value={instagramData?.avgLikes ? formatNumber(instagramData.avgLikes) : "N/A"} 
@@ -870,14 +774,10 @@ const youtubeAgeData = useMemo(() => {
                         color="#2979FF" 
                     />
                 </Box>
-
-                {/* --- LINHA 2: DETALHAMENTO DE ENGAJAMENTO --- */}
                 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "2fr 1fr" }} gap={2}>
-                    {/* Médias por Post */}
                     <Box sx={{ p: 3, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                         <Typography variant="h6" fontWeight="bold" mb={3} sx={{opacity: 0.9}}>Médias de Interação por Post</Typography>
                         <Box display="flex" justifyContent="space-around" alignItems="center" gap={2}>
-                            {/* Likes */}
                             <Box textAlign="center">
                                 <Box sx={{ width: 60, height: 60, borderRadius: '50%', bgcolor: 'rgba(41, 121, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1 }}>
                                     <ThumbUpAltIcon sx={{ color: '#2979FF', fontSize: 28 }} />
@@ -886,7 +786,6 @@ const youtubeAgeData = useMemo(() => {
                                 <Typography variant="caption" color="rgba(255,255,255,0.5)">Likes</Typography>
                             </Box>
                             <Divider orientation="vertical" flexItem sx={{bgcolor: 'rgba(255,255,255,0.1)'}} />
-                            {/* Comentários */}
                             <Box textAlign="center">
                                 <Box sx={{ width: 60, height: 60, borderRadius: '50%', bgcolor: 'rgba(0, 230, 118, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1 }}>
                                     <ChatBubbleIcon sx={{ color: '#00E676', fontSize: 28 }} />
@@ -895,18 +794,15 @@ const youtubeAgeData = useMemo(() => {
                                 <Typography variant="caption" color="rgba(255,255,255,0.5)">Comentários</Typography>
                             </Box>
                             <Divider orientation="vertical" flexItem sx={{bgcolor: 'rgba(255,255,255,0.1)'}} />
-                            {/* Views (se disponível) */}
                             <Box textAlign="center">
                                 <Box sx={{ width: 60, height: 60, borderRadius: '50%', bgcolor: 'rgba(255, 23, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 1 }}>
                                     <VisibilityIcon sx={{ color: '#FF1744', fontSize: 28 }} />
                                 </Box>
-                                <Typography variant="h5" fontWeight="bold">{formatNumber(instagramData?.avgViews)}</Typography>
-                                <Typography variant="caption" color="rgba(255,255,255,0.5)">Visualizações</Typography>
+                                <Typography variant="h5" fontWeight="bold">{formatNumber(instagramData?.impressions)}</Typography>
+                                <Typography variant="caption" color="rgba(255,255,255,0.5)">Impressões</Typography>
                             </Box>
                         </Box>
                     </Box>
-
-                    {/* Gráfico de Qualidade (Rosca) */}
                     <Box sx={{ p: 3, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         <Typography variant="subtitle1" fontWeight="600" mb={1}>Autenticidade da Base</Typography>
                         <Box width="100%" height={180}>
@@ -927,33 +823,30 @@ const youtubeAgeData = useMemo(() => {
                         <Typography variant="caption" sx={{color: 'rgba(255,255,255,0.5)'}}>Seguidores Reais Estimados</Typography>
                     </Box>
                 </Box>
-
-                {/* --- LINHA 3: DEMOGRAFIA (DADOS REAIS DA API) --- */}
                 <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "1fr 1fr 1fr" }} gap={2}>
-                    {/* Idade */}
-                    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+                        {(!ageData.length) && <AuthenticationLock platformName="Instagram" />}
                         <Box display="flex" alignItems="center" gap={1} mb={2}>
                             <CakeIcon sx={{color: "#AB47BC"}} fontSize="small"/>
                             <Typography variant="subtitle2" fontWeight="bold">Faixa Etária</Typography>
                         </Box>
                         <Box height={150}>
                             <ResponsiveContainer>
-                                <BarChart data={ageData} layout="vertical" margin={{left: -20}}>
+                                <BarChart data={ageData.length ? ageData : [{name:'N/A', value:1}]} layout="vertical" margin={{left: -20}}>
                                     <XAxis type="number" hide />
                                     <YAxis dataKey="name" type="category" width={50} tick={{fill: "#aaa", fontSize: 11}} axisLine={false} tickLine={false}/>
                                     <Tooltip content={<CustomTooltip unit="%" />} cursor={{fill: 'transparent'}} />
                                     <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={16}>
-                                        {ageData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                                        {(ageData.length ? ageData : [{fill:'#333'}]).map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.fill || '#333'} />
                                         ))}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
                         </Box>
                     </Box>
-
-                    {/* Gênero */}
-                    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+                        {(!genderData.length) && <AuthenticationLock platformName="Instagram" />}
                         <Box display="flex" alignItems="center" gap={1} mb={2}>
                             <WcIcon sx={{color: "#29B6F6"}} fontSize="small"/>
                             <Typography variant="subtitle2" fontWeight="bold">Gênero</Typography>
@@ -961,9 +854,9 @@ const youtubeAgeData = useMemo(() => {
                         <Box height={150} display="flex" alignItems="center">
                             <ResponsiveContainer>
                                 <PieChart>
-                                    <Pie data={genderData} cx="50%" cy="50%" outerRadius={60} dataKey="value" stroke="none">
-                                        {genderData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                                    <Pie data={genderData.length ? genderData : [{name:'N/A', value:1}]} cx="50%" cy="50%" outerRadius={60} dataKey="value" stroke="none">
+                                        {(genderData.length ? genderData : [{fill:'#333'}]).map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.fill || '#333'} />
                                         ))}
                                     </Pie>
                                     <Tooltip content={<CustomTooltip unit="%" />} />
@@ -972,9 +865,8 @@ const youtubeAgeData = useMemo(() => {
                             </ResponsiveContainer>
                         </Box>
                     </Box>
-
-                    {/* Países */}
-                    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                    <Box sx={{ p: 2, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", position: 'relative' }}>
+                        {(!countryData.length) && <AuthenticationLock platformName="Instagram" />}
                         <Box display="flex" alignItems="center" gap={1} mb={2}>
                             <PublicIcon sx={{color: "#66BB6A"}} fontSize="small"/>
                             <Typography variant="subtitle2" fontWeight="bold">Principais Países</Typography>
@@ -985,7 +877,7 @@ const youtubeAgeData = useMemo(() => {
                                     <Box display="flex" alignItems="center" gap={1}>
                                         <Typography variant="caption" fontWeight="bold" sx={{color: '#fff', minWidth: 20}}>{country.name}</Typography>
                                         <Box width={100} height={6} bgcolor="rgba(255,255,255,0.1)" borderRadius={1}>
-                                            <Box width={`${country.value}%`} height="100%" bgcolor="#66BB6A" borderRadius={1} />
+                                            <Box width={`${Math.min(country.value, 100)}%`} height="100%" bgcolor="#66BB6A" borderRadius={1} />
                                         </Box>
                                     </Box>
                                     <Typography variant="caption" color="rgba(255,255,255,0.6)">{country.value}%</Typography>
@@ -1024,8 +916,6 @@ const youtubeAgeData = useMemo(() => {
                         color="#00E676" 
                     />
                 </Box>
-                
-                {/* Exemplo de card extra para Twitch */}
                 <Box sx={{ p: 3, bgcolor: "rgba(145, 70, 255, 0.1)", borderRadius: "20px", border: "1px solid rgba(145, 70, 255, 0.3)", display: 'flex', alignItems: 'center', gap: 2 }}>
                     <SiTwitch size={40} color="#9146FF" />
                     <Box>
@@ -1063,7 +953,6 @@ const youtubeAgeData = useMemo(() => {
                         color="#FFFFFF" 
                     />
                 </Box>
-                
             </Box>
         );
 
@@ -1076,8 +965,6 @@ const youtubeAgeData = useMemo(() => {
         
         return (
           <Box display="flex" flexDirection="column" gap={3} key="geral-content">
-                
-                {/* --- NOVO: CARD DE ANÁLISE DA IA --- */}
                 <Fade in={true}>
                     <Box sx={{
                         p: 3,
@@ -1095,7 +982,6 @@ const youtubeAgeData = useMemo(() => {
                                 ANÁLISE ESTRATÉGICA (IA)
                             </Typography>
                         </Box>
-                        
                         {loadingAi ? (
                             <Box display="flex" alignItems="center" gap={2} mt={1}>
                                 <CircularProgress size={20} sx={{ color: "#d8b4fe" }} />
@@ -1105,19 +991,18 @@ const youtubeAgeData = useMemo(() => {
                             </Box>
                         ) : (
                         <Typography 
-                variant="body1" 
-                sx={{ 
-                    color: "white", 
-                    lineHeight: 1.7,       // Mais espaçamento entre linhas para leitura fácil
-                    fontStyle: 'italic', 
-                    mt: 2,                 // Mais margem no topo
-                    whiteSpace: 'pre-line' // IMPORTANTE: Respeita parágrafos e quebras de linha da IA
-                }}
-            >
-                "{aiAnalysis || "Aguardando dados para gerar o relatório..."}"
-            </Typography>
-        )}
-                     
+                            variant="body1" 
+                            sx={{ 
+                                color: "white", 
+                                lineHeight: 1.7, 
+                                fontStyle: 'italic', 
+                                mt: 2, 
+                                whiteSpace: 'pre-line'
+                            }}
+                        >
+                            "{aiAnalysis || "Aguardando dados para gerar o relatório..."}"
+                        </Typography>
+                        )}
                     </Box>
                 </Fade>
 
@@ -1136,10 +1021,7 @@ const youtubeAgeData = useMemo(() => {
                         color="#FFFFFF" 
                     />
                 </Box>
-                
                 <Typography variant="body2" align="center" sx={{opacity: 0.5, mt: 4}}>
-                    
-
                     Selecione uma plataforma específica acima para ver gráficos demográficos e engajamento detalhado.
                 </Typography>
           </Box>
@@ -1157,8 +1039,6 @@ const youtubeAgeData = useMemo(() => {
         boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
         minHeight: "600px"
     }}>
-      
-      {/* Header */}
       <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={5} flexWrap="wrap" gap={2}>
         <Box>
             <Typography variant="h4" fontWeight="800" letterSpacing="-0.5px" sx={{ background: "linear-gradient(90deg, #fff, #888)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
@@ -1179,13 +1059,11 @@ const youtubeAgeData = useMemo(() => {
                 <MenuItem value="geral">
                     <Box display="flex" alignItems="center" gap={1.5}><DashboardIcon fontSize="small" sx={{ opacity: 0.7 }}/> Visão Geral</Box>
                 </MenuItem>
-                
                 {socialLinks?.youtube && (
                     <MenuItem value="youtube">
                         <Box display="flex" alignItems="center" gap={1.5}><YouTubeIcon fontSize="small" sx={{color: '#FF0000'}}/> YouTube</Box>
                     </MenuItem>
                 )}
-                
                 {socialLinks?.instagram && (
                     <MenuItem value="instagram">
                         <Box display="flex" alignItems="center" gap={1.5}><InstagramIcon fontSize="small" sx={{color: '#E1306C'}}/> Instagram</Box>

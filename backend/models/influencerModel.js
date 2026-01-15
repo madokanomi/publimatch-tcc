@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 
 const influencerSchema = new mongoose.Schema({
-    // --- CAMPOS QUE JÁ ESTAVAM CORRETOS ---
+    // --- CAMPOS ORIGINAIS ---
     name: { type: String, required: true },
     niches: [{ type: String }],
-agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     userAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
 
     // --- CAMPOS ADICIONADOS PARA COMPATIBILIDADE ---
@@ -14,7 +14,6 @@ agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     aboutMe: { type: String },
     
     // --- ESTRUTURA SOCIAL CORRIGIDA PARA ACEITAR UM OBJETO ---
-    // Isto é mais escalável do que ter um campo para cada rede social.
     social: {
         tiktok: { type: String, default: '' },
         instagram: { type: String, default: '' },
@@ -24,8 +23,6 @@ agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
     profileImageUrl: { type: String, default: '' },
     backgroundImageUrl: { type: String, default: '' },
-    
-    
     
     // Campos que você pode usar no futuro
     followersCount: { type: Number, default: 0 },
@@ -40,22 +37,46 @@ agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     },
 
     socialHandles: {
-        youtube: { type: String, default: '' },   // Ex: "Canal do Enzo"
-        instagram: { type: String, default: '' }, // Ex: "enzo.oficial"
+        youtube: { type: String, default: '' },
+        instagram: { type: String, default: '' },
         tiktok: { type: String, default: '' },
-        twitch: { type: String, default: '' },    // Ex: "enzogamer"
+        twitch: { type: String, default: '' }, 
     },
 
     apiData: {
         youtube: {
-            accessToken: { type: String, select: false }, // select: false protege de queries comuns
+            accessToken: { type: String, select: false },
             refreshToken: { type: String, select: false },
             channelId: String
         },
+        instagram: {
+            accessToken: { type: String, select: false }, 
+            facebookPageId: { type: String }, 
+            instagramBusinessAccountId: { type: String },
+            lastFetched: { type: Date }
+        }
+    },
+
+    // --- ESTATÍSTICAS CACHEADAS (Instagram Real) ---
+    instagramStats: {
+        followers: { type: Number, default: 0 },
+        mediaCount: { type: Number, default: 0 },
+        impressions: { type: Number, default: 0 },
+        reach: { type: Number, default: 0 },
+        profileViews: { type: Number, default: 0 },
+        engagementRate: { type: Number, default: 0 },
+        avgLikes: { type: Number, default: 0 },
+        avgComments: { type: Number, default: 0 },
+        
+        // Arrays para gráficos
+        audienceGender: [{ name: String, value: Number }], 
+        audienceAge: [{ name: String, value: Number }],    
+        audienceCountry: [{ name: String, value: Number }],
+        
+        qualityScore: { type: Number, default: 95 }
     },
     
-    
-    // Campo para saber se o perfil geral é verificado (opcional, se quiser um selo geral)
+    // Campo para saber se o perfil geral é verificado
     isVerified: { type: Boolean, default: false },
 
 }, { timestamps: true });

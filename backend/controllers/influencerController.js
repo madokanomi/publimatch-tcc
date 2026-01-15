@@ -9,11 +9,11 @@ import Invite from '../models/inviteModel.js';
 import Campaign from '../models/campaignModel.js';
 import Application from '../models/applicationModel.js';
 import { getYoutubeStats, getYoutubeAdvancedAnalytics } from '../config/youtubeHelper.js';
-import { getInstagramStats } from '../config/instagramHelper.js';
-import Review from '../models/reviewModel.js'; // ✅ Importante para as tags
+import { getInstagramStats, getAuthenticatedInstagramStats } from '../config/instagramHelper.js'; // Import atualizado
+import Review from '../models/reviewModel.js'; 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getTwitchStats } from '../config/twitchHelper.js'; // Novo
-import { getTikTokStats } from '../config/tiktokHelper.js'; // Novo
+import { getTwitchStats } from '../config/twitchHelper.js'; 
+import { getTikTokStats } from '../config/tiktokHelper.js'; 
 
 const uploadToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -76,7 +76,7 @@ export const registerInfluencer = asyncHandler(async (req, res) => {
         agent: req.user._id,
         profileImageUrl,
         backgroundImageUrl,
-        isVerified: false // Padrão ao criar
+        isVerified: false 
     });
 
     if (!influencer) {
@@ -105,11 +105,8 @@ export const registerInfluencer = asyncHandler(async (req, res) => {
 
 export const getMyInfluencers = asyncHandler(async (req, res) => {
     const { campaignId } = req.query;
-    
-    // Busca influenciadores do agente logado
     let agentInfluencers = await Influencer.find({ agent: req.user._id }).lean();
 
-    // Filtra se estiver escolhendo para campanha
     if (campaignId) {
         const applications = await Application.find({ campaign: campaignId }).select('influencer');
         const appliedIds = new Set(applications.map(app => app.influencer.toString()));
@@ -118,8 +115,6 @@ export const getMyInfluencers = asyncHandler(async (req, res) => {
 
     if (agentInfluencers && agentInfluencers.length > 0) {
         const influencersWithData = await Promise.all(agentInfluencers.map(async (inf) => {
-            
-            // A. Busca Reviews (Nota) se necessário
             let avgRating = inf.averageRating || 0;
             let reviewsCount = inf.reviewsCount || 0;
 
@@ -130,7 +125,6 @@ export const getMyInfluencers = asyncHandler(async (req, res) => {
                 reviewsCount = reviews.length;
             }
 
-            // --- B. PADRONIZAÇÃO BLINDADA DE ESTATÍSTICAS ---
             const dbStats = inf.aggregatedStats || {}; 
 
             const stats = {
@@ -142,21 +136,15 @@ export const getMyInfluencers = asyncHandler(async (req, res) => {
 
             return {
                 ...inf,
-                // Dados Raiz atualizados
                 averageRating: avgRating,
                 reviewsCount: reviewsCount,
-                
-                // Atualiza a raiz para facilitar leituras simples
                 followersCount: stats.followers,
                 views: stats.views,
                 curtidas: stats.likes,
                 engagementRate: stats.engagementRate,
-
-                // Envia o objeto stats consolidado
                 aggregatedStats: stats 
             };
         }));
-
         res.status(200).json(influencersWithData);
     } else {
         res.status(200).json([]);
@@ -165,23 +153,24 @@ export const getMyInfluencers = asyncHandler(async (req, res) => {
 
 export const deleteInfluencer = asyncHandler(async (req, res) => {
     const influencer = await Influencer.findById(req.params.id);
-
     if (!influencer) {
         res.status(404);
         throw new Error('Influenciador não encontrado.');
     }
-
     if (influencer.agent.toString() !== req.user._id.toString()) {
         res.status(401);
         throw new Error('Não tem permissão para apagar este influenciador.');
     }
-
     await influencer.deleteOne();
     res.status(200).json({ message: 'Influenciador removido com sucesso.' });
 });
 
 export const getInfluencerById = asyncHandler(async (req, res) => {
-    const influencer = await Influencer.findById(req.params.id).populate('agent', 'name');
+    // Busca incluindo os tokens ocultos do Instagram e YouTube
+    const influencer = await Influencer.findById(req.params.id)
+        .select('+apiData.youtube.accessToken +apiData.instagram.accessToken +apiData.instagram.instagramBusinessAccountId')
+        .populate('agent', 'name')
+        .populate('userAccount', 'name email');
 
     if (!influencer) {
         res.status(404);
@@ -190,26 +179,43 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
 
     const isAdmin = req.user.role === 'ADMIN';
     const isOwnerAgent = influencer.agent._id.toString() === req.user._id.toString();
-    const isTheInfluencer = influencer.userAccount ? influencer.userAccount.toString() === req.user._id.toString() : false;
+    const isTheInfluencer = influencer.userAccount ? influencer.userAccount._id.toString() === req.user._id.toString() : false;
     const isAdAgent = req.user.role === 'AD_AGENT';
 
     if (isAdmin || isOwnerAgent || isTheInfluencer || isAdAgent) {
-        // ... (Promises do Youtube, Instagram, Twitch, TikTok) ...
         
+        // 1. YouTube Stats
         let youtubePromise = influencer.social?.youtube ? getYoutubeStats(influencer.social.youtube) : Promise.resolve(null);
-        let instagramPromise = influencer.social?.instagram ? getInstagramStats(influencer.social.instagram) : Promise.resolve(null);
+        let advancedYoutubePromise = Promise.resolve(null);
+        if (influencer.socialVerification?.youtube && influencer.apiData?.youtube?.accessToken) {
+            advancedYoutubePromise = getYoutubeAdvancedAnalytics(influencer.apiData.youtube.accessToken);
+        }
+
+        // 2. Twitch & TikTok Stats
         let twitchPromise = influencer.social?.twitch ? getTwitchStats(influencer.social.twitch) : Promise.resolve(null);
         let tiktokPromise = influencer.social?.tiktok ? getTikTokStats(influencer.social.tiktok) : Promise.resolve(null);
 
+        // 3. Instagram Stats (Lógica Híbrida)
+        let instagramPromise;
+        const igData = influencer.apiData?.instagram;
 
-        let advancedYoutubePromise = Promise.resolve(null);
-        
-        // Verifica se tem conta conectada e token salvo
-        // Nota: precisamos adicionar '+apiData.youtube.accessToken' no select do findById ou fazer uma query separada segura
-        const infWithSecrets = await Influencer.findById(influencer._id).select('+apiData.youtube.accessToken');
-        
-        if (influencer.socialVerification?.youtube && infWithSecrets?.apiData?.youtube?.accessToken) {
-            advancedYoutubePromise = getYoutubeAdvancedAnalytics(infWithSecrets.apiData.youtube.accessToken);
+        // Se tiver conta conectada (Token + ID Business), chama a API Real
+        if (influencer.socialVerification?.instagram && igData?.accessToken && igData?.instagramBusinessAccountId) {
+            instagramPromise = getAuthenticatedInstagramStats(igData.accessToken, igData.instagramBusinessAccountId)
+                .then(stats => {
+                    // Atualiza o banco com dados reais
+                    if (stats) {
+                        influencer.instagramStats = { ...influencer.instagramStats, ...stats };
+                    }
+                    return stats;
+                })
+                .catch(() => {
+                     // Se falhar o real (ex: token expirou), tenta o mock
+                     return getInstagramStats(influencer.social?.instagram);
+                });
+        } else {
+            // Se não tiver conectado, usa o Mock/Scraper baseado na URL
+            instagramPromise = influencer.social?.instagram ? getInstagramStats(influencer.social.instagram) : Promise.resolve(null);
         }
 
         const [youtubeResult, instagramResult, twitchResult, tiktokResult, advancedYoutubeResult] = await Promise.allSettled([
@@ -236,19 +242,18 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
 
         const responseData = influencer.toObject();
 
-      if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
+        if (youtubeResult.status === 'fulfilled' && youtubeResult.value) {
             responseData.youtubeStats = youtubeResult.value;
-            
-            // SE tivermos dados avançados, misturamos aqui
             if (advancedYoutubeResult.status === 'fulfilled' && advancedYoutubeResult.value) {
                 responseData.youtubeStats.advanced = advancedYoutubeResult.value;
                 responseData.youtubeStats.isAuthenticated = true;
             } else {
                 responseData.youtubeStats.isAuthenticated = false;
             }
-            
             aggregateData(youtubeResult.value);
         }
+
+        // Aqui, instagramResult.value já será o dado real (se autenticado) ou o mock
         if (instagramResult.status === 'fulfilled' && instagramResult.value) {
             responseData.instagramStats = instagramResult.value;
             aggregateData(instagramResult.value);
@@ -279,10 +284,18 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
         influencer.curtidas = totalLikes; 
         influencer.engagementRate = Number(avgEngagement);
         
+        // Remove dados sensíveis antes de salvar se necessário, ou confia no select false
         try {
             await influencer.save();
         } catch (error) {
-            console.error("Erro ao salvar estatísticas atualizadas no banco:", error.message);
+            console.error("Erro ao salvar estatísticas atualizadas:", error.message);
+        }
+
+        // Limpa tokens da resposta final
+        if (responseData.apiData) {
+            if (responseData.apiData.instagram) delete responseData.apiData.instagram.accessToken;
+            if (responseData.apiData.youtube) delete responseData.apiData.youtube.accessToken;
+            if (responseData.apiData.youtube) delete responseData.apiData.youtube.refreshToken;
         }
 
         res.json(responseData);
@@ -295,12 +308,10 @@ export const getInfluencerById = asyncHandler(async (req, res) => {
 
 export const updateInfluencer = asyncHandler(async (req, res) => {
   const influencer = await Influencer.findById(req.params.id);
-
   if (!influencer) {
     res.status(404);
     throw new Error('Influenciador não encontrado.');
   }
-
   if (influencer.agent.toString() !== req.user._id.toString()) {
     res.status(401);
     throw new Error('Você não tem permissão para editar este perfil.');
@@ -318,12 +329,10 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
   }
 
   const { exibitionName, realName, age, description, aboutMe, niches, social } = req.body;
- 
   influencer.name = exibitionName || influencer.name;
   influencer.realName = realName || influencer.realName;
   influencer.age = age || influencer.age;
   influencer.description = description || influencer.description;
-  
   if (aboutMe) { influencer.aboutMe = aboutMe; }
   if (niches) { influencer.niches = typeof niches === 'string' ? niches.split(',') : niches; }
   if (social) { influencer.social = typeof social === 'string' ? JSON.parse(social) : social; }
@@ -332,17 +341,13 @@ export const updateInfluencer = asyncHandler(async (req, res) => {
   res.status(200).json(updatedInfluencer);
 });
 
-// ✅ ATUALIZADO: Inclui ordenação por verificado e envio do campo isVerified
 export const getAllInfluencers = asyncHandler(async (req, res) => {
-    // 1. Busca TODOS os influenciadores e ordena: Verificado (true) primeiro
     const influencers = await Influencer.find({})
         .sort({ isVerified: -1, createdAt: -1 }) 
         .lean(); 
     
     if (influencers && influencers.length > 0) {
         const influencersWithData = await Promise.all(influencers.map(async (inf) => {
-            
-            // --- A. REVIEWS (Tags e Avaliação) ---
             const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
             const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
             const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
@@ -360,7 +365,6 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                 .slice(0, 3) 
                 .map(([tag]) => tag); 
 
-            // --- B. AUTO-REPAIR DE ESTATÍSTICAS ---
             let currentStats = {
                 followers: inf.followersCount || 0,
                 views: inf.views || 0,
@@ -374,12 +378,12 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
             if (isDataMissing) {
                 const promises = [];
                 if (inf.social?.youtube) promises.push(getYoutubeStats(inf.social.youtube));
+                // Nota: No getAll não usamos a API autenticada para não estourar limite de rate, usamos o mock
                 if (inf.social?.instagram) promises.push(getInstagramStats(inf.social.instagram));
                 if (inf.social?.twitch) promises.push(getTwitchStats(inf.social.twitch));
                 if (inf.social?.tiktok) promises.push(getTikTokStats(inf.social.tiktok));
 
                 const results = await Promise.allSettled(promises);
-
                 let newFollowers = 0;
                 let newViews = 0;
                 let newLikes = 0;
@@ -412,21 +416,13 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                     likes: newLikes > 0 ? newLikes : currentStats.likes,
                     engagementRate: Number(newEngagement) > 0 ? Number(newEngagement) : currentStats.engagementRate
                 };
-
+                // Atualiza em background
                 await Influencer.updateOne(
                     { _id: inf._id },
-                    { 
-                        $set: { 
-                            followersCount: currentStats.followers,
-                            views: currentStats.views,
-                            curtidas: currentStats.likes,
-                            engagementRate: currentStats.engagementRate
-                        } 
-                    }
+                    { $set: { followersCount: currentStats.followers, views: currentStats.views, curtidas: currentStats.likes, engagementRate: currentStats.engagementRate } }
                 );
             }
 
-            // --- C. MONTAGEM FINAL DO OBJETO PARA O FRONTEND ---
             return {
                 ...inf,
                 avaliacao: avgRating || inf.avaliacao || 0, 
@@ -437,10 +433,9 @@ export const getAllInfluencers = asyncHandler(async (req, res) => {
                 views: currentStats.views,
                 curtidas: currentStats.likes,
                 engagementRate: currentStats.engagementRate,
-                isVerified: inf.isVerified || false // Garante que o campo vai
+                isVerified: inf.isVerified || false
             };
         }));
-
         res.status(200).json(influencersWithData);
     } else {
         res.status(200).json([]); 
@@ -478,7 +473,6 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
 
       const activeTasks = tasks.filter(t => t.check);
       const results = await Promise.allSettled(activeTasks.map(t => t.fn()));
-
       let newFollowers = 0;
       let newViews = 0;
       let newLikes = 0;
@@ -496,7 +490,6 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
               if (platform === 'tiktok') influencer.tiktokStats = val;
               
               newFollowers += Number(val.subscriberCount || val.followers || 0);
-              
               if (val.viewCount) newViews += Number(val.viewCount);
               else if (val.totalViews) newViews += Number(val.totalViews);
               else if (val.avgViews) newViews += Number(val.avgViews);
@@ -511,26 +504,18 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
               }
           }
       });
-
       const newEngagement = platformsCount > 0 ? (engagementSum / platformsCount).toFixed(2) : 0;
-
       currentStats = {
           followers: newFollowers > 0 ? newFollowers : currentStats.followers,
           views: newViews > 0 ? newViews : currentStats.views,
           likes: newLikes > 0 ? newLikes : currentStats.likes,
           engagementRate: Number(newEngagement) > 0 ? Number(newEngagement) : currentStats.engagementRate
       };
-
       influencer.followersCount = currentStats.followers;
       influencer.views = currentStats.views;
       influencer.curtidas = currentStats.likes;
       influencer.engagementRate = currentStats.engagementRate;
-      
-      try {
-        await influencer.save();
-      } catch (err) {
-        console.error("Erro ao salvar atualização automática:", err.message);
-      }
+      try { await influencer.save(); } catch (err) { console.error("Erro ao salvar atualização automática:", err.message); }
   }
 
   const responseData = {
@@ -544,7 +529,6 @@ export const getPublicInfluencerProfile = asyncHandler(async (req, res) => {
       twitchStats: influencer.twitchStats,
       tiktokStats: influencer.tiktokStats
   };
-
   res.json(responseData);
 });
 
@@ -587,15 +571,12 @@ export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
           status: { $in: ['Concluída', 'Finalizada', 'Encerrada'] },
         }),
       ]);
-      
       res.status(200).json({ invites, participating, history });
-
   } else {
       const history = await Campaign.find({
           participatingInfluencers: influencerId,
           status: { $in: ['Concluída', 'Finalizada', 'Encerrada'] }, 
       }).select('title logo endDate conversion views engagement status'); 
-
       res.status(200).json({ invites: [], participating: [], history });
   }
 });
@@ -603,32 +584,25 @@ export const getInfluencerCampaigns = asyncHandler(async (req, res) => {
 export const getParticipatingInfluencers = asyncHandler(async (req, res) => {
     const campaign = await Campaign.findById(req.params.id)
         .populate('participatingInfluencers', 'name email profileImageUrl agent');
-
     if (!campaign) {
         res.status(404);
         throw new Error('Campanha não encontrada.');
     }
-
     if (campaign.createdBy.toString() !== req.user._id.toString()) {
         res.status(403);
         throw new Error('Não autorizado a ver os participantes desta campanha.');
     }
-
     res.status(200).json(campaign.participatingInfluencers);
 });
 
 export const getInfluencersByAgent = asyncHandler(async (req, res) => {
     const { agentId } = req.params;
-    
     const influencers = await Influencer.find({ agent: agentId }).lean(); 
-
     if (influencers && influencers.length > 0) {
         const influencersWithData = await Promise.all(influencers.map(async (inf) => {
-            
             const reviews = await Review.find({ influencer: inf._id }).select('tags rating');
             const totalRating = reviews.reduce((acc, curr) => acc + curr.rating, 0);
             const avgRating = reviews.length > 0 ? (totalRating / reviews.length) : 0;
-
             const tagCounts = {};
             reviews.forEach(review => {
                 if (review.tags && Array.isArray(review.tags)) {
@@ -638,19 +612,16 @@ export const getInfluencersByAgent = asyncHandler(async (req, res) => {
                     });
                 }
             });
-
             const topTags = Object.entries(tagCounts)
                 .sort(([, countA], [, countB]) => countB - countA) 
                 .slice(0, 3) 
                 .map(([tag]) => tag); 
-
             const stats = {
                 followers: inf.followersCount || 0,
                 views: inf.views || 0,
                 likes: inf.curtidas || 0,
                 engagementRate: inf.engagementRate || 0
             };
-
             return {
                 ...inf,
                 avaliacao: avgRating, 
@@ -660,7 +631,6 @@ export const getInfluencersByAgent = asyncHandler(async (req, res) => {
                 isVerified: inf.isVerified || false
             };
         }));
-
         res.status(200).json(influencersWithData);
     } else {
         res.status(200).json([]); 
@@ -669,17 +639,13 @@ export const getInfluencersByAgent = asyncHandler(async (req, res) => {
 
 export const summarizeInfluencerBio = asyncHandler(async (req, res) => {
   const { text } = req.body;
-
   if (!text) {
     res.status(400);
     throw new Error("Texto para resumo não fornecido.");
   }
-
   try {
     const apiKey = process.env.GROQ_API_KEY; 
-    
     const url = "https://api.groq.com/openai/v1/chat/completions";
-
     const response = await axios.post(url, {
       model: "llama-3.3-70b-versatile", 
       messages: [
@@ -696,15 +662,12 @@ export const summarizeInfluencerBio = asyncHandler(async (req, res) => {
         'Content-Type': 'application/json'
       }
     });
-
     const summary = response.data?.choices?.[0]?.message?.content;
-
     if (summary) {
         res.status(200).json({ summary });
     } else {
         throw new Error("Resposta da IA vazia.");
     }
-
   } catch (error) {
     console.error("Erro na IA (Groq):", error?.response?.data || error.message);
     res.status(200).json({ 
@@ -712,31 +675,25 @@ export const summarizeInfluencerBio = asyncHandler(async (req, res) => {
     });
   }
 });
+
 export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
   const { stats, bio } = req.body;
-
   if (!stats) {
     res.status(400);
     throw new Error("Dados estatísticos não fornecidos.");
   }
-
   try {
     const apiKey = process.env.GROQ_API_KEY; 
     const url = "https://api.groq.com/openai/v1/chat/completions";
-
     const statsString = JSON.stringify(stats);
     const bioString = bio ? bio.substring(0, 500) : "Não informada"; 
-
     const prompt = `
       Atue como um Estrategista Sênior de Marketing.
-      
       CONTEXTO DO INFLUENCIADOR:
       - Biografia/Nicho Declarado: "${bioString}"
       - Métricas Reais (Dados Brutos): ${statsString}
-
       TAREFA:
       Gere um "Relatório de Performance e Alinhamento" detalhado em Português do Brasil.
-
       DIRETRIZES:
       1. Coerência: Analise se os números sustentam a autoridade do influenciador no nicho citado na bio.
       2. Saúde da Base: Avalie a proporção de seguidores vs engajamento.
@@ -744,7 +701,6 @@ export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
       4. Tom: Profissional, estratégico e direto.
       5. Formatação: Use parágrafos claros. Sem markdown complexo.
     `;
-
     const response = await axios.post(url, {
       model: "llama-3.3-70b-versatile",
       messages: [
@@ -759,15 +715,12 @@ export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
         'Content-Type': 'application/json'
       }
     });
-
     const analysis = response.data?.choices?.[0]?.message?.content;
-
     if (analysis) {
         res.status(200).json({ analysis });
     } else {
         throw new Error("IA não retornou análise.");
     }
-
   } catch (error) {
     console.error("Erro na Análise (Groq):", error?.response?.data || error.message);
     res.status(200).json({ 
@@ -778,104 +731,79 @@ export const analyzeInfluencerStats = asyncHandler(async (req, res) => {
 
 export const verifySocialPlatform = asyncHandler(async (req, res) => {
     const { influencerId, platform, token } = req.body; 
-
-    // const isValid = await validateTokenWithProvider(platform, token);
-    
     const influencer = await Influencer.findById(influencerId);
-
     if (!influencer) {
         res.status(404);
         throw new Error('Influenciador não encontrado');
     }
-
     if (influencer.userAccount && influencer.userAccount.toString() !== req.user._id.toString()) {
          res.status(403);
          throw new Error('Apenas o dono do perfil pode verificar as redes sociais.');
     }
-
     if (!influencer.socialVerification) influencer.socialVerification = {};
     influencer.socialVerification[platform] = true;
-
     influencer.isVerified = true;
-
     await influencer.save();
-
     res.status(200).json({ 
         message: `${platform} verificado com sucesso!`, 
         socialVerification: influencer.socialVerification 
     });
 });
 
-
 export const unlinkSocialAccount = asyncHandler(async (req, res) => {
     const { id, platform } = req.params;
-    
     const influencer = await Influencer.findById(id);
-
     if (!influencer) {
         res.status(404);
         throw new Error('Influenciador não encontrado.');
     }
-
     if (influencer.socialVerification) influencer.socialVerification[platform] = false;
     if (influencer.socialHandles) influencer.socialHandles[platform] = "";
     if (influencer.social) influencer.social[platform] = ""; 
-
     const hasAnyVerified = Object.values(influencer.socialVerification || {}).some(Boolean);
     influencer.isVerified = hasAnyVerified;
-
     await influencer.save();
-
     res.status(200).json({ 
         message: `Conta ${platform} desconectada com sucesso.`,
         influencer 
     });
 });
 
-
 export const analyzeCommunityVibe = asyncHandler(async (req, res) => {
-    const { comments } = req.body; // Array de strings vindo do helper acima
-
+    const { comments } = req.body; 
     if (!comments || comments.length < 5) {
         return res.status(200).json({ status: "insufficient_data" });
     }
-
     const commentsText = comments.join(" | ");
-
     try {
         const apiKey = process.env.GROQ_API_KEY;
         const url = "https://api.groq.com/openai/v1/chat/completions";
-
         const systemPrompt = `
             Você é um Especialista em Antropologia Digital e Marketing. 
             Analise os comentários de um canal do YouTube e extraia insights estratégicos em formato JSON PURO.
-            
             Retorne APENAS o JSON com esta estrutura exata:
             {
-                "sentiment_score": 0 a 100 (onde 100 é extremamente positivo),
-                "brand_safety_score": 0 a 100 (onde 100 é seguro/limpo e 0 é tóxico/perigoso),
-                "topics": ["topico1", "topico2", "topico3", "topico4", "topico5"],
+                "sentiment_score": 0 a 100,
+                "brand_safety_score": 0 a 100,
+                "topics": ["topico1", "topico2"],
                 "purchase_intent": "Baixa" | "Média" | "Alta",
-                "community_persona": "Uma frase curta definindo a tribo (ex: Gamers exigentes que amam hardware)",
-                "warnings": ["Lista de alertas se houver (ex: discurso de ódio, golpes, reclamações de áudio)"]
+                "community_persona": "frase curta",
+                "warnings": ["alertas"]
             }
         `;
-
         const response = await axios.post(url, {
             model: "llama-3.3-70b-versatile",
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: `Analise estes comentários: ${commentsText}` }
             ],
-            temperature: 0.3, // Baixa temperatura para ser consistente no JSON
-            response_format: { type: "json_object" } // Garante retorno JSON
+            temperature: 0.3,
+            response_format: { type: "json_object" } 
         }, {
             headers: { 'Authorization': `Bearer ${apiKey}` }
         });
-
         const analysis = JSON.parse(response.data.choices[0].message.content);
         res.json(analysis);
-
     } catch (error) {
         console.error("Erro na análise de comunidade:", error);
         res.status(500).json({ message: "Falha na IA" });
