@@ -336,7 +336,7 @@ export const getYoutubeAdvancedAnalytics = async (accessToken, channelId) => {
     const analyticsUrl = 'https://youtubeanalytics.googleapis.com/v2/reports';
     const endDate = new Date().toISOString().split('T')[0];
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 30); // Últimos 30 dias
+    startDate.setDate(startDate.getDate() - 1000); // Últimos 30 dias
     const startDateStr = startDate.toISOString().split('T')[0];
 
     const commonParams = {

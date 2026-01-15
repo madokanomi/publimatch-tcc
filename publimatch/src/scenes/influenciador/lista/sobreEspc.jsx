@@ -533,18 +533,25 @@ const Sobrespec = () => {
                         <CampanhasInfluSpec openSections={openSections} handleToggleSection={handleToggleSection} handleRejectClick={handleRejectClick} handleAcceptClick={handleAcceptClick} handleOpenFinalizeDialog={handleOpenFinalizeDialog} />
                     </motion.div>
                 );
-            case "Estatísticas":
-                return (
-                    <motion.div key="estatisticas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit">
-                        <Estatisticas 
-                             youtubeData={influencer.youtubeStats || {}} 
-                            instagramData={influencer.instagramStats || {}} 
-                            twitchData={influencer.twitchStats || {}}
-                            tiktokData={influencer.tiktokStats || {}}
-                            socialLinks={influencer.social || {}}
-                        />
-                    </motion.div>
-                );
+      case "Estatísticas":
+    // 🔍 DEBUG: Verifique no console do navegador o que está chegando aqui
+    console.log("Dados Youtube no Sobrespec:", influencer.youtubeStats);
+    console.log("Possui Advanced?", influencer.youtubeStats?.advanced);
+
+    return (
+        <motion.div key="estatisticas" variants={tabContentVariant} initial="hidden" animate="visible" exit="exit">
+            <Estatisticas 
+                youtubeData={influencer.youtubeStats || {}} 
+                instagramData={influencer.instagramStats || {}} 
+                twitchData={influencer.twitchStats || {}}
+                tiktokData={influencer.tiktokStats || {}}
+                socialLinks={influencer.social || {}}
+                
+                // ✅ CORREÇÃO 1: Adicione esta linha obrigatória para a IA funcionar
+                description={influencer.description || influencer.aboutMe || ""} 
+            />
+        </motion.div>
+    );
             default:
                 return null;
         }
