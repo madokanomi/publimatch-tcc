@@ -58,24 +58,29 @@ const getChannelId = async (url) => {
     }
 };
 
-/**
- * Busca estatísticas completas, incluindo engajamento recente
- */
+// Função auxiliar para converter duração ISO 8601 (PT15M33S) para minutos
+const parseDuration = (duration) => {
+    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    if (!match) return 0;
+    const hours = (parseInt(match[1]) || 0);
+    const minutes = (parseInt(match[2]) || 0);
+    const seconds = (parseInt(match[3]) || 0);
+    return (hours * 60) + minutes + (seconds / 60);
+};
+
 export const getYoutubeStats = async (url) => {
     const identifier = extractYoutubeId(url);
     if (!identifier) return null;
 
     const apiKey = process.env.YOUTUBE_API_KEY;
-    
-    // Endpoints
     const channelsUrl = 'https://www.googleapis.com/youtube/v3/channels';
     const playlistItemsUrl = 'https://www.googleapis.com/youtube/v3/playlistItems';
     const videosUrl = 'https://www.googleapis.com/youtube/v3/videos';
 
     try {
-        // --- PASSO 1: Buscar dados do Canal e ID da Playlist de Uploads ---
+        // 1. DADOS DO CANAL: Adicionamos 'brandingSettings' e 'topicDetails'
         let params = {
-            part: 'statistics,contentDetails', // contentDetails é necessário para achar a playlist de vídeos
+            part: 'statistics,contentDetails,snippet,brandingSettings,topicDetails', 
             key: apiKey
         };
 
@@ -84,36 +89,56 @@ export const getYoutubeStats = async (url) => {
         else if (identifier.type === 'username') params.forUsername = identifier.value;
 
         const channelRes = await axios.get(channelsUrl, { params });
-        
         if (!channelRes.data.items || channelRes.data.items.length === 0) return null;
 
         const channelItem = channelRes.data.items[0];
         const stats = channelItem.statistics;
+        const snippet = channelItem.snippet;
+        const branding = channelItem.brandingSettings?.channel;
+        const topics = channelItem.topicDetails?.topicCategories; 
         const uploadsPlaylistId = channelItem.contentDetails.relatedPlaylists.uploads;
 
-        // Dados base
+        // Processamento de Tópicos (Limpar URLs da Wikipedia que a API retorna)
+        const cleanTopics = topics ? topics.map(t => {
+            const parts = t.split('/');
+            return parts[parts.length - 1].replace(/_/g, ' '); // Ex: "Lifestyle_(sociology)" -> "Lifestyle"
+        }) : [];
+
         let result = {
+            // Básicos
             viewCount: stats.viewCount,
             subscriberCount: stats.subscriberCount,
             videoCount: stats.videoCount,
             hiddenSubscriberCount: stats.hiddenSubscriberCount,
-            // Valores padrão caso falhe o cálculo de engajamento
+            
+            // Perfil
+            country: snippet.country || 'Global',
+            publishedAt: snippet.publishedAt,
+            description: snippet.description,
+            customUrl: snippet.customUrl,
+            
+            // --- MARKETING INTEL (NOVOS) ---
+            channelKeywords: branding?.keywords ? branding.keywords.split(' ').slice(0, 10) : [], // Top 10 palavras-chave
+            mainTopics: cleanTopics, // Categorias oficiais do YouTube
+            
+            // Dados calculados abaixo
             avgLikes: 0,
             avgComments: 0,
-            engagementRate: 0
+            engagementRate: 0,
+            uploadFrequency: "N/A", // Ex: "2 vídeos/semana"
+            contentFormat: "Variado", // Ex: "Long Form", "Shorts"
+            recentTags: [], // Nuvem de tags recentes
+            recentVideos: []
         };
 
-        // Se o canal não tem vídeos ou inscritos ocultos, retornamos o básico
-        if (stats.videoCount == 0 || !uploadsPlaylistId) {
-            return result;
-        }
+        if (stats.videoCount == 0 || !uploadsPlaylistId) return result;
 
-        // --- PASSO 2: Buscar os IDs dos últimos 5 vídeos ---
+        // 2. BUSCAR VÍDEOS (Aumentei para 10 para ter melhor média de frequência)
         const playlistRes = await axios.get(playlistItemsUrl, {
             params: {
-                part: 'contentDetails',
+                part: 'contentDetails,snippet',
                 playlistId: uploadsPlaylistId,
-                maxResults: 5, // Analisar últimos 5 vídeos
+                maxResults: 10, 
                 key: apiKey
             }
         });
@@ -121,59 +146,123 @@ export const getYoutubeStats = async (url) => {
         const videoItems = playlistRes.data.items;
         if (!videoItems || videoItems.length === 0) return result;
 
-        const videoIds = videoItems.map(item => item.contentDetails.videoId).join(',');
+        const videoDetailsMap = {};
+        const videoIds = [];
+        const uploadDates = []; // Para calcular frequência
 
-        // --- PASSO 3: Buscar estatísticas detalhadas desses vídeos ---
+        videoItems.forEach(item => {
+            const vid = item.contentDetails.videoId;
+            videoIds.push(vid);
+            uploadDates.push(new Date(item.snippet.publishedAt));
+            
+            videoDetailsMap[vid] = {
+                id: vid,
+                title: item.snippet.title,
+                thumbnail: item.snippet.thumbnails?.medium?.url,
+                publishedAt: item.snippet.publishedAt,
+            };
+        });
+
+        // --- CÁLCULO DE FREQUÊNCIA DE UPLOAD ---
+        if (uploadDates.length > 1) {
+            // Diferença em dias entre o vídeo mais recente e o mais antigo do lote
+            const newest = uploadDates[0];
+            const oldest = uploadDates[uploadDates.length - 1];
+            const diffTime = Math.abs(newest - oldest);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            const avgDaysBetween = diffDays / (uploadDates.length - 1);
+            
+            if (avgDaysBetween <= 1) result.uploadFrequency = "Diária (Hardcore)";
+            else if (avgDaysBetween <= 3) result.uploadFrequency = "Alta (2-3 dias)";
+            else if (avgDaysBetween <= 7) result.uploadFrequency = "Semanal (Regular)";
+            else if (avgDaysBetween <= 14) result.uploadFrequency = "Quinzenal";
+            else result.uploadFrequency = "Esporádica";
+        }
+
+        // 3. ESTATÍSTICAS DOS VÍDEOS (snippet para pegar tags, contentDetails para duração)
         const videosRes = await axios.get(videosUrl, {
             params: {
-                part: 'statistics',
-                id: videoIds,
+                part: 'statistics,snippet,contentDetails', // <--- ADICIONADO snippet e contentDetails
+                id: videoIds.join(','),
                 key: apiKey
             }
         });
 
-        // --- PASSO 4: Calcular Médias ---
-       let totalLikes = 0;
+        let totalLikes = 0;
         let totalComments = 0;
-        let totalViewsRecent = 0; // ✅ Novo: Somar views recentes
+        let totalViewsRecent = 0;
+        let totalDuration = 0;
+        const allTags = new Set();
 
         const videosData = videosRes.data.items;
         
+        // Vamos processar apenas os 5 mais recentes para o array de exibição, mas usar 10 para stats se quiser
+        // Aqui mantemos a lógica de processar todos que vieram
         videosData.forEach(video => {
-            totalLikes += parseInt(video.statistics.likeCount || 0);
-            totalComments += parseInt(video.statistics.commentCount || 0);
-            totalViewsRecent += parseInt(video.statistics.viewCount || 0); // ✅ Pegando views
+            const vStats = video.statistics;
+            const vSnippet = video.snippet;
+            const vContent = video.contentDetails;
+            const basicInfo = videoDetailsMap[video.id];
+
+            // Métricas
+            totalLikes += parseInt(vStats.likeCount || 0);
+            totalComments += parseInt(vStats.commentCount || 0);
+            totalViewsRecent += parseInt(vStats.viewCount || 0);
+            
+            // Duração (para definir formato)
+            const durationMins = parseDuration(vContent.duration);
+            totalDuration += durationMins;
+
+            // Coletar Tags (Marketing Intel)
+            if (vSnippet.tags) {
+                vSnippet.tags.slice(0, 5).forEach(tag => allTags.add(tag.toLowerCase()));
+            }
+
+            // Adiciona aos vídeos recentes (apenas os top 5 para não poluir o front)
+            if (result.recentVideos.length < 5) {
+                result.recentVideos.push({
+                    ...basicInfo,
+                    views: vStats.viewCount || 0,
+                    likes: vStats.likeCount || 0,
+                    comments: vStats.commentCount || 0,
+                    duration: durationMins < 1 ? "Shorts" : `${Math.round(durationMins)} min`
+                });
+            }
         });
 
-        const videoCountSample = videosData.length;
-        
-        result.avgLikes = Math.round(totalLikes / videoCountSample);
-        result.avgComments = Math.round(totalComments / videoCountSample);
-        const avgViews = Math.round(totalViewsRecent / videoCountSample); // ✅ Média de views
+        // Definição de Formato do Canal
+        const avgDuration = totalDuration / videosData.length;
+        if (avgDuration <= 1.5) result.contentFormat = "Foco em Shorts";
+        else if (avgDuration < 10) result.contentFormat = "Vídeos Curtos/Médios";
+        else result.contentFormat = "Vídeos Longos (Deep Dive)";
 
-        // --- PASSO 5: Calcular Taxa de Engajamento OTIMIZADA ---
-        // Lógica Antiga (Ruim): (Likes + Comments) / Inscritos -> Dá 0.2%
-        // Lógica Nova (Boa): (Interações / Views Recentes) -> Dá entre 3% e 10%
-        
-        if (avgViews > 0) {
-            const interactions = result.avgLikes + (result.avgComments * 2); // Comentário vale o dobro
-            // Se quiser limitar a no máximo 100% (pra não bugar em shorts virais), usamos Math.min
-            result.engagementRate = Math.min(((interactions / avgViews) * 100), 100).toFixed(2);
-        } else {
-             // Fallback para inscritos se não tiver view count (raro)
-             const subscribers = parseInt(stats.subscriberCount);
-             result.engagementRate = subscribers > 0 ? ((result.avgLikes / subscribers) * 100).toFixed(2) : 0;
+        // Converter Set de tags para Array
+        result.recentTags = Array.from(allTags).slice(0, 12); // Top 12 tags recentes
+
+        // Médias finais
+        const sampleSize = videosData.length;
+        if (sampleSize > 0) {
+            result.avgLikes = Math.round(totalLikes / sampleSize);
+            result.avgComments = Math.round(totalComments / sampleSize);
+            const avgViews = Math.round(totalViewsRecent / sampleSize);
+
+            if (avgViews > 0) {
+                const interactions = result.avgLikes + (result.avgComments * 2);
+                result.engagementRate = Math.min(((interactions / avgViews) * 100), 100).toFixed(2);
+            } else {
+                 const subs = parseInt(stats.subscriberCount);
+                 result.engagementRate = subs > 0 ? ((result.avgLikes / subs) * 100).toFixed(2) : 0;
+            }
         }
 
         return result;
 
     } catch (error) {
         console.error('Erro ao buscar dados do YouTube:', error.message);
-        // Em caso de erro (ex: cota excedida), retorna null ou objeto vazio para não quebrar a UI
         return null;
     }
 }
-
 /**
  * Verifica contagem de views em vídeos com uma Hashtag específica
  * (Custo alto de API: ~102 pontos)

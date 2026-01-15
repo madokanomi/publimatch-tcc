@@ -20,6 +20,12 @@ import WcIcon from '@mui/icons-material/Wc';
 import CakeIcon from '@mui/icons-material/Cake';
 import { SiTwitch } from "react-icons/si";
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; // Ícone da IA
+
+import TagIcon from '@mui/icons-material/Tag';
+import CategoryIcon from '@mui/icons-material/Category';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import UpdateIcon from '@mui/icons-material/Update';
+import { Chip } from "@mui/material"; // Importe Chip
 // Recharts
 import {
   ResponsiveContainer,
@@ -36,7 +42,8 @@ import {
   Bar,
   Legend
 } from "recharts";
-
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'; // Novo
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 // --- Utilitários de Formatação ---
 
 const formatNumber = (num) => {
@@ -49,6 +56,22 @@ const formatNumber = (num) => {
 };
 
 const formatPercent = (val) => `${Number(val).toFixed(1)}%`;
+
+const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+// Calcula anos de existência
+const getChannelAge = (dateString) => {
+    if (!dateString) return "";
+    const created = new Date(dateString);
+    const now = new Date();
+    const diff = Math.floor((now - created) / (1000 * 60 * 60 * 24 * 365));
+    return `${diff} anos`;
+};
+
 
 // --- Subcomponentes de UI ---
 
@@ -77,6 +100,44 @@ const CustomTooltip = ({ active, payload, label, unit = "" }) => {
   }
   return null;
 };
+
+
+const VideoCard = ({ video }) => (
+    <Box sx={{
+        display: 'flex', gap: 2, p: 1.5,
+        bgcolor: "rgba(255,255,255,0.02)", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)",
+        transition: "0.2s", "&:hover": { bgcolor: "rgba(255,255,255,0.05)" }
+    }}>
+        {/* Thumbnail */}
+        <Box sx={{ position: 'relative', width: 120, minWidth: 120, height: 68, borderRadius: "8px", overflow: "hidden" }}>
+            <img src={video.thumbnail} alt={video.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: '0.2s', "&:hover": { opacity: 1 } }}>
+                <PlayCircleOutlineIcon sx={{ color: 'white' }} />
+            </Box>
+        </Box>
+        
+        {/* Detalhes */}
+        <Box display="flex" flexDirection="column" justifyContent="center" flex={1}>
+            <Typography variant="body2" color="white" fontWeight="600" sx={{
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.2, mb: 0.5
+            }}>
+                {video.title}
+            </Typography>
+            <Box display="flex" gap={2} alignItems="center">
+                <Typography variant="caption" color="rgba(255,255,255,0.5)" display="flex" alignItems="center" gap={0.5}>
+                    <VisibilityIcon sx={{ fontSize: 12 }} /> {formatNumber(video.views)}
+                </Typography>
+                <Typography variant="caption" color="rgba(255,255,255,0.5)" display="flex" alignItems="center" gap={0.5}>
+                    <ThumbUpAltIcon sx={{ fontSize: 12 }} /> {formatNumber(video.likes)}
+                </Typography>
+                <Typography variant="caption" color="rgba(255,255,255,0.4)">
+                    {formatDate(video.publishedAt)}
+                </Typography>
+            </Box>
+        </Box>
+    </Box>
+);
+
 
 const StatCard = ({ title, value, subtext, icon: Icon, color, gradient }) => (
     <Box sx={{
@@ -253,68 +314,169 @@ export default function Estatisticas({ youtubeData, instagramData, tiktokData, t
 
   const renderContent = () => {
     switch (platform) {
-     case "youtube":
-   case "youtube":
-        // Verifica se temos dados extras. Se avgLikes for 0, provavelmente a API extra falhou.
+      case "youtube":
         const hasExtraData = safeYoutubeData.avgLikes > 0;
+        const recentVideos = safeYoutubeData.recentVideos || [];
 
         return (
-            <Box display="flex" flexDirection="column" gap={3} key="youtube-content">
-                {/* LINHA 1: DADOS GERAIS (Sempre disponíveis) */}
-                <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(3, 1fr)" }} gap={2}>
-                    <StatCard 
-                        title="Inscritos" 
-                        value={formatNumber(safeYoutubeData.subscriberCount)} 
-                        icon={GroupAddIcon} 
-                        color="#FF0000" 
-                        gradient="linear-gradient(135deg, #FF0000 0%, #FF8A80 100%)"
-                    />
-                    <StatCard 
-                        title="Visualizações Totais" 
-                        value={formatNumber(safeYoutubeData.viewCount)} 
-                        icon={VideoLibraryIcon} 
-                        color="#FFFFFF" 
-                    />
-                    <StatCard 
-                        title="Vídeos Publicados" 
-                        value={formatNumber(safeYoutubeData.videoCount)} 
-                        icon={DashboardIcon} 
-                        color="#FFFFFF" 
-                    />
-                </Box>
+    <Box display="flex" flexDirection="column" gap={3} key="youtube-content">
+        
+        {/* LINHA 1: DADOS PRINCIPAIS (Cards Básicos) */}
+        <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(4, 1fr)" }} gap={2}>
+            {/* ... Cards Existentes (Inscritos, Views, etc) ... */}
+             <StatCard title="Inscritos" value={formatNumber(safeYoutubeData.subscriberCount)} icon={GroupAddIcon} color="#FF0000" gradient="linear-gradient(135deg, #FF0000 0%, #FF8A80 100%)" />
+             <StatCard title="Total de Views" value={formatNumber(safeYoutubeData.viewCount)} icon={VideoLibraryIcon} color="#FFFFFF" />
+             <StatCard title="Idade do Canal" value={new Date(safeYoutubeData.publishedAt).getFullYear() || "-"} subtext={getChannelAge(safeYoutubeData.publishedAt)} icon={CalendarMonthIcon} color="#B388FF" />
+             <StatCard title="País" value={safeYoutubeData.country || "Global"} icon={PublicIcon} color="#40C4FF" />
+        </Box>
 
-                {/* LINHA 2: ENGAJAMENTO (Pode estar indisponível se a cota exceder) */}
-                <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(3, 1fr)" }} gap={2}>
-                     <StatCard 
-                        title="Média de Likes" 
-                        value={hasExtraData ? formatNumber(safeYoutubeData.avgLikes) : "—"} 
-                        subtext={hasExtraData ? "Últimos 5 vídeos" : "Dados indisponíveis"}
-                        icon={ThumbUpAltIcon} 
-                        color="#2196F3" 
-                    />
-                     <StatCard 
-                        title="Média de Comentários" 
-                        value={hasExtraData ? formatNumber(safeYoutubeData.avgComments) : "—"} 
-                        icon={ChatBubbleIcon} 
-                        color="#4CAF50" 
-                    />
-                     <StatCard 
-                        title="Taxa de Engajamento" 
-                        value={hasExtraData ? `${safeYoutubeData.engagementRate}%` : "—"} 
-                        subtext={hasExtraData ? "Baseado em inscritos" : ""}
-                        icon={TrendingUpIcon} 
-                        color="#FF9800" 
-                    />
-                </Box>
+        {/* --- NOVA SEÇÃO: INTELIGÊNCIA DE MERCADO (Brand Safety & SEO) --- */}
+        <Box sx={{ p: 3, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <Typography variant="h6" fontWeight="bold" mb={3} display="flex" alignItems="center" gap={1} sx={{ color: "#d8b4fe" }}>
+                <AutoAwesomeIcon /> Inteligência de Nicho & Brand Safety
+            </Typography>
+
+            <Grid container spacing={3}>
+                {/* Coluna 1: Categorias e Formato */}
+                <Grid item xs={12} md={4}>
+                    <Box display="flex" flexDirection="column" gap={3}>
+                        <Box>
+                            <Typography variant="caption" color="rgba(255,255,255,0.5)" display="flex" alignItems="center" gap={0.5} mb={1}>
+                                <CategoryIcon fontSize="small"/> CATEGORIAS OFICIAIS
+                            </Typography>
+                            <Box display="flex" flexWrap="wrap" gap={1}>
+                                {safeYoutubeData.mainTopics && safeYoutubeData.mainTopics.length > 0 ? (
+                                    safeYoutubeData.mainTopics.map((topic, i) => (
+                                        <Chip key={i} label={topic} size="small" sx={{ bgcolor: "rgba(147, 51, 234, 0.2)", color: "#d8b4fe", border: "1px solid rgba(147, 51, 234, 0.4)", fontWeight: 'bold' }} />
+                                    ))
+                                ) : (
+                                    <Typography variant="body2" color="rgba(255,255,255,0.3)">Não categorizado pelo YouTube</Typography>
+                                )}
+                            </Box>
+                        </Box>
+
+                        <Box display="flex" gap={2}>
+                            <Box flex={1} p={1.5} bgcolor="rgba(255,255,255,0.05)" borderRadius="12px">
+                                <Typography variant="caption" color="rgba(255,255,255,0.5)" display="block" mb={0.5}>Frequência de Postagem</Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <UpdateIcon sx={{ color: "#00E676", fontSize: 20 }} />
+                                    <Typography variant="body2" fontWeight="bold" color="white">
+                                        {safeYoutubeData.uploadFrequency || "N/A"}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                            <Box flex={1} p={1.5} bgcolor="rgba(255,255,255,0.05)" borderRadius="12px">
+                                <Typography variant="caption" color="rgba(255,255,255,0.5)" display="block" mb={0.5}>Formato Principal</Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <AccessTimeIcon sx={{ color: "#29B6F6", fontSize: 20 }} />
+                                    <Typography variant="body2" fontWeight="bold" color="white">
+                                        {safeYoutubeData.contentFormat || "Variado"}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    </Box>
+                </Grid>
+
+                {/* Coluna 2: SEO e Keywords */}
+                <Grid item xs={12} md={8}>
+                    <Box>
+                        <Typography variant="caption" color="rgba(255,255,255,0.5)" display="flex" alignItems="center" gap={0.5} mb={1}>
+                            <TagIcon fontSize="small"/> PALAVRAS-CHAVE & SEO (Canal + Últimos Vídeos)
+                        </Typography>
+                        <Box display="flex" flexWrap="wrap" gap={0.8} sx={{ maxHeight: '120px', overflowY: 'auto', pr: 1 }}>
+                            {/* Combina Keywords do Canal com Tags Recentes */}
+                            {[...(safeYoutubeData.channelKeywords || []), ...(safeYoutubeData.recentTags || [])].length > 0 ? (
+                                [...(safeYoutubeData.channelKeywords || []), ...(safeYoutubeData.recentTags || [])].slice(0, 25).map((tag, i) => (
+                                    <Chip 
+                                        key={i} 
+                                        label={`#${tag.replace(/"/g, '')}`} 
+                                        size="small" 
+                                        sx={{ 
+                                            bgcolor: "rgba(255,255,255,0.05)", 
+                                            color: "rgba(255,255,255,0.7)", 
+                                            fontSize: '0.75rem',
+                                            border: "1px solid rgba(255,255,255,0.1)",
+                                            "&:hover": { bgcolor: "rgba(255,255,255,0.1)", color: "white", borderColor: "rgba(255,255,255,0.3)" }
+                                        }} 
+                                    />
+                                ))
+                            ) : (
+                                <Typography variant="body2" color="rgba(255,255,255,0.3)">Nenhuma tag de SEO identificada.</Typography>
+                            )}
+                        </Box>
+                    </Box>
+                </Grid>
+            </Grid>
+        </Box>
+                {/* LINHA 2: ENGAJAMENTO & ÚLTIMOS UPLOADS (Layout Assimétrico) */}
+                <Grid container spacing={3}>
+                    {/* Coluna Esquerda: Métricas de Engajamento */}
+                    <Grid item xs={12} md={4}>
+                        <Box display="flex" flexDirection="column" gap={2} height="100%">
+                            <StatCard 
+                                title="Média de Likes" 
+                                value={hasExtraData ? formatNumber(safeYoutubeData.avgLikes) : "—"} 
+                                subtext="Últimos 5 vídeos"
+                                icon={ThumbUpAltIcon} color="#2196F3" 
+                            />
+                            <StatCard 
+                                title="Média de Comentários" 
+                                value={hasExtraData ? formatNumber(safeYoutubeData.avgComments) : "—"} 
+                                icon={ChatBubbleIcon} color="#4CAF50" 
+                            />
+                            <StatCard 
+                                title="Taxa de Engajamento" 
+                                value={hasExtraData ? `${safeYoutubeData.engagementRate}%` : "—"} 
+                                subtext="Interações / Views Recentes"
+                                icon={TrendingUpIcon} color="#FF9800" 
+                            />
+                        </Box>
+                    </Grid>
+
+                    {/* Coluna Direita: Vídeos Recentes (Lista Visual) */}
+                    <Grid item xs={12} md={8}>
+                        <Box sx={{ 
+                            p: 3, height: "100%", 
+                            bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", 
+                            border: "1px solid rgba(255,255,255,0.05)",
+                            display: 'flex', flexDirection: 'column'
+                        }}>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                <Typography variant="h6" fontWeight="bold" display="flex" alignItems="center" gap={1}>
+                                    <YouTubeIcon sx={{ color: "#FF0000" }} /> Envios Recentes
+                                </Typography>
+                                <Typography variant="caption" sx={{color: 'rgba(255,255,255,0.5)'}}>
+                                    Performance dos últimos vídeos
+                                </Typography>
+                            </Box>
+
+                            <Box display="flex" flexDirection="column" gap={1.5} sx={{ overflowY: 'auto', maxHeight: '400px', pr: 1 }}>
+                                {recentVideos.length > 0 ? (
+                                    recentVideos.map((video) => (
+                                        <VideoCard key={video.id} video={video} />
+                                    ))
+                                ) : (
+                                    <Box display="flex" alignItems="center" justifyContent="center" height="200px" flexDirection="column" gap={1}>
+                                        <VideoLibraryIcon sx={{ fontSize: 40, color: 'rgba(255,255,255,0.1)' }} />
+                                        <Typography variant="body2" color="rgba(255,255,255,0.3)">
+                                            Nenhum vídeo recente encontrado.
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Box>
+                        </Box>
+                    </Grid>
+                </Grid>
                 
-                {/* Área de gráfico mantida igual... */}
+                {/* Gráfico de Tendência (Mockado ou Real se tiver histórico) */}
                 <Box sx={{ p: 3, bgcolor: "rgba(255,255,255,0.02)", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)" }}>
                     <Typography variant="h6" fontWeight="bold" mb={3} display="flex" alignItems="center" gap={1}>
-                        <TrendingUpIcon sx={{ color: "#FF0000" }} /> Tendência de Visualizações (Estimada)
+                        <TrendingUpIcon sx={{ color: "#FF0000" }} /> Crescimento Estimado
                     </Typography>
                     <Box height={300}>
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={[{date:'Jan', v:80}, {date:'Fev', v:100}, {date:'Mar', v:150}, {date:'Abr', v:200}, {date:'Mai', v:280}, {date:'Jun', v:400}]}>
+                            <AreaChart data={[{date:'Jan', v:safeYoutubeData.viewCount * 0.8}, {date:'Jun', v:safeYoutubeData.viewCount}]}>
                                 <defs>
                                     <linearGradient id="colorView" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#FF0000" stopOpacity={0.3}/>

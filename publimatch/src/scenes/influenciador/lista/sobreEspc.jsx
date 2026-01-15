@@ -17,6 +17,7 @@ import {
     CircularProgress,
     Snackbar,
     Alert,
+    IconButton,
     TextField,
     Tooltip, // Importado
     Badge    // Importado
@@ -45,7 +46,7 @@ import StarIcon from "@mui/icons-material/Star";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from 'axios';
 import { SiTwitch } from "react-icons/si";
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Importe seus componentes
 import Estatisticas from "../../../components/Estatisticas.jsx";
@@ -63,8 +64,7 @@ const fmt = (v) => {
     return `${num}`;
 };
 
-const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, onConnect, isOwner }) => {
-    // Se não tem URL e não é dono, esconde
+const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, onConnect, onRequestDisconnect, isOwner }) => {  // Se não tem URL e não é dono, não mostra nada
     if (!url && !isOwner) return null;
 
     const handleClick = () => {
@@ -76,48 +76,109 @@ const SocialIconWithStatus = ({ platform, url, handle, isVerified, icon: Icon, o
         }
     };
 
-    // --- VISUAL VERIFICADO (Expandido com Nome) ---
-    if (isVerified) {
+   const handleDeleteClick = (e) => {
+        e.stopPropagation(); 
+        if (isOwner) {
+            onRequestDisconnect(platform); // Abre o diálogo no pai
+        }
+    };
+
+    // --- VISUAL VERIFICADO (Pílula com botão de remover) ---
+   if (isVerified) {
         return (
-            <Tooltip title="Conta Oficial Verificada">
+            <Tooltip title={isOwner ? "Conta Verificada" : "Conta Oficial Verificada"}>
                 <Box
+                    component={motion.div}
+                    initial="idle"
+                    whileHover="hover"
                     onClick={handleClick}
+                    layout // Isso faz o layout fluir suavemente
                     sx={{
                         display: "flex",
                         alignItems: "center",
                         gap: 1,
                         pl: 0.5,
-                        pr: 1.5,
+                        pr: 1.5, // Padding base da direita
                         py: 0.5,
                         borderRadius: "20px",
                         backgroundColor: "rgba(0, 212, 255, 0.1)",
                         border: "1px solid rgba(0, 212, 255, 0.3)",
                         cursor: "pointer",
-                        transition: "all 0.3s",
-                        "&:hover": { backgroundColor: "rgba(0, 212, 255, 0.2)" }
+                        overflow: "hidden", // Importante para a animação
+                        position: "relative"
                     }}
                 >
-                    {/* Ícone Redondo */}
-                    <Box sx={{
-                        width: 28, height: 28, borderRadius: "50%",
-                        backgroundColor: "#00d4ff", display: "flex", alignItems: "center", justifyContent: "center"
-                    }}>
-                        <Icon sx={{ fontSize: 16, color: "black" }} />
+                    {/* Fundo que brilha no hover (opcional, mas fica bonito) */}
+                    <Box
+                        component={motion.div}
+                        variants={{
+                            idle: { opacity: 0 },
+                            hover: { opacity: 1 }
+                        }}
+                        transition={{ duration: 0.3 }}
+                        sx={{
+                            position: "absolute", inset: 0,
+                            backgroundColor: "rgba(0, 212, 255, 0.1)",
+                            zIndex: 0
+                        }}
+                    />
+
+                    {/* Conteúdo Principal (Ícone + Texto) */}
+                    <Box sx={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                        <Box sx={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: "#00d4ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Icon sx={{ fontSize: 16, color: "black" }} />
+                        </Box>
+
+                        <Typography variant="body2" fontWeight="bold" color="#00d4ff" sx={{ fontSize: '13px', whiteSpace: "nowrap" }}>
+                            {handle || "Verificado"}
+                        </Typography>
+
+                        <Verified sx={{ fontSize: 16, color: "#00d4ff" }} />
                     </Box>
 
-                    {/* Nome da Conta */}
-                    <Typography variant="body2" fontWeight="bold" color="#00d4ff" sx={{ fontSize: '13px' }}>
-                        {handle || "Verificado"} {/* Mostra o nome salvo ou fallback */}
-                    </Typography>
-
-                    {/* Selo de Check */}
-                    <Verified sx={{ fontSize: 16, color: "#00d4ff" }} />
+                    {/* BOTÃO DE REMOVER (Animação de Expansão Lateral) */}
+                    {isOwner && (
+                        <Box
+                            component={motion.div}
+                            variants={{
+                                idle: { width: 0, opacity: 0, marginLeft: 0 },
+                                hover: { width: "auto", opacity: 1, marginLeft: 2 }
+                            }}
+                            transition={{ duration: 0.3, ease: "easeOut" }}
+                            sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                overflow: "hidden",
+                                position: "relative",
+                                zIndex: 2
+                            }}
+                        >
+                            <Box
+                                component="span"
+                                onClick={handleDeleteClick}
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    width: 22,
+                                    height: 22,
+                                    borderRadius: "50%",
+                                    color: "white",
+                                   
+                                    "&:hover": { backgroundColor: "#0000000e", transform: "scale(1.1)" },
+                                    transition: "0.2s"
+                                }}
+                            >
+                                <CloseIcon sx={{ fontSize: 14 }} />
+                            </Box>
+                        </Box>
+                    )}
                 </Box>
             </Tooltip>
         );
     }
 
-    // --- VISUAL NÃO VERIFICADO (Bolinha normal) ---
+    // --- VISUAL NÃO VERIFICADO ---
     return (
         <Tooltip title={isOwner ? "Clique para conectar e verificar" : "Perfil não verificado"}>
             <Box 
@@ -176,6 +237,92 @@ const Sobrespec = () => {
 
     // Identificação do Usuário Logado
     const [currentUser, setCurrentUser] = useState(null);
+
+    const [disconnectDialog, setDisconnectDialog] = useState({ open: false, platform: null });
+    const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+    const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+    // 1. Abre o diálogo (substitui o window.confirm)
+    const handleRequestDisconnect = (platform) => {
+        setDisconnectDialog({ open: true, platform });
+    };
+
+    // 2. Fecha o diálogo
+    const handleCloseDisconnectDialog = () => {
+        setDisconnectDialog({ open: false, platform: null });
+    };
+
+    // 3. Executa a desconexão (chamado pelo botão "Sim" do diálogo)
+    const confirmDisconnect = async () => {
+        const platform = disconnectDialog.platform;
+        if (!platform) return;
+
+        setIsDisconnecting(true);
+        try {
+            const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
+            const token = userInfo?.token;
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+
+            await axios.delete(`http://localhost:5001/api/influencers/${id}/social/${platform}`, config);
+
+            // Atualiza estado local
+            setInfluencer(prev => ({
+                ...prev,
+                socialVerification: { ...prev.socialVerification, [platform]: false },
+                socialHandles: { ...prev.socialHandles, [platform]: "" },
+                social: { ...prev.social, [platform]: "" } // Limpa link se desejar
+            }));
+
+            // Fecha diálogo e mostra sucesso
+            handleCloseDisconnectDialog();
+            setSnackbar({ open: true, message: `Conta do ${platform} desconectada com sucesso!`, severity: "success" });
+
+        } catch (error) {
+            console.error("Erro ao desconectar:", error);
+            setSnackbar({ open: true, message: "Erro ao desconectar conta.", severity: "error" });
+        } finally {
+            setIsDisconnecting(false);
+        }
+    };
+
+
+    const handleDisconnectAccount = async (platform) => {
+        try {
+            const userInfo = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user'));
+            const token = userInfo?.token;
+            const config = { headers: { Authorization: `Bearer ${token}` } };
+
+            // Chama a API para limpar os dados
+            await axios.delete(`http://localhost:5001/api/influencers/${id}/social/${platform}`, config);
+
+            // Atualiza o estado local para remover o ícone azul imediatamente sem recarregar a página
+            setInfluencer(prev => ({
+                ...prev,
+                socialVerification: {
+                    ...prev.socialVerification,
+                    [platform]: false
+                },
+                socialHandles: {
+                    ...prev.socialHandles,
+                    [platform]: ""
+                },
+                social: {
+                    ...prev.social,
+                    [platform]: "" // Limpa o link também (opcional)
+                },
+                // Atualiza o status geral se necessário (lógica simples de frontend)
+                // Para ser perfeito, ideal é usar o objeto retornado do backend:
+                // ...response.data.influencer
+            }));
+            
+            // Recarrega os dados completos do backend para garantir sincronia do isVerified global
+            // const { data } = await axios.get(...) // Se quiser ser 100% preciso, ou use window.location.reload()
+            
+        } catch (error) {
+            console.error("Erro ao desconectar:", error);
+            alert("Erro ao desconectar conta. Tente novamente.");
+        }
+    };
 
     useEffect(() => {
         const queryParams = new URLSearchParams(window.location.search);
@@ -463,44 +610,47 @@ const Sobrespec = () => {
                                     {/* ÍCONES SOCIAIS COM STATUS DE VERIFICAÇÃO */}
 {/* LISTA DE REDES SOCIAIS */}
 <Box display="flex" flexWrap="wrap" gap={1.5} mt={1}>
-    <SocialIconWithStatus 
-        platform="youtube"
-        url={social.youtube}
-        handle={socialHandles?.youtube} // Passa o nome do canal
-        isVerified={socialVerification?.youtube}
-        icon={YouTubeIcon}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-    <SocialIconWithStatus 
-        platform="instagram"
-        url={social.instagram}
-        handle={socialHandles?.instagram} // Passa o @ do insta
-        isVerified={socialVerification?.instagram}
-        icon={InstagramIcon}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-    <SocialIconWithStatus 
-        platform="twitch"
-        url={social.twitch}
-        handle={socialHandles?.twitch} // Passa o nome da twitch
-        isVerified={socialVerification?.twitch}
-        icon={SiTwitch}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-    <SocialIconWithStatus 
-        platform="tiktok"
-        url={social.tiktok}
-        handle={socialHandles?.tiktok}
-        isVerified={socialVerification?.tiktok}
-        icon={MusicNoteIcon}
-        onConnect={handleConnectAccount}
-        isOwner={isOwner}
-    />
-</Box>
-
+                <SocialIconWithStatus 
+                    platform="Youtube"
+                    url={social.youtube}
+                    handle={socialHandles?.youtube}
+                    isVerified={socialVerification?.youtube}
+                    icon={YouTubeIcon}
+                    onConnect={handleConnectAccount}
+                    onRequestDisconnect={handleRequestDisconnect} // Usando a nova função
+                    isOwner={isOwner}
+                />
+                <SocialIconWithStatus 
+                    platform="Instagram"
+                    url={social.instagram}
+                    handle={socialHandles?.instagram}
+                    isVerified={socialVerification?.instagram}
+                    icon={InstagramIcon}
+                    onConnect={handleConnectAccount}
+                    onRequestDisconnect={handleRequestDisconnect}
+                    isOwner={isOwner}
+                />
+                <SocialIconWithStatus 
+                    platform="Twitch"
+                    url={social.twitch}
+                    handle={socialHandles?.twitch}
+                    isVerified={socialVerification?.twitch}
+                    icon={SiTwitch}
+                    onConnect={handleConnectAccount}
+                    onRequestDisconnect={handleRequestDisconnect}
+                    isOwner={isOwner}
+                />
+                <SocialIconWithStatus 
+                    platform="Tiktok"
+                    url={social.tiktok}
+                    handle={socialHandles?.tiktok}
+                    isVerified={socialVerification?.tiktok}
+                    icon={MusicNoteIcon}
+                    onConnect={handleConnectAccount}
+                    onRequestDisconnect={handleRequestDisconnect}
+                    isOwner={isOwner}
+                />
+            </Box>
                                     {/* ALERTA SE NÃO VERIFICADO (VISÍVEL APENAS PARA O DONO) */}
                                     {!isVerified && isOwner && (
                                         <Box mt={2} p={1} bgcolor="rgba(255, 152, 0, 0.15)" borderRadius="10px" border="1px solid rgba(255, 152, 0, 0.3)" maxWidth="400px">
@@ -560,6 +710,75 @@ const Sobrespec = () => {
                 </Box>
                 <Box mb={4}>{renderTabContent()}</Box>
             </Box>
+
+
+            <Dialog 
+                open={disconnectDialog.open} 
+                onClose={handleCloseDisconnectDialog}
+                PaperProps={{ 
+                    sx: { 
+                        backgroundColor: "rgba(255, 255, 255, 0.9)", 
+                        color: "#610069ff", 
+                        backdropFilter: "blur(10px)", 
+                        borderRadius: '20px', 
+                        position: 'relative',
+                        minWidth: '300px'
+                    } 
+                }}
+            >
+                <IconButton onClick={handleCloseDisconnectDialog} sx={{ position: "absolute", top: 8, right: 8, color: "#610069ff" }}>
+                    <CloseIcon />
+                </IconButton>
+                
+                <DialogTitle sx={{ fontWeight: 'bold' }}>Desconectar Conta</DialogTitle>
+                <DialogContent>
+                    <DialogContentText sx={{ color: "#2a2a2aff" }}>
+                        Você tem certeza que deseja desconectar a conta do <strong>{disconnectDialog.platform}</strong>? 
+                        <br/>
+                        Isso removerá o selo de verificação e o link oficial.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions sx={{ pb: 3, px: 3 }}>
+                    <Button 
+                        onClick={handleCloseDisconnectDialog} 
+                        sx={{ color: "#610069ff", fontWeight: "bold" }}
+                    >
+                        Cancelar
+                    </Button>
+                    <Button 
+                        onClick={confirmDisconnect} 
+                        variant="contained" 
+                        disabled={isDisconnecting}
+                        sx={{ 
+                            backgroundColor: "#d50000", 
+                            color: "white", 
+                            fontWeight: "bold",
+                            borderRadius: "10px",
+                            "&:hover": { backgroundColor: "#b71c1c" } 
+                        }}
+                    >
+                        {isDisconnecting ? <CircularProgress size={24} color="inherit" /> : "Sim, Desconectar"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* --- SNACKBAR DE SUCESSO/ERRO (NOVO) --- */}
+            <Snackbar 
+                open={snackbar.open} 
+                autoHideDuration={4000} 
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            >
+                <Alert 
+                    onClose={() => setSnackbar({ ...snackbar, open: false })} 
+                    severity={snackbar.severity} 
+                    sx={{ width: '100%', fontWeight: 'bold', borderRadius: '10px', color: 'white', }}
+                    variant="filled"
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
+
 
             <Dialog open={openHireDialog} onClose={handleCloseHireDialog} sx={{ "& .MuiPaper-root": { backgroundColor: "rgba(225, 225, 225, 0.33)", color: "#FFFFFF", backdropFilter: "blur(10px)", borderRadius: "20px", border: "1px solid rgba(255, 255, 255, 0.2)" } }}>
                 <DialogTitle sx={{ fontWeight: "bold" }}>Contratar Influenciador</DialogTitle>
