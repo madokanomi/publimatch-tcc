@@ -7,7 +7,7 @@ import Header from "../../../components/Header";
 import InfluencerCard from "../../../components/InfluencerCard"; 
 import { Autocomplete } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import { Star, Favorite, Visibility, Groups } from "@mui/icons-material";
+import { Star, Favorite, Visibility, Groups, Verified } from "@mui/icons-material"; // Verified importado
 import { SiTwitch } from "react-icons/si";
 import YouTubeIcon from "@mui/icons-material/YouTube";
 import InstagramIcon from "@mui/icons-material/Instagram";
@@ -16,9 +16,6 @@ import { motion, AnimatePresence } from "framer-motion";
 
 
 const MAX_FOLLOWERS = 80000; 
-
-  // Inicia o estado cobrindo de 0 até o máximo (1B)
-  
 
 // Função auxiliar para formatar números (K, M) e Notas
 const formatNumber = (num) => {
@@ -171,7 +168,8 @@ const Influenciadores = () => {
               tags: inf.tags || [], 
               // Usa exatamente a mesma lógica que o InfluencerCard usa
               avaliacao: inf.avaliacao || 0,
-              aggregatedStats: stats 
+              aggregatedStats: stats,
+              isVerified: inf.isVerified || false // ✅ Carrega o status de verificação
             };
         });
 
@@ -224,9 +222,10 @@ const Influenciadores = () => {
   };
 
   const filtrados = useMemo(() => {
-    return influencers.filter((inf) => {
+    // 1. Filtragem Padrão
+    const listaFiltrada = influencers.filter((inf) => {
       // Usa o stats corrigido
-    const seguidoresReais = inf.aggregatedStats.followers || 0;
+      const seguidoresReais = inf.aggregatedStats.followers || 0;
       const seguidoresEmMil = seguidoresReais / 1000;
       
       const matchPlataforma = plataforma 
@@ -238,7 +237,7 @@ const Influenciadores = () => {
         inf.name.toLowerCase().includes(search.toLowerCase()) &&
         (categoria ? inf.niches.includes(categoria) : true) &&
         matchPlataforma &&
-        seguidoresEmMil >= seguidores[0] && // ✅ Compara com escala de Mil
+        seguidoresEmMil >= seguidores[0] && 
         seguidoresEmMil <= seguidores[1] && 
         inf.avaliacao >= avaliacao &&
         (tagsSelecionadas.length > 0
@@ -246,6 +245,17 @@ const Influenciadores = () => {
           : true)
       );
     });
+
+    // 2. ✅ ORDENAÇÃO: VERIFICADOS NO TOPO, NÃO VERIFICADOS NO "FUNDÃO"
+    return listaFiltrada.sort((a, b) => {
+        // Converte booleano para número (true = 1, false = 0)
+        const verifiedA = a.isVerified ? 1 : 0;
+        const verifiedB = b.isVerified ? 1 : 0;
+        
+        // Ordena decrescente (1 vem antes de 0)
+        return verifiedB - verifiedA;
+    });
+
   }, [influencers, search, categoria, plataforma, seguidores, avaliacao, tagsSelecionadas, ocultos]);
 
   const inf1 = influencersParaComparar[0];
@@ -372,7 +382,10 @@ const Influenciadores = () => {
                   {/* ESQUERDA (Inf 1) */}
                   <Box flex={1} p={4} display="flex" flexDirection="column" alignItems="center" gap={1.5}>
                     <Avatar src={inf1.profileImageUrl} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
-                    <Typography variant="h4" fontWeight="bold" textAlign="center">{inf1.name}</Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="h4" fontWeight="bold" textAlign="center">{inf1.name}</Typography>
+                        {inf1.isVerified && <Verified sx={{ color: "#00d4ff" }} />}
+                    </Box>
                     <Typography variant="body1" color="rgba(255,255,255,0.7)" textAlign="center">{inf1.realName}</Typography>
                     <Box display="flex" gap={1.5} mt={1}>
                       {inf1.redes?.includes("tiktok") && <MusicNoteIcon />}
@@ -392,7 +405,10 @@ const Influenciadores = () => {
                   {/* DIREITA (Inf 2) */}
                   <Box flex={1} p={4} display="flex" flexDirection="column" alignItems="center" gap={1.5}>
                     <Avatar src={inf2.profileImageUrl} sx={{ width: 140, height: 140, border: "4px solid white", mb: 1 }} />
-                    <Typography variant="h4" fontWeight="bold" textAlign="center">{inf2.name}</Typography>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="h4" fontWeight="bold" textAlign="center">{inf2.name}</Typography>
+                        {inf2.isVerified && <Verified sx={{ color: "#00d4ff" }} />}
+                    </Box>
                     <Typography variant="body1" color="rgba(255,255,255,0.7)" textAlign="center">{inf2.realName}</Typography>
                     <Box display="flex" gap={1.5} mt={1}>
                       {inf2.redes?.includes("tiktok") && <MusicNoteIcon />}
