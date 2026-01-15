@@ -2,6 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
 import { Strategy as TwitchStrategy } from 'passport-twitch-new';
+import { Strategy as TikTokStrategy } from 'passport-tiktok-auth';
 import Influencer from '../models/influencerModel.js';
 import dotenv from 'dotenv';
 import axios from 'axios';
@@ -23,50 +24,83 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
         if (!encodedState) return done(new Error("Estado perdido."));
 
         const influencerId = Buffer.from(encodedState, 'base64').toString('ascii');
+        
+        // 1. Buscamos o influenciador (sem precisar de select específico que quebraria se o campo não existisse)
         const influencer = await Influencer.findById(influencerId);
 
         if (!influencer) return done(new Error("Influenciador não encontrado."));
 
-        if (!influencer.socialVerification) influencer.socialVerification = {};
-        if (!influencer.socialHandles) influencer.socialHandles = {};
-        if (!influencer.social) influencer.social = {};
+        // 2. Preparamos o objeto de atualização dinâmico
+        // Isso evita depender da definição do Schema do Mongoose
+        const updates = {};
+        
+        // Helper para definir chaves aninhadas no objeto de atualização
+        const setUpdate = (key, value) => {
+            updates[key] = value;
+        };
 
-        // 1. Marca como verificado
-        influencer.socialVerification[platform] = true;
-        influencer.isVerified = true;
+        // Marca como verificado
+        setUpdate(`socialVerification.${platform}`, true);
+        setUpdate('isVerified', true);
 
-        // 2. Atualiza Dados (Priorizando dados customizados da API se houver)
+        // Salva tokens (Access Token é crucial para buscar estatísticas depois)
+        if (customData.accessToken) {
+            setUpdate(`apiData.${platform}.accessToken`, customData.accessToken);
+        }
+        if (customData.refreshToken) {
+            setUpdate(`apiData.${platform}.refreshToken`, customData.refreshToken);
+        }
+
+        // Lógica específica por plataforma
         if (platform === 'youtube') {
             const channelTitle = customData.title || profile.displayName;
             const channelId = customData.id || profile.id;
-            influencer.socialHandles.youtube = channelTitle;
-            influencer.social.youtube = `https://www.youtube.com/channel/${channelId}`;
             
-            // Salva token se disponível no customData (adaptação futura)
+            setUpdate('socialHandles.youtube', channelTitle);
+            setUpdate('social.youtube', `https://www.youtube.com/channel/${channelId}`);
+            
+            if (customData.id) setUpdate('apiData.youtube.channelId', customData.id);
         } 
         else if (platform === 'twitch') {
-            influencer.socialHandles.twitch = profile.display_name;
-            influencer.social.twitch = `https://www.twitch.tv/${profile.login}`;
+            setUpdate('socialHandles.twitch', profile.display_name);
+            setUpdate('social.twitch', `https://www.twitch.tv/${profile.login}`);
+            
+            if (profile.id) setUpdate('apiData.twitch.userId', profile.id);
         }
         else if (platform === 'instagram') {
-            // Lógica atualizada para Instagram
-            // Se conseguimos pegar o username via Graph API, salvamos.
+            // CENÁRIO A: API retornou sucesso com Username
             if (customData.username) {
-                influencer.socialHandles.instagram = customData.username;
-                influencer.social.instagram = `https://www.instagram.com/${customData.username}`;
-            } else {
-                // Fallback: Usa o nome do Facebook se não achar Insta (menos ideal, mas evita crash)
-                influencer.socialHandles.instagram = profile.displayName || "Verificado via Meta";
-            }
-            
-            // Salva token de acesso se necessário para uso futuro no endpoint de estatísticas
-            if (req.authInfo && req.authInfo.accessToken) {
-               // Se você quiser salvar o token, precisaria passar para aqui. 
-               // Mas por enquanto vamos focar em funcionar o OAuth básico.
+                setUpdate('socialHandles.instagram', customData.username);
+                setUpdate('social.instagram', `https://www.instagram.com/${customData.username}`);
+                
+                if (customData.businessId) setUpdate('apiData.instagram.instagramBusinessAccountId', customData.businessId);
+                if (customData.pageId) setUpdate('apiData.instagram.facebookPageId', customData.pageId);
+            } 
+            // CENÁRIO B: Fallback (lê do objeto em memória se existir, para não sobrescrever incorretamente)
+            else {
+                const currentLink = influencer.social ? influencer.social.instagram : null;
+                if (!currentLink) {
+                    setUpdate('socialHandles.instagram', profile.displayName);
+                }
             }
         }
+        else if (platform === 'tiktok') {
+            const username = profile.username || profile.display_name;
+            setUpdate('socialHandles.tiktok', username);
+            setUpdate('social.tiktok', `https://www.tiktok.com/@${username}`);
+            
+            // TikTok open_id
+            if (profile.id) setUpdate('apiData.tiktok.openId', profile.id);
+        }
 
-        await influencer.save();
+        // 3. Executa a atualização direta no Banco de Dados ignorando a validação estrita do Schema
+        // { strict: false } permite salvar campos (como apiData.tiktok) que não existem no model
+        await Influencer.updateOne(
+            { _id: influencerId },
+            { $set: updates },
+            { strict: false }
+        );
+
         return done(null, influencer);
 
     } catch (error) {
@@ -89,10 +123,11 @@ passport.use(new GoogleStrategy({
             headers: { Authorization: `Bearer ${accessToken}` }
         });
 
-        let channelData = {};
+        let channelData = { accessToken, refreshToken };
         if (youtubeResponse.data.items && youtubeResponse.data.items.length > 0) {
             const item = youtubeResponse.data.items[0];
-            channelData = { id: item.id, title: item.snippet.title };
+            channelData.id = item.id;
+            channelData.title = item.snippet.title;
         }
 
         return verifyAccount(req, profile, 'youtube', done, channelData);
@@ -109,45 +144,44 @@ passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
     callbackURL: "/api/auth/facebook/callback",
-    // Removido 'email' dos profileFields para evitar erro se o escopo não for concedido
     profileFields: ['id', 'displayName'], 
     passReqToCallback: true
   },
   async (req, accessToken, refreshToken, profile, done) => {
     try {
-        // --- BUSCA CONTA INSTAGRAM VINCULADA ---
-        // 1. Busca as páginas do Facebook que o usuário administra
-        // 2. Solicita o campo 'instagram_business_account' para ver se tem vínculo
-        // NOTA: Sem o escopo 'instagram_basic', este campo pode não vir, 
-        // mas tentamos 'pages_show_list' que às vezes permite leitura básica.
         const pagesResponse = await axios.get(`https://graph.facebook.com/v19.0/me/accounts`, {
             params: {
                 access_token: accessToken,
-                fields: 'name,instagram_business_account{id,username,profile_picture_url}'
+                fields: 'name,instagram_business_account{id,username},connected_instagram_account{id,username}',
+                limit: 100
             }
         });
 
-        let instagramData = {};
+        let instagramData = { accessToken };
 
-        // Procura a primeira página que tenha uma conta de Instagram vinculada
-        const linkedPage = pagesResponse.data?.data?.find(page => page.instagram_business_account);
-
+        let linkedPage = pagesResponse.data?.data?.find(page => page.instagram_business_account);
+        
         if (linkedPage && linkedPage.instagram_business_account) {
-            instagramData = {
-                id: linkedPage.instagram_business_account.id,
-                username: linkedPage.instagram_business_account.username
-            };
-            // console.log("Instagram Business encontrado:", instagramData.username);
-        } else {
-            console.warn("Nenhuma conta de Instagram Business vinculada encontrada nas páginas deste usuário ou permissão insuficiente.");
+            instagramData.businessId = linkedPage.instagram_business_account.id;
+            instagramData.username = linkedPage.instagram_business_account.username;
+            instagramData.pageId = linkedPage.id;
+        } 
+        else {
+            linkedPage = pagesResponse.data?.data?.find(page => page.connected_instagram_account);
+            if (linkedPage && linkedPage.connected_instagram_account) {
+                 instagramData.businessId = linkedPage.connected_instagram_account.id;
+                 instagramData.username = linkedPage.connected_instagram_account.username;
+                 instagramData.pageId = linkedPage.id;
+            } else {
+                 console.warn("Nenhuma conta de Instagram vinculada encontrada.");
+            }
         }
 
         return verifyAccount(req, profile, 'instagram', done, instagramData);
 
     } catch (error) {
-        console.error("Erro na Graph API (Instagram):", error.response?.data || error.message);
-        // Não falha o login inteiro, apenas segue sem os dados extras do Insta
-        return verifyAccount(req, profile, 'instagram', done, {});
+        console.error("Erro na Graph API (Instagram):", error.response?.data?.error?.message || error.message);
+        return verifyAccount(req, profile, 'instagram', done, { accessToken });
     }
   }
 ));
@@ -161,8 +195,37 @@ passport.use(new TwitchStrategy({
     passReqToCallback: true
   },
   async (req, accessToken, refreshToken, profile, done) => {
-    return verifyAccount(req, profile, 'twitch', done);
+    return verifyAccount(req, profile, 'twitch', done, { accessToken, refreshToken });
   }
 ));
+
+// 4. TikTok
+if (process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET) {
+    passport.use(new TikTokStrategy({
+        // IMPORTANTE: Passar AMBOS clientKey e clientID
+        // clientKey: usado pela lib passport-tiktok-auth para gerar a URL com ?client_key=... (exigido pela API)
+        // clientID: usado pelo passport-oauth2 para validação interna e evitar o erro "requires a clientID"
+        clientKey: process.env.TIKTOK_CLIENT_KEY, 
+        clientID: process.env.TIKTOK_CLIENT_KEY,
+        clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+        callbackURL: "/api/auth/tiktok/callback",
+        scope: ['user.info.basic'],
+        
+        // Configurações para API V2 (obrigatório para novos apps e Sandbox)
+        authorizationURL: 'https://www.tiktok.com/v2/auth/authorize/',
+        tokenURL: 'https://open.tiktokapis.com/v2/oauth/token/',
+        profileURL: 'https://open.tiktokapis.com/v2/user/info/',
+        
+        state: true,
+        pkce: true, // Obrigatório para V2
+        passReqToCallback: true
+    },
+    async (req, accessToken, refreshToken, profile, done) => {
+        return verifyAccount(req, profile, 'tiktok', done, { accessToken, refreshToken });
+    }
+    ));
+} else {
+    console.warn("⚠️ TikTok Credentials (TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET) not found in .env. TikTok OAuth is disabled.");
+}
 
 export default passport;

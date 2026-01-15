@@ -31,8 +31,8 @@ router.get('/google/callback',
 );
 
 // --- FACEBOOK (META/INSTAGRAM) ---
-// CORREÇÃO: Escopos reduzidos para evitar erro "Invalid Scopes". 
-// 'email' e 'instagram_basic' removidos pois exigem configuração específica no painel da Meta.
+// ADICIONADO: Escopos necessários para ler conta do Instagram Business.
+// NOTA: Você deve habilitar 'instagram_basic' e 'instagram_manage_insights' no App Review da Meta.
 router.get('/facebook', (req, res, next) => {
     const state = getState(req);
     if (!state) return res.status(400).json({ message: "Influencer ID necessário" });
@@ -40,8 +40,10 @@ router.get('/facebook', (req, res, next) => {
     passport.authenticate('facebook', { 
         scope: [
             'public_profile', 
-            'pages_show_list',       // Necessário para listar as páginas do usuário
-            'pages_read_engagement'  // Necessário para ler dados básicos de conexão
+            'pages_show_list',           // Ver páginas
+            'pages_read_engagement',     // Ler metadados da página
+            'instagram_basic',           // Ler perfil do Instagram (username)
+            'instagram_manage_insights'  // Ler métricas (necessário para validação completa)
         ],
         state: state 
     })(req, res, next);
@@ -66,6 +68,21 @@ router.get('/twitch/callback',
     passport.authenticate('twitch', { session: false, failureRedirect: '/login-failed' }),
     (req, res) => {
         res.redirect(`http://localhost:3000/influenciadores/perfil/${req.user._id}?status=success&platform=twitch`);
+    }
+);
+
+// --- TIKTOK ---
+router.get('/tiktok', (req, res, next) => {
+    const state = getState(req);
+    if (!state) return res.status(400).json({ message: "Influencer ID necessário" });
+
+    passport.authenticate('tiktok', { state: state })(req, res, next);
+});
+
+router.get('/tiktok/callback', 
+    passport.authenticate('tiktok', { session: false, failureRedirect: '/login-failed' }),
+    (req, res) => {
+        res.redirect(`http://localhost:3000/influenciadores/perfil/${req.user._id}?status=success&platform=tiktok`);
     }
 );
 
