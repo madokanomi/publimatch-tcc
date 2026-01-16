@@ -23,6 +23,7 @@ import youtubeRoutes from './routes/yotubeRoutes.js';
 import passport from 'passport';
 import './config/passportSocial.js'; // Importa a configuração que criamos
 import authSocialRoutes from './routes/authSocialRoutes.js';
+import videoRoutes from './routes/videoRoutes.js';
 // --- CONFIGURAÇÃO INICIAL ---
 dotenv.config();
 connectDB();
@@ -68,6 +69,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/youtube', youtubeRoutes);
 app.use('/api/auth', authSocialRoutes);
+app.use('/api/video', videoRoutes);
 // --- INICIALIZAÇÃO DO SERVIDOR ---
 const PORT = process.env.PORT || 5001;
 

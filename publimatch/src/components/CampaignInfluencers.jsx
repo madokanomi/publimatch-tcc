@@ -6,7 +6,8 @@ import {
 import { Instagram, YouTube, Twitter, StarRounded, Chat as ChatIcon, Search, PlayArrow, AutoAwesome, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { FaTwitch, FaTiktok } from 'react-icons/fa';
 import axios from "axios";
-
+import { TextField, InputAdornment } from "@mui/material"; // Adicione TextField e InputAdornment
+import { Link as LinkIcon } from "@mui/icons-material";
 import { useAuth } from "../auth/AuthContext";
 import { useConversation } from "../scenes/chat/ConversationContext";
 import ReviewInfluencer from './ReviewInfluencer';
@@ -23,6 +24,8 @@ const SocialIcon = ({ network }) => {
     }
 };
 
+
+
 const formatViews = (num) => {
     if (num === 'Erro') return 'Erro';
     if (!num) return '0';
@@ -38,6 +41,9 @@ const CampaignInfluencers = ({ campaign }) => {
     const [error, setError] = useState("");
     const [reviewingInfluencer, setReviewingInfluencer] = useState(null);
     const [reviewedIds, setReviewedIds] = useState(new Set());
+    const [activeTab, setActiveTab] = useState(null); // Qual rede está selecionada na expansão
+    const [instagramLink, setInstagramLink] = useState(""); // Link inserido manualmente
+    // ---------------------
 
     // --- State for Expansion and Video Data ---
     const [expandedInfluencerId, setExpandedInfluencerId] = useState(null);
@@ -45,6 +51,7 @@ const CampaignInfluencers = ({ campaign }) => {
     const [selectedVideoAnalysis, setSelectedVideoAnalysis] = useState(null); // Stores which video is being "analyzed"
     // ------------------------------------------
 
+    
     const countStorageKey = `yt_counts_${campaign._id}`;
     const viewsStorageKey = `yt_views_${campaign._id}`;
 
@@ -63,6 +70,7 @@ const CampaignInfluencers = ({ campaign }) => {
     const { user } = useAuth();
     const navigate = useNavigate();
     const { setSelectedConversation, setConversations, conversations } = useConversation();
+    const [analyzingLink, setAnalyzingLink] = useState(false);
 
     // --- 1. Fetch Data ---
     useEffect(() => {
@@ -94,6 +102,58 @@ const CampaignInfluencers = ({ campaign }) => {
         fetchData();
     }, [campaign, user]);
 
+    const handleAnalyzeInstagramLink = async (influencerId) => {
+        // 1. Validação básica
+        if (!instagramLink || instagramLink.trim() === "") {
+            alert("Por favor, cole um link válido antes de salvar.");
+            return;
+        }
+
+        setAnalyzingLink(true);
+
+        // Prepara a interface para mostrar que algo está acontecendo
+        setSelectedVideoAnalysis({ 
+            video: { id: 'manual-link', title: 'Link Manual (Instagram/TikTok)', thumb: '' }, 
+            status: 'loading',
+            result: ''
+        });
+
+        try {
+            const config = { headers: { Authorization: `Bearer ${user.token}` } };
+            
+            // 2. Chamada à API que criamos (routes/videoRoutes.js)
+            const { data } = await axios.post(
+                'http://localhost:5001/api/video/analyze-link',
+                { 
+                    link: instagramLink,
+                    influencerId: influencerId 
+                },
+                config
+            );
+
+            // 3. Sucesso: Atualiza a interface com a transcrição
+            setSelectedVideoAnalysis({ 
+                video: { id: 'manual-link', title: 'Link Manual Processado', thumb: '' },
+                status: 'done',
+                result: `Resumo da IA:\n\n"${data.transcript}"`,
+                fullTranscript: data.transcript
+            });
+
+            // Limpa o input
+            setInstagramLink(""); 
+
+        } catch (error) {
+            console.error("Erro ao analisar link:", error);
+            const msg = error.response?.data?.message || "Erro ao processar o link. Verifique se é público.";
+            alert(msg);
+            
+            // Reseta o painel de análise em caso de erro
+            setSelectedVideoAnalysis(null);
+        } finally {
+            setAnalyzingLink(false);
+        }
+    };
+
     // --- 2. Lógica de Chat ---
     const handleStartChat = async (agentId) => {
         const targetUserId = (typeof agentId === 'object' && agentId !== null) ? agentId._id : agentId;
@@ -102,6 +162,7 @@ const CampaignInfluencers = ({ campaign }) => {
             alert("Erro: Influenciador sem agente vinculado.");
             return;
         }
+
 
         try {
             const config = { headers: { Authorization: `Bearer ${user.token}` } };
@@ -192,8 +253,18 @@ const CampaignInfluencers = ({ campaign }) => {
     };
 
     // --- 4. Toggle Expansão (Sem API) ---
+    // --- 4. Toggle Expansão Atualizado ---
     const handleToggleExpand = (id) => {
-        setExpandedInfluencerId(prev => prev === id ? null : id);
+        if (expandedInfluencerId === id) {
+            setExpandedInfluencerId(null);
+            setActiveTab(null);
+        } else {
+            setExpandedInfluencerId(id);
+            // Define a primeira rede da campanha como ativa por padrão
+            if (campaign?.requiredSocials?.length > 0) {
+                setActiveTab(campaign.requiredSocials[0].toLowerCase());
+            }
+        }
     };
 
     // --- 5. Análise de Vídeo (Obter Transcrição ou Processar Áudio com IA) ---
@@ -391,100 +462,194 @@ const CampaignInfluencers = ({ campaign }) => {
                             </Box>
 
                             {/* PAINEL DE VÍDEOS (COLLAPSE) */}
-                            <Collapse in={expandedInfluencerId === influencer._id} timeout="auto" unmountOnExit>
+                           {/* PAINEL DE CONTEÚDO (COLLAPSE) */}
+<Collapse in={expandedInfluencerId === influencer._id} timeout="auto" unmountOnExit>
+    <Box sx={{ 
+        p: 3, 
+        backgroundColor: "rgba(0,0,0,0.3)", 
+        borderTop: "1px solid rgba(255,255,255,0.1)" 
+    }}>
+        
+        {/* 1. BARRA DE SELEÇÃO DE REDE (ABAS) */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 3, borderBottom: '1px solid rgba(255,255,255,0.1)', pb: 1 }}>
+            {campaign.requiredSocials?.map((social) => {
+                const net = social.toLowerCase();
+                const isActive = activeTab === net;
+                
+                return (
+                    <Button
+                        key={net}
+                        onClick={() => setActiveTab(net)}
+                        startIcon={<SocialIcon network={net} />}
+                        sx={{
+                            color: isActive ? 'white' : 'rgba(255,255,255,0.4)',
+                            backgroundColor: isActive ? 'rgba(255, 0, 212, 0.1)' : 'transparent',
+                            borderBottom: isActive ? `2px solid ${primaryPink}` : '2px solid transparent',
+                            borderRadius: '8px 8px 0 0',
+                            textTransform: 'capitalize',
+                            '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)', color: 'white' }
+                        }}
+                    >
+                        {social}
+                    </Button>
+                );
+            })}
+        </Box>
+
+        {/* 2. CONTEÚDO BASEADO NA ABA SELECIONADA */}
+        
+        {/* --- VISÃO INSTAGRAM (Input de Link) --- */}
+        {activeTab === 'instagram' && (
+            <Box sx={{ maxWidth: '600px' }}>
+                <Typography variant="subtitle2" sx={{ color: 'white', mb: 1 }}>
+                    Inserir publicação do Instagram
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mb: 2, display: 'block' }}>
+                    Cole o link do Post, Reel ou Story para registrar na campanha.
+                </Typography>
+
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                        fullWidth
+                        variant="outlined"
+                        placeholder="https://www.instagram.com/p/..."
+                        value={instagramLink}
+                        onChange={(e) => setInstagramLink(e.target.value)}
+                        size="small"
+                        InputProps={{
+                            startAdornment: (
+                                <InputAdornment position="start">
+                                    <LinkIcon sx={{ color: 'rgba(255,255,255,0.5)' }} />
+                                </InputAdornment>
+                            ),
+                            sx: { 
+                                color: 'white', 
+                                backgroundColor: 'rgba(255,255,255,0.05)',
+                                '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
+                                '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
+                                '&.Mui-focused fieldset': { borderColor: primaryPink }
+                            }
+                        }}
+                    />
+              <Button 
+                        variant="contained" 
+                        disabled={analyzingLink} // Desabilita o botão durante o processo
+                        sx={{ 
+                            bgcolor: primaryPink, 
+                            color: 'white',
+                            fontWeight: 'bold',
+                            minWidth: '100px', // Garante tamanho fixo para não "pular" com o spinner
+                            '&:hover': { bgcolor: 'rgb(200, 0, 160)' },
+                            '&.Mui-disabled': { bgcolor: 'rgba(255, 0, 212, 0.3)' }
+                        }}
+                        onClick={() => handleAnalyzeInstagramLink(influencer._id)}
+                    >
+                        {analyzingLink ? (
+                            <CircularProgress size={24} sx={{ color: 'white' }} />
+                        ) : (
+                            "Analisar com IA"
+                        )}
+                    </Button>
+                </Box>
+            </Box>
+        )}
+
+        {/* --- VISÃO YOUTUBE / TIKTOK (Lista de Vídeos da Hashtag) --- */}
+        {(activeTab === 'youtube' || activeTab === 'tiktok') && (
+            <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ color: 'white' }}>
+                            Publicações encontradas via Hashtag
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)' }}>
+                            Clique em um vídeo para análise de IA
+                        </Typography>
+                    </Box>
+                    {/* Botão de Atualizar que já existia */}
+                    <Button 
+                        size="small" 
+                        startIcon={<Search />} 
+                        onClick={() => handleCheckHashtag(influencer)}
+                        disabled={!!checkingId}
+                        sx={{ color: 'rgba(255,255,255,0.7)', borderColor: 'rgba(255,255,255,0.2)', variant: 'outlined' }}
+                    >
+                        Atualizar Lista
+                    </Button>
+                </Box>
+
+                {/* Lista de Vídeos Horizontal */}
+                <Box sx={{ 
+                    display: 'flex', gap: 2, overflowX: 'auto', pb: 1,
+                    "&::-webkit-scrollbar": { height: "6px" },
+                    "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(255, 255, 255, 0.2)", borderRadius: "10px" }
+                }}>
+                    {influencerVideos[influencer._id] && influencerVideos[influencer._id].length > 0 ? (
+                        influencerVideos[influencer._id].map((video) => (
+                            <Box 
+                                key={video.id} 
+                                onClick={() => handleAnalyzeVideo(video)}
+                                sx={{ 
+                                    width: 200, flexShrink: 0, cursor: 'pointer',
+                                    opacity: selectedVideoAnalysis?.video?.id === video.id ? 1 : 0.8,
+                                    transform: selectedVideoAnalysis?.video?.id === video.id ? 'scale(1.02)' : 'scale(1)',
+                                    transition: 'all 0.2s',
+                                    '&:hover': { opacity: 1, transform: 'scale(1.02)' }
+                                }}
+                            >
                                 <Box sx={{ 
-                                    p: 3, 
-                                    backgroundColor: "rgba(0,0,0,0.3)", 
-                                    borderTop: "1px solid rgba(255,255,255,0.1)" 
+                                    width: '100%', height: 112, borderRadius: '12px', overflow: 'hidden', 
+                                    border: selectedVideoAnalysis?.video?.id === video.id ? `2px solid ${primaryPink}` : '1px solid rgba(255,255,255,0.2)',
+                                    position: 'relative'
                                 }}>
-                                    <Typography variant="subtitle2" sx={{ color: 'white', mb: 0.5 }}>
-                                        Publicações da Campanha
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mb: 2, display: 'block' }}>
-                                        Clique em uma delas para fazer a análise do vídeo por IA
-                                    </Typography>
-
-                                    {/* Lista de Vídeos */}
-                                    <Box sx={{ 
-                                        display: 'flex', 
-                                        gap: 2, 
-                                        overflowX: 'auto', 
-                                        pb: 1,
-                                        "&::-webkit-scrollbar": { height: "6px" },
-                                        "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(255, 255, 255, 0.2)", borderRadius: "10px" }
-                                    }}>
-                                        {influencerVideos[influencer._id] && influencerVideos[influencer._id].length > 0 ? (
-                                            influencerVideos[influencer._id].map((video) => (
-                                                <Box 
-                                                    key={video.id} 
-                                                    onClick={() => handleAnalyzeVideo(video)}
-                                                    sx={{ 
-                                                        width: 200, 
-                                                        flexShrink: 0, 
-                                                        cursor: 'pointer',
-                                                        opacity: selectedVideoAnalysis?.video?.id === video.id ? 1 : 0.8,
-                                                        transform: selectedVideoAnalysis?.video?.id === video.id ? 'scale(1.02)' : 'scale(1)',
-                                                        transition: 'all 0.2s',
-                                                        '&:hover': { opacity: 1, transform: 'scale(1.02)' }
-                                                    }}
-                                                >
-                                                    <Box sx={{ 
-                                                        width: '100%', 
-                                                        height: 112, 
-                                                        borderRadius: '12px', 
-                                                        overflow: 'hidden', 
-                                                        border: selectedVideoAnalysis?.video?.id === video.id ? `2px solid ${primaryPink}` : '1px solid rgba(255,255,255,0.2)',
-                                                        position: 'relative'
-                                                    }}>
-                                                        <img 
-                                                            src={video.thumb} 
-                                                            alt={video.title} 
-                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                                        />
-                                                        <Box sx={{ 
-                                                            position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', 
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0,
-                                                            '&:hover': { opacity: 1 }, transition: 'opacity 0.2s'
-                                                        }}>
-                                                            <AutoAwesome sx={{ color: 'white' }} />
-                                                        </Box>
-                                                    </Box>
-                                                    <Typography variant="caption" sx={{ color: 'white', mt: 1, display: 'block', lineHeight: 1.2 }}>
-                                                        {video.title}
-                                                    </Typography>
-                                                </Box>
-                                            ))
-                                        ) : (
-                                            <Typography variant="body2" color="gray">Nenhum vídeo encontrado com a hashtag.</Typography>
-                                        )}
+                                    <img src={video.thumb} alt={video.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, '&:hover': { opacity: 1 }, transition: 'opacity 0.2s' }}>
+                                        <AutoAwesome sx={{ color: 'white' }} />
                                     </Box>
-
-                                    {/* Resultado da Análise */}
-                                    {selectedVideoAnalysis && (
-                                        <Box sx={{ mt: 3, p: 2, borderRadius: '8px', bgcolor: 'rgba(255, 0, 212, 0.1)', border: `1px solid ${primaryPink}` }}>
-                                             {selectedVideoAnalysis.status === 'loading' ? (
-                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                                     <CircularProgress size={20} sx={{ color: primaryPink }} />
-                                                     <Typography variant="body2" color="white">
-                                                         Analisando vídeo... (Se não houver legendas, a IA fará o processamento do áudio, isso pode levar alguns segundos)
-                                                     </Typography>
-                                                 </Box>
-                                             ) : (
-                                                 <Box>
-                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                                         <AutoAwesome sx={{ color: primaryPink, fontSize: 18 }} />
-                                                         <Typography variant="subtitle2" color={primaryPink}>Transcrição da IA (Preview)</Typography>
-                                                     </Box>
-                                                     <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap' }}>
-                                                         {selectedVideoAnalysis.result}
-                                                     </Typography>
-                                                 </Box>
-                                             )}
-                                        </Box>
-                                    )}
-
                                 </Box>
-                            </Collapse>
+                                <Typography variant="caption" sx={{ color: 'white', mt: 1, display: 'block', lineHeight: 1.2 }}>
+                                    {video.title}
+                                </Typography>
+                            </Box>
+                        ))
+                    ) : (
+                        <Typography variant="body2" color="gray">Nenhum vídeo encontrado com a hashtag.</Typography>
+                    )}
+                </Box>
+
+                {/* Resultado da Análise (Mantido igual) */}
+                {selectedVideoAnalysis && (
+                    <Box sx={{ mt: 3, p: 2, borderRadius: '8px', bgcolor: 'rgba(255, 0, 212, 0.1)', border: `1px solid ${primaryPink}` }}>
+                         {selectedVideoAnalysis.status === 'loading' ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  <CircularProgress size={20} sx={{ color: primaryPink }} />
+                                  <Typography variant="body2" color="white">Analisando vídeo...</Typography>
+                              </Box>
+                         ) : (
+                              <Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                      <AutoAwesome sx={{ color: primaryPink, fontSize: 18 }} />
+                                      <Typography variant="subtitle2" color={primaryPink}>Análise da IA</Typography>
+                                  </Box>
+                                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap' }}>
+                                      {selectedVideoAnalysis.result}
+                                  </Typography>
+                              </Box>
+                         )}
+                    </Box>
+                )}
+            </Box>
+        )}
+
+        {/* --- VISÃO OUTRAS REDES (Placeholder) --- */}
+        {activeTab !== 'instagram' && activeTab !== 'youtube' && activeTab !== 'tiktok' && (
+            <Typography sx={{ color: 'gray', fontStyle: 'italic' }}>
+                Funcionalidade para {activeTab} em desenvolvimento.
+            </Typography>
+        )}
+
+    </Box>
+</Collapse>
 
                             {/* ✨ BOTÃO DE CHAT */}
                             <IconButton
