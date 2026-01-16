@@ -1,5 +1,5 @@
 import axios from 'axios';
-import ytdl from 'ytdl-core';
+
 
 /**
  * Extrai o identificador do canal a partir de várias URLs possíveis
@@ -346,21 +346,13 @@ export const checkYoutubeHashtag = async (channelUrl, hashtag) => {
 /**
  * Função Auxiliar para converter stream do ytdl para Buffer
  */
-const streamToBuffer = (stream) => {
-    return new Promise((resolve, reject) => {
-        const chunks = [];
-        stream.on('data', (chunk) => chunks.push(chunk));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-        stream.on('error', (err) => reject(err));
-    });
-};
+
 
 /**
  * ✨ SCRAPING + AI AUDIO TRANSCRIPTION
  * Tenta extrair legendas via HTML. Se falhar, baixa o áudio e usa o Gemini para transcrever.
  */
 export const getVideoTranscript = async (videoId) => {
-    // 1. TENTATIVA RÁPIDA: Scraping de Legendas (Gratuito e Rápido)
     try {
         // Baixar o HTML da página do vídeo
         const { data: videoHtml } = await axios.get(`https://www.youtube.com/watch?v=${videoId}`);
@@ -396,60 +388,7 @@ export const getVideoTranscript = async (videoId) => {
 
         return cleanText;
 
-    } catch (scrapingError) {
-        console.log(`[YouTube] Scraping falhou (${scrapingError.message}). Tentando download de áudio + Gemini...`);
-        
-        // 2. TENTATIVA ROBUSTA: Download de Áudio + Gemini 2.5 (Custa tokens, mais lento)
-        try {
-            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-            
-            // Configuração para baixar a menor qualidade de áudio possível (rápido e leve para upload)
-            const audioStream = ytdl(videoUrl, { 
-                quality: 'lowestaudio', 
-                filter: 'audioonly' 
-            });
-
-            // Converter Stream -> Buffer -> Base64
-            const audioBuffer = await streamToBuffer(audioStream);
-            const base64Audio = audioBuffer.toString('base64');
-
-            // Chamar Gemini API via REST para evitar erro de dependência '@google/genai'
-            const geminiApiKey = process.env.API_KEY;
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
-            
-            const payload = {
-                contents: [{
-                    parts: [
-                        { 
-                            inlineData: { 
-                                mimeType: 'audio/mp3', 
-                                data: base64Audio 
-                            } 
-                        },
-                        { 
-                            text: "Transcreva o áudio deste vídeo em português. Se houver falas, transcreva o texto. Se for apenas música, descreva o estilo." 
-                        }
-                    ]
-                }]
-            };
-
-            const { data } = await axios.post(geminiUrl, payload);
-            
-            // Extrair o texto da resposta da API REST
-            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!text) throw new Error("Resposta da IA vazia ou inválida.");
-
-            return text;
-
-        } catch (aiError) {
-            console.error('[YouTube] Erro fatal na transcrição (Scraping e IA falharam):', aiError.message);
-            if (aiError.response) {
-                console.error('[Gemini API Error]', aiError.response.data);
-            }
-            return null;
-        }
-    }
+    } catch (scrapingError) {}
 };
 
 
