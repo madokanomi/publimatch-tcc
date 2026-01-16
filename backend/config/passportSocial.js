@@ -9,7 +9,6 @@ import axios from 'axios';
 
 dotenv.config();
 
-// Serialização (necessária para sessões do passport)
 passport.serializeUser((user, done) => {
     done(null, user);
 });
@@ -25,25 +24,19 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
 
         const influencerId = Buffer.from(encodedState, 'base64').toString('ascii');
         
-        // 1. Buscamos o influenciador (sem precisar de select específico que quebraria se o campo não existisse)
         const influencer = await Influencer.findById(influencerId);
 
         if (!influencer) return done(new Error("Influenciador não encontrado."));
 
-        // 2. Preparamos o objeto de atualização dinâmico
-        // Isso evita depender da definição do Schema do Mongoose
         const updates = {};
         
-        // Helper para definir chaves aninhadas no objeto de atualização
         const setUpdate = (key, value) => {
             updates[key] = value;
         };
 
-        // Marca como verificado
         setUpdate(`socialVerification.${platform}`, true);
         setUpdate('isVerified', true);
 
-        // Salva tokens (Access Token é crucial para buscar estatísticas depois)
         if (customData.accessToken) {
             setUpdate(`apiData.${platform}.accessToken`, customData.accessToken);
         }
@@ -51,7 +44,6 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
             setUpdate(`apiData.${platform}.refreshToken`, customData.refreshToken);
         }
 
-        // Lógica específica por plataforma
         if (platform === 'youtube') {
             const channelTitle = customData.title || profile.displayName;
             const channelId = customData.id || profile.id;
@@ -68,7 +60,6 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
             if (profile.id) setUpdate('apiData.twitch.userId', profile.id);
         }
         else if (platform === 'instagram') {
-            // CENÁRIO A: API retornou sucesso com Username
             if (customData.username) {
                 setUpdate('socialHandles.instagram', customData.username);
                 setUpdate('social.instagram', `https://www.instagram.com/${customData.username}`);
@@ -76,7 +67,6 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
                 if (customData.businessId) setUpdate('apiData.instagram.instagramBusinessAccountId', customData.businessId);
                 if (customData.pageId) setUpdate('apiData.instagram.facebookPageId', customData.pageId);
             } 
-            // CENÁRIO B: Fallback (lê do objeto em memória se existir, para não sobrescrever incorretamente)
             else {
                 const currentLink = influencer.social ? influencer.social.instagram : null;
                 if (!currentLink) {
@@ -89,12 +79,9 @@ const verifyAccount = async (req, profile, platform, done, customData = {}) => {
             setUpdate('socialHandles.tiktok', username);
             setUpdate('social.tiktok', `https://www.tiktok.com/@${username}`);
             
-            // TikTok open_id
             if (profile.id) setUpdate('apiData.tiktok.openId', profile.id);
         }
 
-        // 3. Executa a atualização direta no Banco de Dados ignorando a validação estrita do Schema
-        // { strict: false } permite salvar campos (como apiData.tiktok) que não existem no model
         await Influencer.updateOne(
             { _id: influencerId },
             { $set: updates },
@@ -172,8 +159,6 @@ passport.use(new FacebookStrategy({
                  instagramData.businessId = linkedPage.connected_instagram_account.id;
                  instagramData.username = linkedPage.connected_instagram_account.username;
                  instagramData.pageId = linkedPage.id;
-            } else {
-                 console.warn("Nenhuma conta de Instagram vinculada encontrada.");
             }
         }
 
@@ -190,7 +175,7 @@ passport.use(new FacebookStrategy({
 passport.use(new TwitchStrategy({
     clientID: process.env.TWITCH_CLIENT_ID,
     clientSecret: process.env.TWITCH_CLIENT_SECRET,
-    callbackURL: "/api/auth/twitch/callback",
+    callbackURL: "http://localhost:5001/api/auth/twitch/callback",
     scope: "user_read",
     passReqToCallback: true
   },
@@ -202,22 +187,16 @@ passport.use(new TwitchStrategy({
 // 4. TikTok
 if (process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET) {
     passport.use(new TikTokStrategy({
-        // IMPORTANTE: Passar AMBOS clientKey e clientID
-        // clientKey: usado pela lib passport-tiktok-auth para gerar a URL com ?client_key=... (exigido pela API)
-        // clientID: usado pelo passport-oauth2 para validação interna e evitar o erro "requires a clientID"
         clientKey: process.env.TIKTOK_CLIENT_KEY, 
         clientID: process.env.TIKTOK_CLIENT_KEY,
         clientSecret: process.env.TIKTOK_CLIENT_SECRET,
         callbackURL: "/api/auth/tiktok/callback",
         scope: ['user.info.basic'],
-        
-        // Configurações para API V2 (obrigatório para novos apps e Sandbox)
         authorizationURL: 'https://www.tiktok.com/v2/auth/authorize/',
         tokenURL: 'https://open.tiktokapis.com/v2/oauth/token/',
         profileURL: 'https://open.tiktokapis.com/v2/user/info/',
-        
         state: true,
-        pkce: true, // Obrigatório para V2
+        pkce: true,
         passReqToCallback: true
     },
     async (req, accessToken, refreshToken, profile, done) => {

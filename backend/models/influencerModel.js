@@ -1,19 +1,16 @@
 import mongoose from "mongoose";
 
 const influencerSchema = new mongoose.Schema({
-    // --- CAMPOS ORIGINAIS ---
     name: { type: String, required: true },
     niches: [{ type: String }],
     agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     userAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
 
-    // --- CAMPOS ADICIONADOS PARA COMPATIBILIDADE ---
     realName: { type: String, required: true },
     age: { type: Number },
     description: { type: String },
     aboutMe: { type: String },
     
-    // --- ESTRUTURA SOCIAL CORRIGIDA PARA ACEITAR UM OBJETO ---
     social: {
         tiktok: { type: String, default: '' },
         instagram: { type: String, default: '' },
@@ -24,7 +21,6 @@ const influencerSchema = new mongoose.Schema({
     profileImageUrl: { type: String, default: '' },
     backgroundImageUrl: { type: String, default: '' },
     
-    // Campos que você pode usar no futuro
     followersCount: { type: Number, default: 0 },
     engagementRate: { type: Number, default: 0 },
     contactEmail: { type: String },
@@ -54,10 +50,17 @@ const influencerSchema = new mongoose.Schema({
             facebookPageId: { type: String }, 
             instagramBusinessAccountId: { type: String },
             lastFetched: { type: Date }
+        },
+        twitch: {
+            accessToken: { type: String, select: false },
+            refreshToken: { type: String, select: false },
+            userId: { type: String }
+        },
+        tiktok: {
+            openId: { type: String }
         }
     },
 
-    // --- ESTATÍSTICAS CACHEADAS (Instagram Real) ---
     instagramStats: {
         followers: { type: Number, default: 0 },
         mediaCount: { type: Number, default: 0 },
@@ -68,15 +71,17 @@ const influencerSchema = new mongoose.Schema({
         avgLikes: { type: Number, default: 0 },
         avgComments: { type: Number, default: 0 },
         
-        // Arrays para gráficos
         audienceGender: [{ name: String, value: Number }], 
         audienceAge: [{ name: String, value: Number }],    
         audienceCountry: [{ name: String, value: Number }],
         
         qualityScore: { type: Number, default: 95 }
     },
+
+    youtubeStats: { type: Object, default: {} },
+    twitchStats: { type: Object, default: {} },
+    tiktokStats: { type: Object, default: {} },
     
-    // Campo para saber se o perfil geral é verificado
     isVerified: { type: Boolean, default: false },
 
 }, { timestamps: true });
