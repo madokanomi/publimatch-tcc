@@ -9,18 +9,15 @@ export const analyzeLink = asyncHandler(async (req, res) => {
 
     if (!link) {
         res.status(400);
-        throw new Error('O link do vídeo é obrigatório.');
+        throw new Error('Link obrigatório.');
     }
 
-    // Aqui chamamos o serviço pesado
-    const transcript = await processarVideoUniversal(link);
-
-    // Opcional: Aqui você pode salvar essa transcrição no banco se quiser
-    // const influencer = await Influencer.findById(influencerId);
-    // ... lógica de salvar ...
+    // Agora 'resultado' é um objeto { transcript, analysis }
+    const resultado = await processarVideoUniversal(link);
 
     res.status(200).json({
         success: true,
-        transcript: transcript
+        transcript: resultado.transcript, // Texto puro
+        analysis: resultado.analysis      // Relatório da IA
     });
 });

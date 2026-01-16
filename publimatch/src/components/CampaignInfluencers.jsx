@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-    Box, Typography, Avatar, LinearProgress, CircularProgress, Tooltip, IconButton, Collapse, Card, CardMedia, CardContent, Button
+    Box, Typography, Avatar, LinearProgress, CircularProgress, Tooltip, IconButton, Collapse, Card, CardMedia, CardContent, Button, Accordion, AccordionSummary, AccordionDetails
 } from "@mui/material";
 import { Instagram, YouTube, Twitter, StarRounded, Chat as ChatIcon, Search, PlayArrow, AutoAwesome, ExpandMore, ExpandLess } from "@mui/icons-material";
 import { FaTwitch, FaTiktok } from 'react-icons/fa';
@@ -43,6 +43,9 @@ const CampaignInfluencers = ({ campaign }) => {
     const [reviewedIds, setReviewedIds] = useState(new Set());
     const [activeTab, setActiveTab] = useState(null); // Qual rede está selecionada na expansão
     const [instagramLink, setInstagramLink] = useState(""); // Link inserido manualmente
+    const [youtubeLink, setYoutubeLink] = useState(""); // Novo State
+    const [tiktokLink, setTiktokLink] = useState(""); // Novo State para TikTok
+
     // ---------------------
 
     // --- State for Expansion and Video Data ---
@@ -102,57 +105,48 @@ const CampaignInfluencers = ({ campaign }) => {
         fetchData();
     }, [campaign, user]);
 
-    const handleAnalyzeInstagramLink = async (influencerId) => {
-        // 1. Validação básica
-        if (!instagramLink || instagramLink.trim() === "") {
-            alert("Por favor, cole um link válido antes de salvar.");
-            return;
-        }
+    const handleAnalyzeAnyLink = async (influencerId, urlToAnalyze) => {
+    // Validação
+    if (!urlToAnalyze || urlToAnalyze.trim() === "") {
+        alert("Cole um link válido primeiro.");
+        return;
+    }
 
-        setAnalyzingLink(true);
+    setAnalyzingLink(true);
+    setSelectedVideoAnalysis({ 
+        video: { id: 'manual-link', title: 'Link Manual', thumb: '' }, 
+        status: 'loading', 
+        result: '' 
+    });
 
-        // Prepara a interface para mostrar que algo está acontecendo
-        setSelectedVideoAnalysis({ 
-            video: { id: 'manual-link', title: 'Link Manual (Instagram/TikTok)', thumb: '' }, 
-            status: 'loading',
-            result: ''
-        });
+    try {
+        const config = { headers: { Authorization: `Bearer ${user.token}` } };
 
-        try {
-            const config = { headers: { Authorization: `Bearer ${user.token}` } };
-            
-            // 2. Chamada à API que criamos (routes/videoRoutes.js)
-            const { data } = await axios.post(
+ const { data } = await axios.post(
                 'http://localhost:5001/api/video/analyze-link',
-                { 
-                    link: instagramLink,
-                    influencerId: influencerId 
-                },
+                { link: urlToAnalyze, influencerId: influencerId },
                 config
             );
 
-            // 3. Sucesso: Atualiza a interface com a transcrição
             setSelectedVideoAnalysis({ 
-                video: { id: 'manual-link', title: 'Link Manual Processado', thumb: '' },
+                video: { id: 'manual-link', title: 'Link Processado', thumb: '' },
                 status: 'done',
-                result: `Resumo da IA:\n\n"${data.transcript}"`,
+                result: data.analysis, // <--- AGORA É UM OBJETO JSON, NÃO STRING
                 fullTranscript: data.transcript
             });
 
-            // Limpa o input
-            setInstagramLink(""); 
+        // Limpa os inputs
+        setInstagramLink("");
+        setYoutubeLink("");
 
-        } catch (error) {
-            console.error("Erro ao analisar link:", error);
-            const msg = error.response?.data?.message || "Erro ao processar o link. Verifique se é público.";
-            alert(msg);
-            
-            // Reseta o painel de análise em caso de erro
-            setSelectedVideoAnalysis(null);
-        } finally {
-            setAnalyzingLink(false);
-        }
-    };
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao analisar link.");
+        setSelectedVideoAnalysis(null);
+    } finally {
+        setAnalyzingLink(false);
+    }
+};
 
     // --- 2. Lógica de Chat ---
     const handleStartChat = async (agentId) => {
@@ -542,7 +536,7 @@ const CampaignInfluencers = ({ campaign }) => {
                             '&:hover': { bgcolor: 'rgb(200, 0, 160)' },
                             '&.Mui-disabled': { bgcolor: 'rgba(255, 0, 212, 0.3)' }
                         }}
-                        onClick={() => handleAnalyzeInstagramLink(influencer._id)}
+                     onClick={() => handleAnalyzeAnyLink(influencer._id, instagramLink)}
                     >
                         {analyzingLink ? (
                             <CircularProgress size={24} sx={{ color: 'white' }} />
@@ -554,9 +548,73 @@ const CampaignInfluencers = ({ campaign }) => {
             </Box>
         )}
 
-        {/* --- VISÃO YOUTUBE / TIKTOK (Lista de Vídeos da Hashtag) --- */}
+   {/* --- VISÃO YOUTUBE / TIKTOK --- */}
         {(activeTab === 'youtube' || activeTab === 'tiktok') && (
             <Box>
+                {/* 1. INPUT DE LINK MANUAL (Dinâmico: Mostra YT ou TikTok dependendo da aba) */}
+                <Box sx={{ mb: 4, p: 2, bgcolor: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    <Typography variant="subtitle2" sx={{ color: 'white', mb: 1 }}>
+                        {activeTab === 'youtube' 
+                            ? "Analisar vídeo específico do YouTube" 
+                            : "Analisar vídeo específico do TikTok"}
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                        <TextField
+                            fullWidth
+                            variant="outlined"
+                            // Placeholder muda dinamicamente
+                            placeholder={activeTab === 'youtube' 
+                                ? "https://www.youtube.com/watch?v=..." 
+                                : "https://www.tiktok.com/@usuario/video/..."}
+                            // Valor e Change mudam dinamicamente
+                            value={activeTab === 'youtube' ? youtubeLink : tiktokLink}
+                            onChange={(e) => {
+                                if (activeTab === 'youtube') setYoutubeLink(e.target.value);
+                                else setTiktokLink(e.target.value);
+                            }}
+                            size="small"
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        {/* Ícone muda dinamicamente */}
+                                        {activeTab === 'youtube' 
+                                            ? <YouTube sx={{ color: 'rgba(255,255,255,0.5)' }} />
+                                            : <FaTiktok style={{ color: 'rgba(255,255,255,0.5)', fontSize: '20px' }} />
+                                        }
+                                    </InputAdornment>
+                                ),
+                                sx: { 
+                                    color: 'white', 
+                                    backgroundColor: 'rgba(255,255,255,0.05)',
+                                    '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' }
+                                }
+                            }}
+                        />
+                        <Button 
+                            variant="contained" 
+                            disabled={analyzingLink}
+                            sx={{ 
+                                // Cor do botão muda (Vermelho pro YT, Preto/Cinza pro TikTok)
+                                bgcolor: activeTab === 'youtube' ? 'red' : '#FE2C55', // #FE2C55 é a cor rosa do TikTok
+                                color: 'white', 
+                                fontWeight: 'bold', 
+                                minWidth: '120px',
+                                '&:hover': { bgcolor: activeTab === 'youtube' ? '#cc0000' : '#e6254c' }
+                            }}
+                            // Envia o link correto
+                            onClick={() => handleAnalyzeAnyLink(
+                                influencer._id, 
+                                activeTab === 'youtube' ? youtubeLink : tiktokLink
+                            )}
+                        >
+                            {analyzingLink ? <CircularProgress size={24} color="inherit" /> : "Analisar"}
+                        </Button>
+                    </Box>
+                </Box>
+
+                {/* ... (Abaixo continua a sua lista de vídeos da Hashtag igual antes) ... */}
+{/* ... Aqui continua o resto do código que já existia (Lista de vídeos da Hashtag) ... */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                     <Box>
                         <Typography variant="subtitle2" sx={{ color: 'white' }}>
@@ -618,23 +676,72 @@ const CampaignInfluencers = ({ campaign }) => {
                 </Box>
 
                 {/* Resultado da Análise (Mantido igual) */}
+               {/* --- BLOCO DE RESULTADO DA ANÁLISE --- */}
                 {selectedVideoAnalysis && (
-                    <Box sx={{ mt: 3, p: 2, borderRadius: '8px', bgcolor: 'rgba(255, 0, 212, 0.1)', border: `1px solid ${primaryPink}` }}>
+                    <Box sx={{ mt: 3, p: 2, borderRadius: '8px', bgcolor: 'rgba(255, 0, 212, 0.05)', border: `1px solid ${primaryPink}` }}>
                          {selectedVideoAnalysis.status === 'loading' ? (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                  <CircularProgress size={20} sx={{ color: primaryPink }} />
-                                  <Typography variant="body2" color="white">Analisando vídeo...</Typography>
-                              </Box>
+                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
+                                 <CircularProgress size={20} sx={{ color: primaryPink }} />
+                                 <Typography variant="body2" color="white">A Inteligência Artificial está assistindo ao vídeo...</Typography>
+                             </Box>
                          ) : (
-                              <Box>
-                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                      <AutoAwesome sx={{ color: primaryPink, fontSize: 18 }} />
-                                      <Typography variant="subtitle2" color={primaryPink}>Análise da IA</Typography>
-                                  </Box>
-                                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap' }}>
-                                      {selectedVideoAnalysis.result}
-                                  </Typography>
-                              </Box>
+                             <Box>
+                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                     <AutoAwesome sx={{ color: primaryPink, fontSize: 22 }} />
+                                     <Typography variant="h6" color="white" fontWeight="bold">
+                                         Análise Estratégica
+                                     </Typography>
+                                 </Box>
+
+                                 {/* Helper function para renderizar Accordion estilizado */}
+                                 {[
+                                     { key: 'resumo', icon: '📌', title: 'Resumo do Conteúdo' },
+                                     { key: 'tom', icon: '🗣️', title: 'Tom de Voz & Personalidade' },
+                                     { key: 'brand_safety', icon: '🛡️', title: 'Brand Safety (Segurança)' },
+                                     { key: 'publico', icon: '👥', title: 'Público-Alvo' },
+                                     { key: 'match', icon: '🎯', title: 'Match de Indústrias' },
+                                     { key: 'veredito', icon: '⚖️', title: 'Veredito Final' }
+                                 ].map((item) => (
+                                     <Accordion 
+                                         key={item.key}
+                                         sx={{ 
+                                             bgcolor: 'rgba(0,0,0,0.4)', 
+                                             color: 'white', 
+                                             mb: 1, 
+                                             border: '1px solid rgba(255,255,255,0.1)',
+                                             '&:before': { display: 'none' }, // Remove linha padrão do MUI
+                                             boxShadow: 'none'
+                                         }}
+                                     >
+                                         <AccordionSummary expandIcon={<ExpandMore sx={{ color: 'rgba(255,255,255,0.5)' }} />}>
+                                             <Typography fontWeight="bold" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                 <span>{item.icon}</span> {item.title}
+                                             </Typography>
+                                         </AccordionSummary>
+                                         <AccordionDetails sx={{ borderTop: '1px solid rgba(255,255,255,0.05)', bgcolor: 'rgba(0,0,0,0.2)' }}>
+                                             <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.8)', whiteSpace: 'pre-wrap' }}>
+                                                 {/* Verifica se result é objeto (JSON novo) ou string (legado) */}
+                                                 {typeof selectedVideoAnalysis.result === 'object' 
+                                                     ? selectedVideoAnalysis.result[item.key] || "Não disponível"
+                                                     : "Formato antigo. Refaça a análise."}
+                                             </Typography>
+                                         </AccordionDetails>
+                                     </Accordion>
+                                 ))}
+
+                                 {/* Accordion Extra para Transcrição */}
+                                 <Accordion sx={{ bgcolor: 'transparent', color: 'white', mt: 2, boxShadow: 'none', border: '1px dashed rgba(255,255,255,0.2)' }}>
+                                     <AccordionSummary expandIcon={<ExpandMore sx={{ color: 'white' }} />}>
+                                         <Typography variant="caption" sx={{ opacity: 0.7 }}>Ver Transcrição Completa</Typography>
+                                     </AccordionSummary>
+                                     <AccordionDetails>
+                                         <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>
+                                             {selectedVideoAnalysis.fullTranscript}
+                                         </Typography>
+                                     </AccordionDetails>
+                                 </Accordion>
+
+                             </Box>
                          )}
                     </Box>
                 )}
